@@ -108,6 +108,13 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [x] More agents over ACP — package `acp` (OpenCode `opencode acp`, Gemini `gemini --acp`, Cursor `cursor-agent|agent acp`), one shared process per agent; package `rpc` now shared with Codex. Verified on OpenCode 1.18: initialize, `session/new` (model/mode config options), `session/list`, `session/load` replaying history, plan mode. Not verified: a model turn (key expired here), permission asks, Gemini, Cursor. Luther enforces edits/full by auto-approving; plan switches the agent's own plan mode
 - [x] Instant lists — `useLoad(…, cache)` keeps each list's last answer per Mac on disk (`expo-file-system`); home, project, usage, send
 
+### Phase 9c: Later items (APNs, iPad and Android deferred; MCP and skills editing deferred)
+- [x] End-to-end encryption — packages `seal` (X25519 + HKDF-SHA256 + AES-256-GCM, stdlib) and `e2e` (POST /e sealed request → re-dispatched with an internal token; /e/ws sealed frames bridged to the local socket); pairing v2 seals the code to the key in the QR. Boxes bound by aad (req, res:<n>, ws>:<n>:<seq>, ws<:…); 2-minute window + seen-id replay refusal. Keyed phones' plain requests via Cloudflare (Cf-Ray) are refused. App `lib/e2e.ts` on @noble; one test vector pins both sides. Not covered: the dev-server preview (a browser can't seal), and no forward secrecy (static keys)
+- [x] Remote hosts over SSH — package `remote`: `ssh -L` forwards kept up with backoff, relay at `/r/<name>/…`; `luther remote add|pair|list|remove`; Linux `luther service install` (systemd user unit). Relay tested with a stand-in; the ssh leg isn't (Remote Login is off on the dev Mac)
+- [x] Scheduled runs — package `schedule` (cron parser with tests, minute ticker, run now, last result); app Schedules list + editor with presets
+- [x] Project instruction files — `PUT /files` with a base hash (409 on a concurrent change, symlink-escape safe, tested); app Instructions screen and an editor for any text file. User-level files under ~/.claude and ~/.codex stay read-only
+- [x] One-line install — `install.sh` (release download with checksum, or source build), `Formula/luther.rb` (tap from this repo), `scripts/build-release.sh` + `.github/workflows/release.yml` on `v*` tags. Not run yet: a real release, a brew install
+
 ### Phase 10: End-to-end tests
 - [ ] Pair over tailnet and over Cloudflare
 - [ ] Claude thread: chat, approval, question, plan, Stop, model/mode switch
@@ -119,4 +126,4 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [ ] Mac reboot: service comes back; phone reconnects
 
 ### Phase 11: Publish (later)
-- [ ] README, license choice, install script, TestFlight (push on iOS needs a paid Apple account)
+- [ ] License choice, first tagged release, TestFlight (push on iOS needs a paid Apple account)

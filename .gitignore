@@ -2,3 +2,6 @@
 /server/luther
 *.log
 .env
+
+# release builds
+dist/
