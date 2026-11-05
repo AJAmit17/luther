@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/AJAmit17/luther/server/internal/acp"
 	"github.com/AJAmit17/luther/server/internal/claude"
 	"github.com/AJAmit17/luther/server/internal/codex"
 	"github.com/AJAmit17/luther/server/internal/config"
@@ -131,7 +132,7 @@ func home(cwd string) (project, branch string) {
 // first; live / busy / your metadata filled in.
 func all(cwd string) []protocol.Session {
 	var ss []protocol.Session
-	for _, s := range append(claude.Sessions(), codex.Sessions("")...) {
+	for _, s := range append(append(claude.Sessions(), codex.Sessions("")...), acp.Sessions()...) {
 		p, branch := home(s.Cwd)
 		if cwd == "" || p == cwd {
 			s.Worktree = branch

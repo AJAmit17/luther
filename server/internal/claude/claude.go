@@ -55,7 +55,8 @@ type runtime struct {
 	inMu sync.Mutex
 	in   io.WriteCloser
 
-	compacted bool // next user text is the compaction summary (hub lock)
+	compacted bool              // next user text is the compaction summary (hub lock)
+	agents    map[string]string // subagent call id → its description (hub lock)
 }
 
 type promptData struct {
@@ -142,7 +143,8 @@ type streamRec struct {
 	Response        struct {
 		RequestID string `json:"request_id"`
 	} `json:"response"`
-	TotalCostUSD float64 `json:"total_cost_usd"`
+	RateLimit    json.RawMessage `json:"rate_limit_info"`
+	TotalCostUSD float64         `json:"total_cost_usd"`
 	Usage        struct {
 		InputTokens  int64 `json:"input_tokens"`
 		OutputTokens int64 `json:"output_tokens"`
@@ -199,7 +201,7 @@ func (c *runtime) handle(line []byte) {
 
 		case "stream_event":
 			if sub {
-				st.Activity = "Agent working…"
+				st.Activity = c.agentLabel(*r.ParentToolUseID) + " working…"
 				return
 			}
 			var ev struct {
@@ -221,10 +223,26 @@ func (c *runtime) handle(line []byte) {
 			}
 
 		case "assistant":
-			if sub || r.hidden() {
+			if sub { // a subagent's step: shown under its call
+				for _, m := range recMsgs(r.chatRec) {
+					m.Parent = *r.ParentToolUseID
+					t.Add(m)
+					if m.Role == "tool" {
+						st.Activity = c.agentLabel(m.Parent) + ": " + text.Clip(strings.TrimSpace(m.Tool+" "+m.Text), 60)
+					}
+				}
+				return
+			}
+			if r.hidden() {
 				return
 			}
 			for _, m := range recMsgs(r.chatRec) {
+				if isAgentTool(m.Tool) {
+					if c.agents == nil {
+						c.agents = map[string]string{}
+					}
+					c.agents[m.ID] = m.Text
+				}
 				t.Add(m)
 			}
 			if tasks, ok := todos(r.chatRec); ok {
@@ -246,6 +264,9 @@ func (c *runtime) handle(line []byte) {
 				}
 				t.Add(m)
 			}
+
+		case "rate_limit_event":
+			saveLimits(r.RateLimit)
 
 		case "control_request":
 			c.onRequest(r.RequestID, r.Request)
@@ -458,4 +479,11 @@ func (c *runtime) Stop() {
 			c.cmd.Process.Kill()
 		}
 	}()
+}
+
+func (c *runtime) agentLabel(id string) string {
+	if d := c.agents[id]; d != "" {
+		return "Subagent (" + text.Clip(d, 30) + ")"
+	}
+	return "Subagent"
 }

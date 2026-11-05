@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/AJAmit17/luther/server/internal/acp"
 	"github.com/AJAmit17/luther/server/internal/auth"
 	"github.com/AJAmit17/luther/server/internal/claude"
 	"github.com/AJAmit17/luther/server/internal/codex"
@@ -23,11 +24,13 @@ import (
 	"github.com/AJAmit17/luther/server/internal/httpx"
 	"github.com/AJAmit17/luther/server/internal/hub"
 	"github.com/AJAmit17/luther/server/internal/paths"
+	"github.com/AJAmit17/luther/server/internal/preview"
 	"github.com/AJAmit17/luther/server/internal/protocol"
 	"github.com/AJAmit17/luther/server/internal/sessions"
 	"github.com/AJAmit17/luther/server/internal/terminal"
 	"github.com/AJAmit17/luther/server/internal/text"
 	"github.com/AJAmit17/luther/server/internal/uploads"
+	"github.com/AJAmit17/luther/server/internal/usage"
 	"github.com/AJAmit17/luther/server/internal/workspace"
 )
 
@@ -53,6 +56,8 @@ func Handler(cfg *config.Config) http.Handler {
 	mux.HandleFunc("GET /models", wrap(models))
 	mux.HandleFunc("GET /commands", wrap(commands))
 	mux.HandleFunc("GET /dirs", wrap(dirs))
+	mux.HandleFunc("GET /usage", wrap(limits))
+	preview.Routes(mux, wrap, cfg.Port) // last: it owns "/"
 	return mux
 }
 
@@ -107,8 +112,12 @@ func openThread(w http.ResponseWriter, r *http.Request) {
 	case protocol.Codex:
 		t, err = codex.Open(req)
 	default:
-		http.Error(w, "unknown provider", http.StatusBadRequest)
-		return
+		a, ok := acp.Find(req.Provider)
+		if !ok {
+			http.Error(w, "unknown provider", http.StatusBadRequest)
+			return
+		}
+		t, err = acp.Open(a, req)
 	}
 	switch {
 	case errors.Is(err, claude.ErrHeld):
@@ -144,10 +153,15 @@ func providers(w http.ResponseWriter, r *http.Request) {
 	cv, cok := ver(claude.Bin)
 	xv, xok := ver(codex.Bin)
 	modes := []string{protocol.ModeAsk, protocol.ModeEdits, protocol.ModePlan, protocol.ModeFull}
-	httpx.WriteJSON(w, []protocol.ProviderInfo{
+	out := []protocol.ProviderInfo{
 		{ID: protocol.Claude, Name: "Claude Code", Installed: cok, Version: cv, Modes: modes},
 		{ID: protocol.Codex, Name: "Codex", Installed: xok, Version: xv, Modes: modes},
-	})
+	}
+	for _, a := range acp.Agents {
+		v, ok := a.Version()
+		out = append(out, protocol.ProviderInfo{ID: a.ID, Name: a.Name, Installed: ok, Version: v, Modes: modes})
+	}
+	httpx.WriteJSON(w, out)
 }
 
 func models(w http.ResponseWriter, r *http.Request) {
@@ -157,7 +171,7 @@ func models(w http.ResponseWriter, r *http.Request) {
 	case protocol.Codex:
 		httpx.WriteJSON(w, httpx.OrEmpty(codex.Models()))
 	default:
-		http.Error(w, "unknown provider", http.StatusBadRequest)
+		httpx.WriteJSON(w, httpx.OrEmpty(acp.Models(protocol.Provider(r.URL.Query().Get("provider"))))) // known once a session has opened
 	}
 }
 
@@ -194,4 +208,13 @@ func dirs(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i]) < strings.ToLower(out[j]) })
 	httpx.WriteJSON(w, out)
+}
+
+// limits: GET /usage. Codex is asked fresh (if it's installed); Claude's is
+// what its last turn reported.
+func limits(w http.ResponseWriter, r *http.Request) {
+	if _, err := exec.LookPath(codex.Bin); err == nil {
+		codex.ReadLimits()
+	}
+	httpx.WriteJSON(w, usage.All())
 }

@@ -99,6 +99,15 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [x] rename / pin / archive (`PATCH /sessions/…`, Luther-side `sessions.json`), search (`GET /sessions?q=`) · [x] app
 - [x] push + PR (`POST /git/push`, `POST /git/pr` via `gh`) · [x] app
 
+### Phase 9b: P1 differentiators
+- [x] Dev-server preview — `GET /ports` (lsof: your listeners, project folders first); `POST /previews {port}` → one-time `/p/<token>/` path; opening it sets a cookie and redirects to `/`; cookie-bearing requests no route claims are proxied to `localhost:<port>` (Host rewritten, WebSockets pass). App: Preview screen → Safari view (`expo-web-browser`). Limits: app paths colliding with Luther's routes (`/files`, `/events`…) reach Luther; a tunnel behind Cloudflare Access blocks the browser (no service-token headers)
+- [x] Voice — hold the mic (empty composer) to talk; iOS on-device speech (`expo-speech-recognition`); sent on release
+- [x] Widgets (`AgentsWidget` medium/large: running threads + projects; `SendWidget` small/lock screen), quick actions (`expo-quick-actions`), `luther://send?text=&cwd=&provider=` — Shortcuts/Siri/Share Sheet go through a user-made Shortcut opening that link (no App Intents / share extension: native targets for no gain yet)
+- [x] Usage — package `usage` (`~/.luther/usage.json`); Claude `rate_limit_event` (`unifiedWindows`, verified 2.1.318), Codex `account/rateLimits/read|updated`; `GET /usage`; Settings → Usage bars
+- [x] Subagents — `Msg.parent`: Claude steps with `parent_tool_use_id` (Task/Agent call row id = its tool_use id), activity names the subagent; Codex `collabAgentToolCall` rows. App folds steps under the call
+- [x] More agents over ACP — package `acp` (OpenCode `opencode acp`, Gemini `gemini --acp`, Cursor `cursor-agent|agent acp`), one shared process per agent; package `rpc` now shared with Codex. Verified on OpenCode 1.18: initialize, `session/new` (model/mode config options), `session/list`, `session/load` replaying history, plan mode. Not verified: a model turn (key expired here), permission asks, Gemini, Cursor. Luther enforces edits/full by auto-approving; plan switches the agent's own plan mode
+- [x] Instant lists — `useLoad(…, cache)` keeps each list's last answer per Mac on disk (`expo-file-system`); home, project, usage, send
+
 ### Phase 10: End-to-end tests
 - [ ] Pair over tailnet and over Cloudflare
 - [ ] Claude thread: chat, approval, question, plan, Stop, model/mode switch

@@ -3,20 +3,18 @@
 package codex
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os/exec"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/AJAmit17/luther/server/internal/env"
 	"github.com/AJAmit17/luther/server/internal/hub"
 	"github.com/AJAmit17/luther/server/internal/paths"
 	"github.com/AJAmit17/luther/server/internal/protocol"
+	"github.com/AJAmit17/luther/server/internal/rpc"
 	"github.com/AJAmit17/luther/server/internal/text"
 	"github.com/AJAmit17/luther/server/internal/uploads"
 )
@@ -42,29 +40,12 @@ var policies = map[string]struct{ approval, sandbox, sandboxType string }{
 	protocol.ModeFull:  {"never", "danger-full-access", "dangerFullAccess"},
 }
 
-type rpcErr struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
-type rpcMsg struct {
-	ID     json.RawMessage `json:"id,omitempty"`
-	Method string          `json:"method,omitempty"`
-	Params json.RawMessage `json:"params,omitempty"`
-	Result json.RawMessage `json:"result,omitempty"`
-	Error  *rpcErr         `json:"error,omitempty"`
-}
-
 type server struct {
-	cmd  *exec.Cmd
-	inMu sync.Mutex
-	in   io.WriteCloser
+	*rpc.Conn
+	cmd *exec.Cmd
 
-	mu      sync.Mutex
-	next    int64
-	pending map[string]chan rpcMsg
-	rts     map[string]*runtime // codex thread id → runtime
-	dead    bool
+	mu  sync.Mutex
+	rts map[string]*runtime // codex thread id → runtime
 }
 
 var proc struct {
@@ -76,7 +57,7 @@ var proc struct {
 func srv() (*server, error) {
 	proc.Lock()
 	defer proc.Unlock()
-	if s := proc.s; s != nil && !s.isDead() {
+	if s := proc.s; s != nil && !s.Dead() {
 		return s, nil
 	}
 	cmd := exec.Command(Bin, "app-server")
@@ -93,105 +74,30 @@ func srv() (*server, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start codex app-server: %w", err)
 	}
-	s := &server{cmd: cmd, in: in, pending: map[string]chan rpcMsg{}, rts: map[string]*runtime{}}
-	go s.read(out)
-	if _, err := s.call("initialize", map[string]any{"clientInfo": map[string]string{"name": "luther", "title": "Luther", "version": protocol.Version}}); err != nil {
+	s := &server{Conn: rpc.New("codex", in, false), cmd: cmd, rts: map[string]*runtime{}}
+	go func() {
+		s.Read(out, s.dispatch)
+		cmd.Wait()
+		s.mu.Lock()
+		rts := s.rts
+		s.rts = map[string]*runtime{}
+		s.mu.Unlock()
+		for _, rt := range rts {
+			rt.t.End()
+		}
+	}()
+	if _, err := s.Call("initialize", map[string]any{"clientInfo": map[string]string{"name": "luther", "title": "Luther", "version": protocol.Version}}); err != nil {
 		cmd.Process.Kill()
 		return nil, fmt.Errorf("codex initialize: %w", err)
 	}
-	s.send(map[string]any{"method": "initialized"})
+	s.Notify("initialized", nil)
 	proc.s = s
 	return s, nil
 }
 
-func (s *server) isDead() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.dead
-}
-
-func (s *server) send(v any) error {
-	b, _ := json.Marshal(v)
-	s.inMu.Lock()
-	defer s.inMu.Unlock()
-	_, err := s.in.Write(append(b, '\n'))
-	return err
-}
-
-func (s *server) call(method string, params any) (json.RawMessage, error) {
-	s.mu.Lock()
-	if s.dead {
-		s.mu.Unlock()
-		return nil, errors.New("codex app-server is not running")
-	}
-	s.next++
-	id := s.next
-	ch := make(chan rpcMsg, 1)
-	s.pending[fmt.Sprint(id)] = ch
-	s.mu.Unlock()
-	if err := s.send(map[string]any{"id": id, "method": method, "params": params}); err != nil {
-		return nil, err
-	}
-	select {
-	case m := <-ch:
-		if m.Error != nil {
-			return nil, fmt.Errorf("codex %s: %s", method, m.Error.Message)
-		}
-		return m.Result, nil
-	case <-time.After(2 * time.Minute):
-		s.mu.Lock()
-		delete(s.pending, fmt.Sprint(id))
-		s.mu.Unlock()
-		return nil, fmt.Errorf("codex %s: timed out", method)
-	}
-}
-
-func (s *server) reply(id json.RawMessage, result any) error {
-	return s.send(map[string]any{"id": id, "result": result})
-}
-
-func (s *server) replyErr(id json.RawMessage, msg string) {
-	s.send(map[string]any{"id": id, "error": rpcErr{Code: -32601, Message: msg}})
-}
-
-func (s *server) read(out io.Reader) {
-	br := bufio.NewReaderSize(out, 1<<20)
-	for {
-		line, err := br.ReadBytes('\n')
-		if len(line) > 1 {
-			s.dispatch(line)
-		}
-		if err != nil {
-			break
-		}
-	}
-	s.cmd.Wait()
-	s.mu.Lock()
-	s.dead = true
-	for _, ch := range s.pending {
-		ch <- rpcMsg{Error: &rpcErr{Message: "codex app-server exited"}}
-	}
-	rts := s.rts
-	s.rts = map[string]*runtime{}
-	s.mu.Unlock()
-	for _, rt := range rts {
-		rt.t.End()
-	}
-}
-
-func (s *server) dispatch(line []byte) {
-	var m rpcMsg
-	if json.Unmarshal(line, &m) != nil {
-		return
-	}
-	if m.Method == "" { // response to one of our calls
-		s.mu.Lock()
-		ch := s.pending[string(m.ID)]
-		delete(s.pending, string(m.ID))
-		s.mu.Unlock()
-		if ch != nil {
-			ch <- m
-		}
+func (s *server) dispatch(m rpc.Msg) {
+	if m.Method == "account/rateLimits/updated" {
+		saveLimits(m.Params)
 		return
 	}
 	var p struct {
@@ -205,7 +111,7 @@ func (s *server) dispatch(line []byte) {
 	case m.ID != nil && rt != nil:
 		rt.onRequest(m.ID, m.Method, m.Params)
 	case m.ID != nil: // a request we can't route: never leave codex blocked
-		s.replyErr(m.ID, "unsupported by luther: "+m.Method)
+		s.ReplyErr(m.ID, "unsupported by luther: "+m.Method)
 	case rt != nil:
 		rt.onNotify(m.Method, m.Params)
 	}
@@ -270,7 +176,7 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 			method = "thread/fork"
 		}
 	}
-	raw, err := s.call(method, params)
+	raw, err := s.Call(method, params)
 	if err != nil {
 		return nil, err
 	}
@@ -347,6 +253,8 @@ func (c *runtime) onNotify(method string, raw json.RawMessage) {
 				st.Activity = "Calling " + str(p.Item, "tool") + "…"
 			case "webSearch":
 				st.Activity = "Searching the web…"
+			case "collabAgentToolCall":
+				st.Activity = "Subagent: " + text.OrDefault(text.Clip(text.OneLine(str(p.Item, "prompt")), 40), str(p.Item, "tool")) + "…"
 			}
 		})
 	case "item/agentMessage/delta":
@@ -443,7 +351,7 @@ func (c *runtime) onRequest(rpcID json.RawMessage, method string, raw json.RawMe
 			pr.Questions = append(pr.Questions, qq)
 		}
 	case "mcpServer/elicitation/request":
-		c.s.reply(rpcID, map[string]any{"action": "decline"}) // ponytail: MCP forms aren't rendered on the phone yet
+		c.s.Reply(rpcID, map[string]any{"action": "decline"}) // ponytail: MCP forms aren't rendered on the phone yet
 		return
 	case "item/permissions/requestApproval":
 		pr.Kind, pr.Tool, pr.Title = "permission", "Permissions", "Allow extra permissions?"
@@ -451,7 +359,7 @@ func (c *runtime) onRequest(rpcID json.RawMessage, method string, raw json.RawMe
 		pr.Options = []protocol.Option{{Label: "Yes, for this turn"}, {Label: "No"}}
 		pr.Priv.(*promptData).method = method + "|" + string(raw)
 	default:
-		c.s.replyErr(rpcID, "unsupported by luther: "+method)
+		c.s.ReplyErr(rpcID, "unsupported by luther: "+method)
 		return
 	}
 	c.t.Do(func(st *protocol.State) { c.t.AddPrompt(pr) })
@@ -469,7 +377,7 @@ func (c *runtime) Answer(p *protocol.Prompt, a protocol.Answer) error {
 		case 1:
 			decision = "acceptForSession"
 		}
-		if err := c.s.reply(cp.rpcID, map[string]any{"decision": decision}); err != nil {
+		if err := c.s.Reply(cp.rpcID, map[string]any{"decision": decision}); err != nil {
 			return err
 		}
 		if decision == "decline" && strings.TrimSpace(a.Message) != "" {
@@ -481,7 +389,7 @@ func (c *runtime) Answer(p *protocol.Prompt, a protocol.Answer) error {
 		for qid, labels := range a.Answers {
 			ans[qid] = map[string]any{"answers": labels}
 		}
-		return c.s.reply(cp.rpcID, map[string]any{"answers": ans})
+		return c.s.Reply(cp.rpcID, map[string]any{"answers": ans})
 	case "item/permissions/requestApproval":
 		granted := map[string]any{}
 		if a.Choice == 0 {
@@ -491,7 +399,7 @@ func (c *runtime) Answer(p *protocol.Prompt, a protocol.Answer) error {
 			json.Unmarshal([]byte(rawParams), &req)
 			granted = req.Permissions
 		}
-		return c.s.reply(cp.rpcID, map[string]any{"permissions": granted, "scope": "turn"})
+		return c.s.Reply(cp.rpcID, map[string]any{"permissions": granted, "scope": "turn"})
 	}
 	return nil
 }
@@ -519,7 +427,7 @@ func (c *runtime) Send(msg string, files []string) error {
 	turn, mode, model := c.turn, c.mode, c.model
 	c.mu.Unlock()
 	if turn != "" {
-		_, err := c.s.call("turn/steer", map[string]any{"threadId": c.id, "expectedTurnId": turn, "input": userInput(msg, files)})
+		_, err := c.s.Call("turn/steer", map[string]any{"threadId": c.id, "expectedTurnId": turn, "input": userInput(msg, files)})
 		return err
 	}
 	pol := policies[mode]
@@ -528,7 +436,7 @@ func (c *runtime) Send(msg string, files []string) error {
 	if model != "" {
 		params["model"] = model
 	}
-	_, err := c.s.call("turn/start", params)
+	_, err := c.s.Call("turn/start", params)
 	return err
 }
 
@@ -539,7 +447,7 @@ func (c *runtime) Interrupt() error {
 	if turn == "" {
 		return errors.New("nothing is running")
 	}
-	_, err := c.s.call("turn/interrupt", map[string]any{"threadId": c.id, "turnId": turn})
+	_, err := c.s.Call("turn/interrupt", map[string]any{"threadId": c.id, "turnId": turn})
 	return err
 }
 
@@ -565,7 +473,7 @@ func (c *runtime) SetModel(m string) error {
 
 // Stop unloads the thread from the shared app-server; its history stays in Codex's store.
 func (c *runtime) Stop() {
-	c.s.call("thread/unsubscribe", map[string]any{"threadId": c.id})
+	c.s.Call("thread/unsubscribe", map[string]any{"threadId": c.id})
 	c.s.mu.Lock()
 	delete(c.s.rts, c.id)
 	c.s.mu.Unlock()

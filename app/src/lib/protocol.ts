@@ -1,6 +1,6 @@
 // Mirror of server/protocol.go — the Go types are the source of truth. Change both together.
 
-export type Provider = 'claude' | 'codex';
+export type Provider = 'claude' | 'codex' | 'opencode' | 'gemini' | 'cursor'; // the last three speak ACP
 export type Mode = 'ask' | 'edits' | 'plan' | 'full';
 
 export type ProviderInfo = { id: Provider; name: string; installed: boolean; version?: string; modes: Mode[] };
@@ -44,7 +44,7 @@ export type Turn = { n: number; prompt: string; startedAt: number; endedAt?: num
 
 export type ThreadInfo = State & { id: string; title: string; clients: number };
 
-export type Msg = { id: string; role: 'user' | 'assistant' | 'tool' | 'system'; text: string; tool?: string };
+export type Msg = { id: string; role: 'user' | 'assistant' | 'tool' | 'system'; text: string; tool?: string; parent?: string /* a subagent call's row id */ };
 export type Option = { label: string; desc?: string };
 export type Question = { id: string; question: string; header?: string; options: Option[]; multiSelect?: boolean };
 export type Prompt = {
@@ -93,6 +93,9 @@ export type Run = {
 };
 
 export type Command = { name: string; desc: string };
+export type Limits = { provider: Provider; plan?: string; windows: Window[]; updated: number };
+export type Window = { label: string; used: number /* percent */; resetsAt?: number };
+export type Port = { port: number; command: string; cwd?: string };
 export type Device = { id: string; name: string; created: string; lastSeen: string };
 export type Term = { name: string; cwd: string; attached: boolean; created: number };
 export type FileEntry = { name: string; dir: boolean; size: number };

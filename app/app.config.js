@@ -30,6 +30,8 @@ const withSceneLifecycle = (config) =>
     },
   );
 
+const MIC = "Luther listens while you hold the mic button, to type your message.";
+
 module.exports = {
   expo: {
     name: 'Luther',
@@ -61,11 +63,21 @@ module.exports = {
       'expo-router',
       ['expo-splash-screen', { backgroundColor: '#000000', image: './assets/images/splash-icon.png', imageWidth: 76 }],
       'expo-secure-store',
-      ['expo-camera', { cameraPermission: 'Luther uses the camera to scan the pairing code from your Mac.', microphonePermission: false, recordAudioAndroid: false }],
+      ['expo-camera', { cameraPermission: 'Luther uses the camera to scan the pairing code from your Mac.', microphonePermission: MIC, recordAudioAndroid: false }],
       'expo-notifications',
       ['expo-image-picker', { photosPermission: 'Luther attaches the photos you pick to your message.', cameraPermission: 'Luther attaches the photos you take to your message.' }],
       'expo-document-picker',
-      'expo-widgets',
+      [
+        'expo-widgets',
+        {
+          widgets: [
+            { name: 'AgentsWidget', displayName: 'Agents', description: "What's running on your Mac, and your projects.", ios: { supportedFamilies: ['systemMedium', 'systemLarge'] }, android: null },
+            { name: 'SendWidget', displayName: 'Send to Luther', description: 'A new task for an agent, one tap away.', ios: { supportedFamilies: ['systemSmall', 'accessoryCircular'] }, android: null },
+          ],
+        },
+      ],
+      'expo-quick-actions',
+      ['expo-speech-recognition', { microphonePermission: MIC, speechRecognitionPermission: 'Luther turns what you say into your message, on this iPhone.' }],
       'expo-background-task',
     ],
     experiments: { typedRoutes: true, reactCompiler: true },

@@ -33,12 +33,18 @@ import "time"
 //   GET  /files?cwd=&path=                → FileEntry list (dir) or FileContent (file)
 //   GET  /git/status?cwd= · GET /git/diff?cwd=&path= · POST /git/commit {cwd, message}
 //   POST /git/push {cwd} · POST /git/pr {cwd, title, body} → {url} · DELETE /git/worktree?cwd=
+//   GET  /usage                           → [Limits] (plan usage per agent)
+//   GET  /ports                           → [Port] (dev servers listening on this Mac)
+//   POST /previews {port}                 → {path} (open route+path in a browser: no token needed, it is one)
 
 type Provider string
 
 const (
-	Claude Provider = "claude"
-	Codex  Provider = "codex"
+	Claude   Provider = "claude"
+	Codex    Provider = "codex"
+	OpenCode Provider = "opencode" // the rest speak ACP (package acp)
+	Gemini   Provider = "gemini"
+	Cursor   Provider = "cursor"
 )
 
 // Permission modes, normalized across providers.
@@ -139,6 +145,23 @@ type Msg struct {
 	Role string `json:"role"` // user | assistant | tool | system
 	Text string `json:"text"`
 	Tool string `json:"tool,omitempty"`
+	// Parent: the subagent call (that tool row's ID) this step belongs to.
+	Parent string `json:"parent,omitempty"`
+}
+
+// Limits: an agent's plan usage, per window. Claude reports it during turns;
+// Codex answers on request.
+type Limits struct {
+	Provider Provider `json:"provider"`
+	Plan     string   `json:"plan,omitempty"`
+	Windows  []Window `json:"windows"`
+	Updated  int64    `json:"updated"` // ms
+}
+
+type Window struct {
+	Label    string  `json:"label"`              // "5 hours", "7 days"
+	Used     float64 `json:"used"`               // percent, 0–100
+	ResetsAt int64   `json:"resetsAt,omitempty"` // ms
 }
 
 type Option struct {
@@ -267,8 +290,21 @@ func (p Provider) Name() string {
 		return "Claude"
 	case Codex:
 		return "Codex"
+	case OpenCode:
+		return "OpenCode"
+	case Gemini:
+		return "Gemini"
+	case Cursor:
+		return "Cursor"
 	}
 	return string(p)
+}
+
+// Port: a TCP port something of yours listens on (a dev server, usually).
+type Port struct {
+	Port    int    `json:"port"`
+	Command string `json:"command"`
+	Cwd     string `json:"cwd,omitempty"`
 }
 
 // Version of luther serve, reported by /healthz and to Codex.

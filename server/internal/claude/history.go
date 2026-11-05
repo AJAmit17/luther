@@ -47,6 +47,7 @@ type chatRec struct {
 }
 
 type block struct {
+	ID    string         `json:"id"`
 	Type  string         `json:"type"`
 	Text  string         `json:"text"`
 	Name  string         `json:"name"`
@@ -126,6 +127,9 @@ func recMsgs(r chatRec) []protocol.Msg {
 			}
 			out = append(out, protocol.Msg{ID: id, Role: role, Text: b.Text})
 		case b.Type == "tool_use":
+			if isAgentTool(b.Name) && b.ID != "" {
+				id = b.ID // a subagent's steps name this call as their Parent
+			}
 			out = append(out, protocol.Msg{ID: id, Role: "tool", Tool: b.Name, Text: toolSummary(b.Name, b.Input)})
 		}
 	}
@@ -147,3 +151,6 @@ func toolSummary(name string, in map[string]any) string {
 	}
 	return ""
 }
+
+// isAgentTool: the tool that starts a subagent ("Task", newer CLIs "Agent").
+func isAgentTool(name string) bool { return name == "Task" || name == "Agent" }

@@ -16,6 +16,7 @@ export default function ProjectScreen() {
   const { data, error, loading, load } = useLoad(
     () => api<Session[]>(`/sessions?cwd=${encodeURIComponent(cwd)}${archived ? '&archived=1' : ''}`),
     [cwd, archived],
+    'sessions',
   );
   const needle = q.trim().toLowerCase();
   const shown = (data ?? []).filter((s) => !needle || `${s.title} ${s.preview} ${s.worktree ?? ''}`.toLowerCase().includes(needle));
@@ -36,6 +37,7 @@ export default function ProjectScreen() {
         <Stack.Toolbar.Menu icon="ellipsis.circle">
           <Stack.Toolbar.MenuAction icon="folder" onPress={() => router.push({ pathname: '/files', params: { cwd } })}>Files</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon="arrow.triangle.branch" onPress={() => router.push({ pathname: '/git', params: { cwd } })}>Changes</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon="globe" onPress={() => router.push({ pathname: '/preview', params: { cwd } })}>Preview</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon="archivebox" isOn={archived} onPress={() => setArchived((a) => !a)}>Show archived</Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
         <Stack.Toolbar.Button icon="square.and.pencil" onPress={() => router.push({ pathname: '/new', params: { cwd } })} />

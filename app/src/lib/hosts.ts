@@ -37,6 +37,11 @@ async function save() {
   listeners.forEach((fn) => fn());
 }
 
+/** The current Mac's id, once the store has loaded (for cache keys); else null. */
+export function currentHostIdSync(): string | null {
+  return store ? (store.hosts.find((h) => h.id === store!.current) ?? store.hosts[0])?.id ?? null : null;
+}
+
 export async function hosts() {
   return (await load()).hosts;
 }

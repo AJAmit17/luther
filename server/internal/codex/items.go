@@ -57,6 +57,22 @@ func toMsg(it map[string]any) (protocol.Msg, bool) {
 		return protocol.Msg{ID: id, Role: "tool", Tool: name}, true
 	case "webSearch":
 		return protocol.Msg{ID: id, Role: "tool", Tool: "WebSearch", Text: str(it, "query")}, true
+	case "collabAgentToolCall": // Codex's subagents: spawn, message, wait…
+		t := str(it, "tool")
+		if pr := str(it, "prompt"); pr != "" {
+			t += ": " + text.Clip(text.OneLine(pr), 200)
+		}
+		if sts, ok := it["agentsStates"].(map[string]any); ok {
+			for _, v := range sts {
+				if st, ok := v.(map[string]any); ok {
+					t += " · " + str(st, "status")
+					if m := str(st, "message"); m != "" {
+						t += " — " + text.Clip(text.OneLine(m), 120)
+					}
+				}
+			}
+		}
+		return protocol.Msg{ID: id, Role: "tool", Tool: "Agent", Text: t}, true
 	case "contextCompaction":
 		return protocol.Msg{ID: id, Role: "system", Text: "Context compacted"}, true
 	}
@@ -93,7 +109,7 @@ func Sessions(cwd string) []protocol.Session {
 	if cwd != "" {
 		params["cwd"] = cwd
 	}
-	raw, err := s.call("thread/list", params) // ponytail: first page only (200 newest)
+	raw, err := s.Call("thread/list", params) // ponytail: first page only (200 newest)
 	if err != nil {
 		return nil
 	}
@@ -117,7 +133,7 @@ func Models() []string {
 	if err != nil {
 		return nil
 	}
-	raw, err := s.call("model/list", map[string]any{})
+	raw, err := s.Call("model/list", map[string]any{})
 	if err != nil {
 		return nil
 	}

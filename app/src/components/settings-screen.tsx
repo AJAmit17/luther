@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { api, currentHost, del, removeHost, resolve, routeInUse, upsertHost, type Host } from '@/lib/hosts';
 import type { Device } from '@/lib/protocol';
 import { Badge, Button, Icon, Note, Row, Section, ago, c, mono } from '@/components/ui';
+import { UsageSection } from '@/components/usage-section';
 
 const input = { color: c.text, backgroundColor: c.card, borderRadius: 12, borderCurve: 'continuous', padding: 12, fontFamily: mono, fontSize: 13 } as const;
 
@@ -61,6 +62,8 @@ export default function Settings() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: c.bg as any }} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled">
       <Text style={{ color: c.text, fontSize: 22, fontWeight: '700', paddingHorizontal: 16, paddingTop: 12 }}>{h.name}</Text>
+
+      <UsageSection />
 
       <Section title="Routes (tried in order)" />
       {h.routes.map((u, i) => (

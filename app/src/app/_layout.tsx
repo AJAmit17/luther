@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { Stack } from 'expo-router';
+import { useQuickActionRouting } from 'expo-quick-actions/router';
 import { c } from '@/components/ui';
 import { onActivityStop } from '@/lib/activities';
 import { scheduleBackgroundRefresh } from '@/lib/background'; // also defines the task at import
@@ -8,11 +9,14 @@ import { useFeed } from '@/lib/feed';
 import { currentHost, onHostsChange, post, setCurrent } from '@/lib/hosts';
 import { onNotificationResponse } from '@/lib/notifier';
 import { openThread } from '@/lib/threads';
+import { setQuickActions } from '@/lib/quick-actions';
 
 export default function Layout() {
   const [host, setHost] = useState<string | null>(null);
+  useQuickActionRouting();
 
   useEffect(() => {
+    setQuickActions();
     const sync = () => void currentHost().then((h) => setHost(h?.id ?? null));
     sync();
     const hosts = onHostsChange(sync);
@@ -55,6 +59,7 @@ export default function Layout() {
         <Stack.Screen name="new" options={{ title: 'New thread', presentation: 'formSheet', sheetAllowedDetents: [0.6, 1], sheetGrabberVisible: true }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
         <Stack.Screen name="browse" options={{ title: 'Pick a folder' }} />
+        <Stack.Screen name="send" options={{ title: 'Send to Luther', presentation: 'modal' }} />
       </Stack>
       {host && <Feed key={host} host={host} />}
     </>

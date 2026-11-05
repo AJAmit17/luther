@@ -5,6 +5,7 @@ import { api, currentHost, del, hosts, routeInUse, setCurrent, type Host } from 
 import type { Project, Session, Term, ThreadInfo } from '@/lib/protocol';
 import { SessionRow } from '@/components/project-screen';
 import { requestNotificationPermission } from '@/lib/notifier';
+import { updateWidgets } from '@/lib/widgets';
 import { Badge, Icon, Note, ProviderIcon, Row, Section, ago, c, home, providerName, useLoad } from '@/components/ui';
 
 type Item = { thread: ThreadInfo } | { term: Term } | { project: Project };
@@ -23,8 +24,17 @@ export default function Home() {
   const { data, error, loading, load } = useLoad(
     () => Promise.all([api<ThreadInfo[]>('/threads'), api<Term[]>('/terms'), api<Project[]>('/projects')]),
     [host?.id],
+    'home',
   );
   const [open, terms, projects] = data ?? [[], [], []];
+  useEffect(() => {
+    if (!data || !host) return;
+    updateWidgets({
+      mac: host.name,
+      threads: open.map((t) => ({ id: t.id, title: t.title || `${providerName(t.provider)} · ${t.cwd.split('/').pop()}`, cwd: t.cwd, busy: t.busy, activity: t.activity })),
+      projects: projects.slice(0, 8).map((p) => ({ name: p.name, cwd: p.cwd })),
+    });
+  }, [data, host]); // eslint-disable-line react-hooks/exhaustive-deps
   const [q, setQ] = useState('');
   const found = useLoad(() => (q ? api<Session[]>('/sessions?q=' + encodeURIComponent(q)) : Promise.resolve([])), [host?.id, q]);
 

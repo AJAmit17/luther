@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Pressable, Text, TextInput, View } from 'react-native';
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,12 +11,13 @@ import { TaskPanel } from '@/components/task-panel';
 import type { Command, Msg, Prompt } from '@/lib/protocol';
 import { setWatching } from '@/lib/feed';
 import { useThread } from '@/lib/socket';
+import { useVoice } from '@/lib/voice';
 import { Banner, Icon, MODES, c, mono, providerName } from '@/components/ui';
 
 // One conversation with an agent on the Mac. Every phone attached to it (and
 // anything else attached to the same thread) sees the same stream.
 export default function ThreadScreen() {
-  const { id, cwd } = useLocalSearchParams<{ id: string; cwd?: string }>();
+  const { id, cwd, send } = useLocalSearchParams<{ id: string; cwd?: string; send?: string }>();
   const ev = useThread(id);
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
@@ -55,10 +56,17 @@ export default function ThreadScreen() {
   }, [cmds, st?.commands]);
   const suggest = text.startsWith('/') && !text.includes(' ') ? allCmds.filter((x) => x.name.startsWith(text)).slice(0, 6) : [];
 
-  const data = useMemo(() => {
-    const list: Msg[] = [...ev.messages].reverse();
+  // Subagent steps fold under their call's row.
+  const { data, steps } = useMemo(() => {
+    const steps = new Map<string, Msg[]>();
+    const list: Msg[] = [];
+    for (const m of ev.messages) {
+      if (m.parent) steps.set(m.parent, [...(steps.get(m.parent) ?? []), m]);
+      else list.push(m);
+    }
+    list.reverse();
     if (ev.draft) list.unshift({ id: '__draft', role: 'assistant', text: ev.draft + ' ▍' });
-    return list;
+    return { data: list, steps };
   }, [ev.messages, ev.draft]);
 
   const answerQuestion = (p: Prompt, labels: string[]) => {
@@ -68,6 +76,19 @@ export default function ThreadScreen() {
     else setQa({ id: p.id, answers: next });
   };
 
+  // A message handed over by Shortcuts / the Share Sheet / a widget: sent once connected.
+  const handed = useRef(false);
+  useEffect(() => {
+    if (send && !handed.current && ev.status === 'open' && st) {
+      handed.current = true;
+      ev.sendText(send); // mid-turn, the agent queues or steers it
+      router.setParams({ send: undefined });
+    }
+  }, [send, ev.status, st]); // eslint-disable-line react-hooks/exhaustive-deps
+  const voice = useVoice((said) => {
+    if (ev.sendText(said, att.paths)) att.clear();
+    else setText(said);
+  });
   const canSend = top ? !!text.trim() : (!!text.trim() || att.items.length > 0) && !att.uploading;
   const submit = () => {
     const t = text.trim();
@@ -108,6 +129,7 @@ export default function ThreadScreen() {
           <Stack.Toolbar.MenuAction icon="folder" onPress={() => st?.cwd && router.push({ pathname: '/files', params: { cwd: st.cwd } })}>Files</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon="arrow.triangle.branch" onPress={() => st?.cwd && router.push({ pathname: '/git', params: { cwd: st.cwd } })}>Changes</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon="clock.arrow.circlepath" onPress={() => router.push({ pathname: '/turns', params: { id } })}>Turns</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon="globe" onPress={() => router.push({ pathname: '/preview', params: { cwd: st?.cwd } })}>Preview</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon="stop.circle" destructive onPress={stop}>Stop agent</Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
@@ -121,7 +143,7 @@ export default function ThreadScreen() {
         inverted
         data={data}
         keyExtractor={(m) => m.id}
-        renderItem={({ item }) => <Bubble m={item} />}
+        renderItem={({ item }) => <Bubble m={item} steps={steps.get(item.id)} />}
         contentContainerStyle={{ padding: 14, gap: 4 }}
         keyboardDismissMode="interactive"
         ListEmptyComponent={
@@ -179,17 +201,24 @@ export default function ThreadScreen() {
         )}
         <TextInput
           style={{ flex: 1, maxHeight: 140, color: c.text, backgroundColor: c.card, borderRadius: 20, borderCurve: 'continuous', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10, fontSize: 16 }}
-          value={text}
+          value={voice.listening ? voice.heard : text}
           onChangeText={setText}
+          editable={!voice.listening}
           placeholder={
-            top?.kind === 'question' ? 'Or type your own answer' : top ? 'Or tell it what to do instead' : st?.busy ? (provider === 'codex' ? 'Steer the running turn…' : 'Queue a message…') : provider === 'claude' ? 'Message, or / for commands' : 'Message'
+            voice.listening ? 'Listening… let go to send' : top?.kind === 'question' ? 'Or type your own answer' : top ? 'Or tell it what to do instead' : st?.busy ? (provider === 'codex' ? 'Steer the running turn…' : 'Queue a message…') : allCmds.length ? 'Message, or / for commands' : 'Message'
           }
           placeholderTextColor={c.dim}
           multiline
         />
+        {!top && !text.trim() && !att.items.length ? (
+          <Pressable onPressIn={voice.start} onPressOut={voice.stop} hitSlop={8} style={({ pressed }) => ({ transform: [{ scale: voice.listening || pressed ? 1.15 : 1 }] })}>
+            <Icon name={voice.listening ? 'waveform.circle.fill' : 'mic.circle.fill'} size={36} color={voice.listening ? c.red : c.accent} />
+          </Pressable>
+        ) : (
         <Pressable onPress={submit} disabled={!canSend} style={({ pressed }) => ({ opacity: !canSend ? 0.35 : pressed ? 0.7 : 1 })}>
           <Icon name="arrow.up.circle.fill" size={36} color={c.accent} />
         </Pressable>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
