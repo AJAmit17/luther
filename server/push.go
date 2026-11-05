@@ -40,10 +40,10 @@ func (s *server) setPush(w http.ResponseWriter, r *http.Request) {
 // notify sends to every device with a push token, in the background.
 func notify(title, body string, data map[string]string) {
 	cfgMu.Lock()
-	var to []string
+	var to, ids []string
 	for _, d := range cfg.Devices {
 		if d.PushToken != "" {
-			to = append(to, d.PushToken)
+			to, ids = append(to, d.PushToken), append(ids, d.ID)
 		}
 	}
 	cfgMu.Unlock()
@@ -53,7 +53,11 @@ func notify(title, body string, data map[string]string) {
 	go func() {
 		msgs := make([]map[string]any, len(to))
 		for i, t := range to {
-			msgs[i] = map[string]any{"to": t, "title": title, "body": clip(strings.TrimSpace(body), 180), "data": data, "sound": "default", "priority": "high"}
+			d := map[string]string{"device": ids[i]} // which Mac sent it, from the phone's side
+			for k, v := range data {
+				d[k] = v
+			}
+			msgs[i] = map[string]any{"to": t, "title": title, "body": clip(strings.TrimSpace(body), 180), "data": d, "sound": "default", "priority": "high"}
 		}
 		b, _ := json.Marshal(msgs)
 		res, err := (&http.Client{Timeout: 15 * time.Second}).Post(pushURL, "application/json", bytes.NewReader(b))

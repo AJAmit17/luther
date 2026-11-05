@@ -29,6 +29,7 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 | Agents run with the user's own CLI logins | Luther never handles provider credentials or API keys. |
 | Bind 127.0.0.1 only; tailnet and Cloudflare are reverse proxies; bearer token on every route | One listener, one auth path. Both proxies arrive from localhost, so the server can't tell routes apart. |
 | No hosted relay in v1 | Phones talk to the Mac directly over the tailnet or tunnel. Luther pushes from the Mac via Expo; a small hosted relay for discovery and offline push is optional later. |
+| iOS first: native stack toolbars/menus, SF Symbols, system colors | The user's phone is an iPhone. Android builds, but header actions (toolbars) are iOS-only for now. |
 | No database: config + devices in a JSON file; projects and threads come from the CLIs' own session stores | Luther owns almost no state; duplicating history would drift from the CLIs. |
 | Go structs are the wire-protocol source of truth; `app/src/lib/protocol.ts` mirrors them | Two languages, one small protocol. Keep both in the same change. |
 | Codex wire types generated from `codex app-server generate-json-schema` | The protocol is large and versioned; generate, don't hand-write. |
@@ -72,16 +73,15 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 ### Phase 6: Networking & push
 - [x] `luther tailscale [--https N]`: `tailscale serve` to the local port; refuses a port already proxied elsewhere unless `--force`
 - [x] `luther tunnel`: prints the Cloudflare steps; with `--url --id` records the route and writes `~/.cloudflared/luther.yml` (Access service token headers are sent by the app)
-- [ ] App: multiple routes per Mac, try in order, fall back, re-check earlier routes on network change
+- [x] App: several Macs, each with ordered routes; first route that answers wins; a failed request or dropped socket re-picks; "Prefer" reorders
 - [x] Server: push via Expo on every prompt and on turns ≥ 20 s; per-device Expo token; dead tokens dropped
-- [ ] App: push registration; tap opens the thread
+- [x] App: push registration on launch; a tap switches to the Mac that sent it and opens (or resumes) the thread
 
 ### Phase 7: App
-- [ ] Pair (QR / paste), Macs list, route settings
-- [ ] Projects → threads (provider badge, live/busy), new thread (provider, model, mode)
-- [ ] Thread: streamed markdown, tool rows, approval / question / plan cards, Stop, `/` commands, model/mode menu
-- [ ] Diff, terminal (native renderer, key bar), files screens
-- [ ] Devices & revoke; push registration and deep links
+- [x] Pair (QR / paste), Mac switcher, settings: routes, Cloudflare Access token, devices + revoke, forget
+- [x] Home: running threads and terminals, then projects; project: every conversation (Claude + Codex) with provider badge; new-thread sheet (agent, model, permission mode); folder browser
+- [x] Thread: streamed markdown, tool rows, approval / question / plan cards (haptics), Stop, `/` commands (Claude), queue (Claude) or steer (Codex) while busy, mode/model menu, usage
+- [x] Terminal (rendered ANSI, key bar with sticky Ctrl), files (tree + viewer), changes (git status, diffs, commit all)
 
 ### Phase 8: `luther` CLI
 - [x] `serve`, `pair` (QR: name, routes, one-time code), `tailscale`, `tunnel`, `service install|uninstall` (LaunchAgents `dev.luther.server` and `dev.luther.tunnel`), `doctor` (CLIs, server, each route, devices); logs in `~/.luther`

@@ -1,18 +1,23 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { Stack } from 'expo-router';
+import { usePushTaps } from '@/lib/push';
+import { c } from '@/lib/ui';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
-
-SplashScreen.preventAutoHideAsync();
-
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+export default function Layout() {
+  usePushTaps();
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <Stack
+      screenOptions={{
+        headerTintColor: c.accent as any,
+        headerBackButtonDisplayMode: 'minimal',
+        contentStyle: { backgroundColor: c.bg as any },
+      }}
+    >
+      <Stack.Screen name="index" options={{ title: 'Luther', headerLargeTitle: true }} />
+      <Stack.Screen name="project" options={{ headerLargeTitle: true }} />
+      <Stack.Screen name="pair" options={{ title: 'Pair a Mac', presentation: 'modal' }} />
+      <Stack.Screen name="new" options={{ title: 'New thread', presentation: 'formSheet', sheetAllowedDetents: [0.6, 1], sheetGrabberVisible: true }} />
+      <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+      <Stack.Screen name="browse" options={{ title: 'Pick a folder' }} />
+    </Stack>
   );
 }
