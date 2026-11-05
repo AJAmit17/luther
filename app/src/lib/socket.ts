@@ -81,6 +81,8 @@ export function useThread(id: string) {
   const [draft, setDraft] = useState('');
   const [state, setState] = useState<State | null>(null);
   const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [since, setSince] = useState<number | undefined>(); // when the running turn started (as this phone saw it)
+  const track = (busy: boolean) => setSince((s) => (busy ? s ?? Date.now() : undefined));
 
   const sock = useSocket(`/threads/${encodeURIComponent(id)}/events`, (f: Frame) => {
     switch (f.type) {
@@ -89,6 +91,7 @@ export function useThread(id: string) {
         setDraft(f.draft);
         setState(f.state);
         setPrompts(f.prompts);
+        track(f.state.busy);
         break;
       case 'message':
         setMessages((m) => [...m, f.message]);
@@ -102,6 +105,7 @@ export function useThread(id: string) {
         break;
       case 'state':
         setState(f.state);
+        track(f.state.busy);
         if (!f.state.busy) setDraft('');
         break;
       case 'prompt':
@@ -120,6 +124,7 @@ export function useThread(id: string) {
     draft,
     state,
     prompts,
+    since,
     sendText: (text: string, files?: string[]) => send({ type: 'send', text, files }),
     answer: (a: Partial<Answer> & { id: string }) => send({ type: 'answer', choice: -1, ...a }),
     interrupt: () => send({ type: 'interrupt' }),

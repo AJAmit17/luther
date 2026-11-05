@@ -1,55 +1,128 @@
-import { Text, View } from 'react-native';
-import { c, mono } from '@/components/ui';
+import { useMemo } from 'react';
+import { Linking, ScrollView, Text, View, type TextStyle } from 'react-native';
+import { c, card, mono, tint, type } from '@/components/ui';
 
-// ponytail: tiny markdown subset (fences, headings, lists, quotes, `code`, **bold**) —
-// enough for agent replies. Swap for a full renderer if tables/links matter.
+// An agent reply, block by block: headings, paragraphs, lists, quotes, code
+// fences, and inline `code`, **bold**, *italic*, [links](url) and bare URLs.
+// ponytail: no tables; they read as their raw lines.
 
-function Inline({ text, style }: { text: string; style?: object }) {
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
+type Block =
+  | { kind: 'heading'; level: number; text: string }
+  | { kind: 'para'; text: string }
+  | { kind: 'item'; marker: string; indent: number; text: string }
+  | { kind: 'quote'; text: string }
+  | { kind: 'code'; lang: string; text: string }
+  | { kind: 'rule' };
+
+function parse(src: string): Block[] {
+  const out: Block[] = [];
+  const lines = src.replace(/\r/g, '').split('\n');
+  let para: string[] = [];
+  const flush = () => {
+    if (para.length) out.push({ kind: 'para', text: para.join(' ') });
+    para = [];
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const fence = l.match(/^\s*```(\S*)/);
+    if (fence) {
+      flush();
+      const code: string[] = [];
+      for (i++; i < lines.length && !/^\s*```/.test(lines[i]); i++) code.push(lines[i]);
+      out.push({ kind: 'code', lang: fence[1], text: code.join('\n') });
+      continue;
+    }
+    const h = l.match(/^(#{1,6})\s+(.*)/);
+    const li = l.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)/);
+    if (h) {
+      flush();
+      out.push({ kind: 'heading', level: h[1].length, text: h[2] });
+    } else if (li) {
+      flush();
+      out.push({ kind: 'item', indent: Math.min(3, Math.floor(li[1].length / 2)), marker: /\d/.test(li[2]) ? li[2].replace(')', '.') : '•', text: li[3] });
+    } else if (/^\s*>/.test(l)) {
+      flush();
+      out.push({ kind: 'quote', text: l.replace(/^\s*>\s?/, '') });
+    } else if (/^\s*([-*_])\1{2,}\s*$/.test(l)) {
+      flush();
+      out.push({ kind: 'rule' });
+    } else if (!l.trim()) flush();
+    else para.push(l.trim());
+  }
+  flush();
+  return out;
+}
+
+const SPAN = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*\s][^*]*\*|\[[^\]]+\]\([^)\s]+\)|https?:\/\/[^\s)]+)/g;
+
+function Inline({ text, style }: { text: string; style?: TextStyle | TextStyle[] }) {
   return (
-    <Text style={[{ color: c.text, fontSize: 15, lineHeight: 21 }, style]} selectable>
-      {parts.map((p, i) =>
-        p.startsWith('`') && p.endsWith('`') && p.length > 1 ? (
-          <Text key={i} style={{ fontFamily: mono, fontSize: 13, backgroundColor: c.card, color: c.accent }}>{p.slice(1, -1)}</Text>
-        ) : p.startsWith('**') && p.endsWith('**') && p.length > 3 ? (
-          <Text key={i} style={{ fontWeight: '700' }}>{p.slice(2, -2)}</Text>
-        ) : (
-          p
-        ),
-      )}
+    <Text selectable style={[type.callout, { lineHeight: 23 }, style]}>
+      {text.split(SPAN).map((p, i) => {
+        if (!p) return null;
+        if (p.startsWith('`') && p.endsWith('`') && p.length > 2)
+          return <Text key={i} style={{ fontFamily: mono, fontSize: 14, backgroundColor: tint('text', 0.07), color: c.text }}>{p.slice(1, -1)}</Text>;
+        if (p.startsWith('**') && p.endsWith('**') && p.length > 4) return <Text key={i} style={{ fontWeight: '700' }}>{p.slice(2, -2)}</Text>;
+        if (p.startsWith('*') && p.endsWith('*') && p.length > 2) return <Text key={i} style={{ fontStyle: 'italic' }}>{p.slice(1, -1)}</Text>;
+        // Only web links open: agent output can carry text from anywhere, and a
+        // luther:// or other app scheme must not be one tap away.
+        const link = p.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/);
+        const url = link ? (/^https?:\/\//i.test(link[2]) ? link[2] : null) : /^https?:\/\//.test(p) ? p : null;
+        if (link && !url) return link[1];
+        if (url)
+          return (
+            <Text key={i} onPress={() => void Linking.openURL(url)} style={{ color: c.accent, textDecorationLine: 'underline' }}>
+              {link ? link[1] : p}
+            </Text>
+          );
+        return p;
+      })}
     </Text>
   );
 }
 
-export function Markdown({ text }: { text: string }) {
-  const out: React.ReactNode[] = [];
-  const lines = text.split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i];
-    if (l.startsWith('```')) {
-      const code: string[] = [];
-      for (i++; i < lines.length && !lines[i].startsWith('```'); i++) code.push(lines[i]);
-      out.push(
-        <View key={i} style={{ backgroundColor: c.card, borderRadius: 6, padding: 8, marginVertical: 4 }}>
-          <Text selectable style={{ fontFamily: mono, fontSize: 12, color: c.text }}>{code.join('\n')}</Text>
-        </View>,
+function Piece({ b }: { b: Block }) {
+  switch (b.kind) {
+    case 'heading':
+      return <Inline text={b.text} style={[b.level === 1 ? type.title3 : b.level === 2 ? type.headline : { ...type.callout, fontWeight: '600' }, { marginTop: 4 }]} />;
+    case 'para':
+      return <Inline text={b.text} />;
+    case 'item':
+      return (
+        <View style={{ flexDirection: 'row', gap: 8, paddingLeft: b.indent * 16 }}>
+          <Text style={[type.callout, { color: c.dim, lineHeight: 23, minWidth: 14, fontVariant: ['tabular-nums'] }]}>{b.marker}</Text>
+          <View style={{ flex: 1 }}>
+            <Inline text={b.text} />
+          </View>
+        </View>
       );
-      continue;
-    }
-    const h = l.match(/^(#{1,6})\s+(.*)/);
-    const li = l.match(/^(\s*)([-*]|\d+\.)\s+(.*)/);
-    if (h) out.push(<Inline key={i} text={h[2]} style={{ fontWeight: '700', fontSize: h[1].length <= 2 ? 17 : 15, marginTop: 6 }} />);
-    else if (li)
-      out.push(
-        <View key={i} style={{ flexDirection: 'row', paddingLeft: li[1].length * 4 }}>
-          <Text style={{ color: c.dim, width: 18 }}>{/\d/.test(li[2]) ? li[2] : '•'}</Text>
-          <View style={{ flex: 1 }}><Inline text={li[3]} /></View>
-        </View>,
+    case 'quote':
+      return (
+        <View style={{ borderLeftWidth: 3, borderLeftColor: c.line, paddingLeft: 12 }}>
+          <Inline text={b.text} style={{ color: c.dim }} />
+        </View>
       );
-    else if (l.startsWith('> '))
-      out.push(<View key={i} style={{ borderLeftWidth: 2, borderColor: c.line, paddingLeft: 8 }}><Inline text={l.slice(2)} style={{ color: c.dim }} /></View>);
-    else if (l.trim()) out.push(<Inline key={i} text={l} />);
-    else out.push(<View key={i} style={{ height: 6 }} />);
+    case 'rule':
+      return <View style={{ height: 1, backgroundColor: c.line, marginVertical: 4 }} />;
+    case 'code':
+      return (
+        <View style={[card, { backgroundColor: c.bg, overflow: 'hidden' }]}>
+          {!!b.lang && <Text style={[type.caption2, { fontFamily: mono, paddingHorizontal: 12, paddingTop: 8 }]}>{b.lang}</Text>}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <Text selectable style={{ fontFamily: mono, fontSize: 13, lineHeight: 19, color: c.text, padding: 12, paddingTop: b.lang ? 4 : 12 }}>{b.text}</Text>
+          </ScrollView>
+        </View>
+      );
   }
-  return <View>{out}</View>;
+}
+
+export function Markdown({ text }: { text: string }) {
+  const blocks = useMemo(() => parse(text), [text]);
+  return (
+    <View style={{ gap: 10, alignSelf: 'stretch' }}>
+      {blocks.map((b, i) => (
+        <Piece key={i} b={b} />
+      ))}
+    </View>
+  );
 }

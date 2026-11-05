@@ -4,7 +4,7 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, del, post } from '@/lib/hosts';
 import type { GitStatus } from '@/lib/protocol';
-import { Button, Icon, Note, Row, c, mono, useLoad } from '@/components/ui';
+import { Button, Icon, Note, Row, c, mono, useLoad, listStyle } from '@/components/ui';
 
 const label: Record<string, string> = { M: 'modified', A: 'added', D: 'deleted', R: 'renamed', '?': 'new', U: 'conflict' };
 
@@ -61,6 +61,7 @@ export default function Git() {
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
       <FlatList
+        contentContainerStyle={listStyle}
         style={{ flex: 1, backgroundColor: c.bg as any }}
         contentInsetAdjustmentBehavior="automatic"
         data={data?.files ?? []}

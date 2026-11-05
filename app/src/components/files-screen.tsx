@@ -2,7 +2,7 @@ import { FlatList, RefreshControl, ScrollView, Text } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { api } from '@/lib/hosts';
 import type { FileContent, FileEntry } from '@/lib/protocol';
-import { Icon, Note, Row, c, mono, useLoad } from '@/components/ui';
+import { Icon, Note, Row, c, mono, useLoad, listStyle } from '@/components/ui';
 
 const size = (n: number) => (n >= 1 << 20 ? (n / (1 << 20)).toFixed(1) + ' MB' : n >= 1024 ? Math.round(n / 1024) + ' KB' : n + ' B');
 
@@ -41,6 +41,7 @@ export default function Files() {
     <>
       <Stack.Screen options={{ title }} />
       <FlatList
+        contentContainerStyle={listStyle}
         style={{ flex: 1, backgroundColor: c.bg as any }}
         contentInsetAdjustmentBehavior="automatic"
         data={(data as FileEntry[] | null) ?? []}

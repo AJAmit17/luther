@@ -4,7 +4,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { currentHost, post, resolve, api } from '@/lib/hosts';
 import type { Port } from '@/lib/protocol';
-import { Icon, Note, Row, c, home, useLoad } from '@/components/ui';
+import { Icon, Note, Row, c, home, useLoad, listStyle } from '@/components/ui';
 
 // Dev servers on the Mac (anything of yours listening on a port), opened in
 // Safari on the phone through Luther's route: tap localhost:3000, see the app.
@@ -33,6 +33,7 @@ export default function Preview() {
     <>
       <Stack.Screen options={{ title: 'Preview' }} />
       <FlatList
+        contentContainerStyle={listStyle}
         style={{ flex: 1, backgroundColor: c.bg as any }}
         contentInsetAdjustmentBehavior="automatic"
         data={ports}

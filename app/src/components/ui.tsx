@@ -1,26 +1,64 @@
-import { useCallback, useState, type ReactNode } from 'react';
-import { PlatformColor, Pressable, Text, View } from 'react-native';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { ActivityIndicator, Animated, DynamicColorIOS, Pressable, StyleSheet, Text, View, type ColorValue, type TextStyle, type ViewStyle } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
+import { MenuView, type MenuAction } from '@expo/ui/community/menu';
 import type { Mode, Provider } from '@/lib/protocol';
 import { keep, peek } from '@/lib/cache';
 
-// iOS system colors: light/dark follow the phone automatically.
-export const c = {
-  text: PlatformColor('label'),
-  dim: PlatformColor('secondaryLabel'),
-  faint: PlatformColor('tertiaryLabel'),
-  bg: PlatformColor('systemBackground'),
-  card: PlatformColor('secondarySystemBackground'),
-  fill: PlatformColor('tertiarySystemFill'),
-  line: PlatformColor('separator'),
-  accent: PlatformColor('systemOrange'),
-  blue: PlatformColor('systemBlue'),
-  green: PlatformColor('systemGreen'),
-  red: PlatformColor('systemRed'),
-};
+// Luther's look: a warm graphite (dark) / paper (light) neutral ramp and one
+// accent, Luther orange, for what's live or needs you — the working dot, a
+// waiting prompt, the send button. Never for plain actions, so it never reads
+// as an error. Colours follow the phone's appearance by themselves (iOS dynamic
+// colours), so nothing re-renders on a switch.
+
+type Pair = readonly [light: string, dark: string];
+const P = {
+  bg: ['#F6F6F3', '#0E0F11'],
+  surface: ['#FFFFFF', '#141518'],
+  card: ['#FFFFFF', '#1B1C20'],
+  muted: ['#EEEEEA', '#24252A'],
+  fill: ['#EEEEEA', '#24252A'], // = muted (older name)
+  line: ['#E3E2DD', '#2C2E33'],
+  text: ['#16171A', '#F3F3F1'],
+  dim: ['#5E6067', '#A3A5AB'],
+  faint: ['#8D8F95', '#6B6E75'],
+  accent: ['#E35A12', '#FF7B32'],
+  blue: ['#0B5CD6', '#6EA8FE'],
+  green: ['#1E8A54', '#4CC38A'],
+  red: ['#C3272D', '#F2555A'],
+  warn: ['#A8670D', '#E5A84B'],
+} satisfies Record<string, Pair>;
+
+const ios = process.env.EXPO_OS === 'ios';
+const dyn = ([light, dark]: Pair): ColorValue => (ios ? DynamicColorIOS({ light, dark }) : dark);
+const hexA = (hex: string, a: number) => hex + Math.round(a * 255).toString(16).padStart(2, '0');
+
+export const c = Object.fromEntries(Object.entries(P).map(([k, v]) => [k, dyn(v)])) as Record<keyof typeof P, ColorValue>;
+
+/** A palette colour at an opacity (pill and button backgrounds). */
+export const tint = (k: keyof typeof P, a: number) => dyn([hexA(P[k][0], a), hexA(P[k][1], a)]);
 
 export const mono = 'Menlo';
+
+/** iOS text styles, so sizes match native screens. */
+export const type = {
+  title: { fontSize: 28, fontWeight: '700', color: c.text },
+  title2: { fontSize: 22, fontWeight: '700', color: c.text },
+  title3: { fontSize: 20, fontWeight: '600', color: c.text },
+  headline: { fontSize: 17, fontWeight: '600', color: c.text },
+  body: { fontSize: 17, lineHeight: 23, color: c.text },
+  callout: { fontSize: 16, lineHeight: 22, color: c.text },
+  subhead: { fontSize: 15, lineHeight: 20, color: c.text },
+  footnote: { fontSize: 13, lineHeight: 18, color: c.dim },
+  caption: { fontSize: 12, lineHeight: 16, color: c.dim },
+  caption2: { fontSize: 11, lineHeight: 13, color: c.dim },
+} satisfies Record<string, TextStyle>;
+
+export const card: ViewStyle = { backgroundColor: c.card, borderRadius: 16, borderCurve: 'continuous', borderWidth: StyleSheet.hairlineWidth, borderColor: c.line };
+
+/** contentContainerStyle for a list of card rows. */
+export const listStyle: ViewStyle = { padding: 16, gap: 8, paddingBottom: 40 };
 
 export const home = (p: string) => p.replace(/^\/(Users|home)\/[^/]+/, '~').replace(/^\/root(?=\/|$)/, '~');
 
@@ -41,74 +79,211 @@ export function ago(t: string | number) {
   return `${Math.round(sec / 86400)}d`;
 }
 
-export const Icon = ({ name, size = 18, color = c.dim }: { name: string; size?: number; color?: any }) => (
-  <Image source={`sf:${name}`} style={{ width: size, height: size }} tintColor={color as any} />
+export const Icon = ({ name, size = 18, color = c.dim }: { name: string; size?: number; color?: ColorValue }) => (
+  <Image source={`sf:${name}`} style={{ width: size, height: size }} tintColor={color as string} />
 );
 
-export function Row({ title, sub, icon, right, onPress, onLongPress }: {
-  title: string; sub?: string; icon?: ReactNode; right?: ReactNode; onPress?: () => void; onLongPress?: () => void;
-}) {
+/** The "agent is working" dot. */
+export function PulsingDot({ size = 8, color = c.accent }: { size?: number; color?: ColorValue }) {
+  const [opacity] = useState(() => new Animated.Value(1));
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [opacity]);
+  return <Animated.View accessibilityLabel="Working" style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color, opacity }} />;
+}
+
+export const Dot = ({ color, size = 6 }: { color: ColorValue; size?: number }) => <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color }} />;
+
+type Tone = 'accent' | 'green' | 'blue' | 'red' | 'warn' | 'dim';
+/** A state capsule: a dot (live: pulsing) and a word. */
+export function Pill({ label, tone = 'dim', live, icon }: { label: string; tone?: Tone; live?: boolean; icon?: string }) {
+  const color = c[tone];
   return (
-    <Pressable onPress={onPress} onLongPress={onLongPress} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: pressed ? c.fill : 'transparent' })}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: tint(tone, 0.14) }}>
+      {icon ? <Icon name={icon} size={10} color={color} /> : live ? <PulsingDot size={6} color={color} /> : <Dot color={color} />}
+      <Text style={[type.caption2, { fontWeight: '600', color }]}>{label}</Text>
+    </View>
+  );
+}
+
+/** Kept for older call sites: a quiet pill. */
+export const Badge = ({ label, color }: { label: string; color?: ColorValue }) => (
+  <Pill label={label} tone={color === c.green ? 'green' : color === c.accent ? 'accent' : color === c.blue ? 'blue' : color === c.red ? 'red' : 'dim'} />
+);
+
+/** A card row: icon, title and detail, something on the right. A long press opens `menu`. */
+export function Row({ title, sub, icon, right, onPress, onLongPress, menu, onMenu, subLines = 2 }: {
+  title: string;
+  sub?: string;
+  icon?: ReactNode;
+  right?: ReactNode;
+  onPress?: () => void;
+  onLongPress?: () => void;
+  menu?: MenuAction[];
+  onMenu?: (id: string) => void;
+  subLines?: number;
+}) {
+  const body = (
+    <Pressable onPress={onPress} onLongPress={menu ? undefined : onLongPress} style={({ pressed }) => [card, { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13, opacity: pressed ? 0.7 : 1 }]}>
       {icon}
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ color: c.text, fontSize: 16, fontWeight: '500' }} numberOfLines={1}>{title}</Text>
-        {!!sub && <Text style={{ color: c.dim, fontSize: 13 }} numberOfLines={2}>{sub}</Text>}
+        <Text style={[type.callout, { fontWeight: '600' }]} numberOfLines={1}>{title}</Text>
+        {!!sub && <Text style={type.footnote} numberOfLines={subLines}>{sub}</Text>}
       </View>
       {right}
     </Pressable>
   );
+  if (!menu) return body;
+  return (
+    <MenuView actions={menu} shouldOpenOnLongPress onPressAction={({ nativeEvent }) => onMenu?.(nativeEvent.event)}>
+      {body}
+    </MenuView>
+  );
 }
 
-export function Button({ label, onPress, kind = 'plain', icon, disabled }: {
-  label: string; onPress: () => void; kind?: 'plain' | 'accent' | 'danger'; icon?: string; disabled?: boolean;
+/** A Settings-style group: rows inside one rounded card, with a title above and a footer below. */
+export function Group({ title, footer, children }: { title?: string; footer?: string; children: ReactNode }) {
+  return (
+    <View style={{ gap: 6 }}>
+      {!!title && <SectionTitle>{title}</SectionTitle>}
+      <View style={[card, { overflow: 'hidden' }]}>{children}</View>
+      {!!footer && <Text style={[type.footnote, { paddingHorizontal: 16 }]}>{footer}</Text>}
+    </View>
+  );
+}
+
+/** One row of a Group. `first` drops the separator above it. */
+export function GroupRow({ label, value, icon, iconColor, onPress, right, first, destructive, sub }: {
+  label: string;
+  value?: string;
+  icon?: string;
+  iconColor?: ColorValue;
+  onPress?: () => void;
+  right?: ReactNode;
+  first?: boolean;
+  destructive?: boolean;
+  sub?: string;
 }) {
-  const fg = kind === 'accent' ? '#fff' : kind === 'danger' ? c.red : c.text;
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
-      style={({ pressed }) => ({ flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 11, borderRadius: 12, borderCurve: 'continuous', backgroundColor: kind === 'accent' ? c.accent : c.card, opacity: disabled ? 0.4 : pressed ? 0.7 : 1 })}
+      disabled={!onPress}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, minHeight: 48, borderTopWidth: first ? 0 : StyleSheet.hairlineWidth, borderTopColor: c.line, backgroundColor: pressed ? c.muted : 'transparent' })}
     >
-      {!!icon && <Icon name={icon} size={16} color={fg} />}
-      <Text style={{ color: fg, fontWeight: '600', fontSize: 15 }}>{label}</Text>
+      {!!icon && <Icon name={icon} size={17} color={iconColor ?? (destructive ? c.red : c.text)} />}
+      <View style={{ flex: 1, gap: 1 }}>
+        <Text style={[type.body, destructive && { color: c.red }]} numberOfLines={1}>{label}</Text>
+        {!!sub && <Text style={type.footnote} numberOfLines={2}>{sub}</Text>}
+      </View>
+      {!!value && <Text selectable numberOfLines={1} style={[type.body, { color: c.dim, flexShrink: 1, textAlign: 'right' }]}>{value}</Text>}
+      {right ?? (onPress && !destructive ? <Icon name="chevron.right" size={13} color={c.faint} /> : null)}
     </Pressable>
   );
 }
 
-export const Badge = ({ label, color = c.dim }: { label: string; color?: any }) => (
-  <Text style={{ color, borderColor: color, fontSize: 11, fontWeight: '600', borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' }}>{label}</Text>
-);
+export function Button({ label, onPress, kind = 'plain', icon, disabled, busy }: {
+  label: string; onPress: () => void; kind?: 'plain' | 'accent' | 'danger'; icon?: string; disabled?: boolean; busy?: boolean;
+}) {
+  const fg = kind === 'accent' ? '#FFFFFF' : kind === 'danger' ? c.red : c.text;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled || busy}
+      accessibilityRole="button"
+      style={({ pressed }) => ({ flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 14, borderRadius: 14, borderCurve: 'continuous', backgroundColor: kind === 'accent' ? c.accent : kind === 'danger' ? tint('red', 0.12) : c.muted, opacity: disabled ? 0.4 : pressed ? 0.75 : 1 })}
+    >
+      {busy ? <ActivityIndicator size="small" color={fg as string} /> : icon ? <Icon name={icon} size={16} color={fg} /> : null}
+      <Text style={[type.headline, { color: fg, fontSize: 16 }]}>{label}</Text>
+    </Pressable>
+  );
+}
 
-const PROVIDERS: Record<Provider, { name: string; icon: string; color: any }> = {
+/** A quiet capsule button for secondary actions inside cards. */
+export function TextButton({ label, onPress, tone = 'accent', icon }: { label: string; onPress: () => void; tone?: Tone; icon?: string }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={6} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: tint(tone, pressed ? 0.24 : 0.13) })}>
+      {!!icon && <Icon name={icon} size={12} color={c[tone]} />}
+      <Text style={[type.footnote, { color: c[tone], fontWeight: '600' }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+const PROVIDERS: Record<Provider, { name: string; icon: string; color: ColorValue }> = {
   claude: { name: 'Claude', icon: 'sparkle', color: c.accent },
   codex: { name: 'Codex', icon: 'chevron.left.forwardslash.chevron.right', color: c.blue },
   opencode: { name: 'OpenCode', icon: 'curlybraces', color: c.green },
-  gemini: { name: 'Gemini', icon: 'diamond', color: PlatformColor('systemIndigo') },
-  cursor: { name: 'Cursor', icon: 'cursorarrow', color: PlatformColor('systemTeal') },
+  gemini: { name: 'Gemini', icon: 'diamond', color: dyn(['#5B4BD6', '#9C8CFF']) },
+  cursor: { name: 'Cursor', icon: 'cursorarrow', color: dyn(['#0E7C86', '#4FD1DB']) },
 };
 const info = (p: Provider) => PROVIDERS[p] ?? { name: p, icon: 'cpu', color: c.dim };
 export const providerIcon = (p: Provider) => info(p).icon;
 export const providerName = (p: Provider) => info(p).name;
+export const providerColor = (p: Provider) => info(p).color;
 
-export const ProviderIcon = ({ p }: { p: Provider }) => (
-  <View style={{ width: 30, height: 30, borderRadius: 8, borderCurve: 'continuous', backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' }}>
-    <Icon name={providerIcon(p)} size={15} color={info(p).color} />
+export const ProviderIcon = ({ p, size = 34 }: { p: Provider; size?: number }) => (
+  <View style={{ width: size, height: size, borderRadius: size * 0.3, borderCurve: 'continuous', backgroundColor: c.muted, alignItems: 'center', justifyContent: 'center' }}>
+    <Icon name={providerIcon(p)} size={size * 0.47} color={info(p).color} />
   </View>
 );
 
-export const Note = ({ children, error }: { children: ReactNode; error?: boolean }) => (
-  <Text selectable style={{ color: error ? c.red : c.dim, padding: 16, textAlign: 'center', fontSize: 14 }}>{children}</Text>
+/** An icon in a rounded square, like Settings' row icons. */
+export const IconTile = ({ name, color = c.dim, size = 34 }: { name: string; color?: ColorValue; size?: number }) => (
+  <View style={{ width: size, height: size, borderRadius: size * 0.3, borderCurve: 'continuous', backgroundColor: c.muted, alignItems: 'center', justifyContent: 'center' }}>
+    <Icon name={name} size={size * 0.5} color={color} />
+  </View>
 );
 
-export const Banner = ({ text, error, onPress }: { text: string; error?: boolean; onPress?: () => void }) => (
-  <Pressable onPress={onPress} style={{ paddingVertical: 8, paddingHorizontal: 12, backgroundColor: c.card }}>
-    <Text selectable style={{ color: error ? c.red : c.dim, textAlign: 'center', fontSize: 13 }}>{text}</Text>
-  </Pressable>
-);
+export function SectionTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingTop: 10 }}>
+      <Text style={[type.footnote, { flex: 1, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4 }]}>{children}</Text>
+      {right}
+    </View>
+  );
+}
 
+/** Kept name: a section heading inside a list. */
 export const Section = ({ title }: { title: string }) => (
-  <Text style={{ color: c.dim, fontSize: 13, fontWeight: '600', paddingHorizontal: 16, paddingTop: 22, paddingBottom: 6, textTransform: 'uppercase', backgroundColor: c.bg }}>{title}</Text>
+  <View style={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 6, backgroundColor: c.bg }}>
+    <SectionTitle>{title}</SectionTitle>
+  </View>
+);
+
+/** SwiftUI's ContentUnavailableView: a big symbol, a title, a line. */
+export function Empty({ icon, title, sub, action }: { icon: string; title: string; sub?: string; action?: ReactNode }) {
+  return (
+    <View style={{ alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 32, paddingVertical: 48 }}>
+      <Icon name={icon} size={44} color={c.faint} />
+      <Text style={[type.title3, { textAlign: 'center', marginTop: 6 }]}>{title}</Text>
+      {!!sub && <Text style={[type.subhead, { color: c.dim, textAlign: 'center' }]}>{sub}</Text>}
+      {action}
+    </View>
+  );
+}
+
+export const Note = ({ children, error }: { children: ReactNode; error?: boolean }) =>
+  error ? (
+    <View style={{ flexDirection: 'row', gap: 8, padding: 12, borderRadius: 12, borderCurve: 'continuous', backgroundColor: tint('red', 0.1) }}>
+      <Icon name="exclamationmark.triangle.fill" size={15} color={c.red} />
+      <Text selectable style={[type.footnote, { color: c.red, flex: 1 }]}>{children}</Text>
+    </View>
+  ) : (
+    <Text selectable style={[type.footnote, { textAlign: 'center', padding: 12 }]}>{children}</Text>
+  );
+
+/** A slim status strip (connection, warnings). */
+export const Banner = ({ text, error, onPress, icon }: { text: string; error?: boolean; onPress?: () => void; icon?: string }) => (
+  <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 14, backgroundColor: error ? tint('red', 0.12) : c.muted }}>
+    {!!icon && <Icon name={icon} size={12} color={error ? c.red : c.dim} />}
+    <Text selectable style={[type.footnote, { color: error ? c.red : c.dim, textAlign: 'center' }]}>{text}</Text>
+  </Pressable>
 );
 
 // useLoad: runs fn on every focus (lists go stale while you're elsewhere) and on pull-to-refresh.

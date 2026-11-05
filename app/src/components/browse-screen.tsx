@@ -1,7 +1,7 @@
 import { Alert, FlatList, RefreshControl, View } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { api, post } from '@/lib/hosts';
-import { Button, Icon, Note, Row, c, useLoad } from '@/components/ui';
+import { Button, Icon, Note, Row, c, useLoad, listStyle } from '@/components/ui';
 
 // Walk folders under the Mac's home folder to start an agent where none has run yet.
 export default function Browse() {
@@ -15,6 +15,7 @@ export default function Browse() {
     <>
       <Stack.Screen options={{ title: path ? path.split('/').pop() : 'Home' }} />
       <FlatList
+        contentContainerStyle={listStyle}
         style={{ flex: 1, backgroundColor: c.bg as any }}
         contentInsetAdjustmentBehavior="automatic"
         data={data ?? []}

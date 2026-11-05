@@ -1,22 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
+import { MenuView } from '@expo/ui/community/menu';
 import { api } from '@/lib/hosts';
 import type { Mode, Provider, ProviderInfo } from '@/lib/protocol';
 import { openThread } from '@/lib/threads';
-import { Button, Icon, MODES, Note, c, home, providerIcon, useLoad } from '@/components/ui';
+import { Button, Group, GroupRow, Icon, MODES, Note, ProviderIcon, c, card, home, tint, type, useLoad } from '@/components/ui';
 
-const Chip = ({ label, on, onPress, icon }: { label: string; on: boolean; onPress: () => void; icon?: string }) => (
-  <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, backgroundColor: on ? c.accent : c.card }}>
-    {!!icon && <Icon name={icon} size={14} color={on ? '#fff' : c.text} />}
-    <Text style={{ color: on ? '#fff' : c.text, fontWeight: '500' }}>{label}</Text>
-  </Pressable>
-);
-
-// New thread in a folder: pick the agent, model and permission mode.
+// New thread in a folder (a sheet): the agent, its model, permissions, worktree.
 export default function NewThread() {
   const { cwd } = useLocalSearchParams<{ cwd: string }>();
-  const { data: providers, error } = useLoad(() => api<ProviderInfo[]>('/providers'));
+  const { data: providers, error } = useLoad(() => api<ProviderInfo[]>('/providers'), [], 'providers');
   const installed = (providers ?? []).filter((p) => p.installed);
   const [provider, setProvider] = useState<Provider | null>(null);
   const [models, setModels] = useState<string[]>([]);
@@ -36,46 +30,73 @@ export default function NewThread() {
   }, [p]);
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
-      <Text style={{ color: c.dim }} selectable>{home(cwd)}</Text>
+    <ScrollView style={{ flex: 1, backgroundColor: c.surface }} contentContainerStyle={{ padding: 20, paddingTop: 28, gap: 20, paddingBottom: 40 }}>
+      <View style={{ gap: 4 }}>
+        <Text style={type.title2}>New thread</Text>
+        <Text selectable style={type.footnote} numberOfLines={1}>{home(cwd)}</Text>
+      </View>
       {!!error && <Note error>{error}</Note>}
-      {providers && !installed.length && <Note error>Neither claude nor codex is installed on this Mac.</Note>}
-      <Text style={{ color: c.dim, fontWeight: '600' }}>AGENT</Text>
-      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-        {installed.map((x) => (
-          <Chip key={x.id} label={x.name} icon={providerIcon(x.id)} on={p === x.id} onPress={() => { setProvider(x.id); setModel(''); }} />
+      {providers && !installed.length && <Note error>No agent CLI is installed on this Mac (claude, codex, opencode, gemini, cursor).</Note>}
+
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+        {installed.map((x) => {
+          const on = p === x.id;
+          return (
+            <Pressable
+              key={x.id}
+              onPress={() => {
+                setProvider(x.id);
+                setModel('');
+              }}
+              style={({ pressed }) => [card, { width: '47%', flexGrow: 1, padding: 12, gap: 8, borderColor: on ? c.accent : c.line, borderWidth: on ? 1.5 : 1, backgroundColor: on ? tint('accent', 0.08) : c.card, opacity: pressed ? 0.8 : 1 }]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <ProviderIcon p={x.id} size={30} />
+                {on && <Icon name="checkmark.circle.fill" size={18} color={c.accent} />}
+              </View>
+              <View>
+                <Text style={type.headline}>{x.name}</Text>
+                <Text style={type.caption} numberOfLines={1}>{x.version || 'installed'}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Group title="Model">
+        <MenuView
+          actions={[{ id: '', title: 'Default', state: !model ? 'on' : 'off' }, ...models.map((m) => ({ id: m, title: m, state: (model === m ? 'on' : 'off') as 'on' | 'off' }))]}
+          onPressAction={({ nativeEvent }) => setModel(nativeEvent.event)}
+        >
+          <GroupRow first icon="cpu" label={model || 'Default'} sub={models.length ? undefined : 'The agent picks; you can switch later'} right={<Icon name="chevron.up.chevron.down" size={13} color={c.faint} />} />
+        </MenuView>
+      </Group>
+
+      <Group title="Permissions">
+        {MODES.map((m, i) => (
+          <GroupRow
+            key={m.id}
+            first={i === 0}
+            icon={m.icon}
+            iconColor={m.id === 'full' ? c.red : c.accent}
+            label={m.label}
+            sub={m.desc}
+            right={mode === m.id ? <Icon name="checkmark" size={15} color={c.accent} /> : <View style={{ width: 15 }} />}
+            onPress={() => setMode(m.id)}
+          />
         ))}
-      </View>
-      <Text style={{ color: c.dim, fontWeight: '600' }}>MODEL</Text>
-      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-        <Chip label="Default" on={!model} onPress={() => setModel('')} />
-        {models.map((m) => <Chip key={m} label={m} on={model === m} onPress={() => setModel(m)} />)}
-      </View>
-      <Text style={{ color: c.dim, fontWeight: '600' }}>PERMISSIONS</Text>
-      <View style={{ gap: 6 }}>
-        {MODES.map((m) => (
-          <Pressable key={m.id} onPress={() => setMode(m.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderCurve: 'continuous', backgroundColor: mode === m.id ? c.fill : c.card }}>
-            <Icon name={m.icon} color={m.id === 'full' ? c.red : c.accent} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: c.text, fontWeight: '600' }}>{m.label}</Text>
-              <Text style={{ color: c.dim, fontSize: 12 }}>{m.desc}</Text>
-            </View>
-            {mode === m.id && <Icon name="checkmark" color={c.accent} />}
-          </Pressable>
-        ))}
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderCurve: 'continuous', backgroundColor: c.card }}>
-        <Icon name="arrow.triangle.branch" color={c.accent} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: c.text, fontWeight: '600' }}>Separate worktree</Text>
-          <Text style={{ color: c.dim, fontSize: 12 }}>Its own branch and checkout, so agents in this project don&apos;t step on each other.</Text>
-        </View>
-        <Switch value={worktree} onValueChange={setWorktree} />
-      </View>
+      </Group>
+
+      <Group footer="Its own branch and checkout, so several agents in one project don't step on each other.">
+        <GroupRow first icon="arrow.triangle.branch" iconColor={c.blue} label="Separate worktree" right={<Switch value={worktree} onValueChange={setWorktree} />} />
+      </Group>
+
       <Button
         kind="accent"
+        icon="play.fill"
         label={busy ? 'Starting…' : 'Start'}
-        disabled={!p || busy}
+        busy={busy}
+        disabled={!p}
         onPress={() => {
           setBusy(true);
           openThread({ provider: p!, cwd, mode, model: model || undefined, worktree: worktree || undefined }, true).finally(() => setBusy(false));

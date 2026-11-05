@@ -4,7 +4,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { api } from '@/lib/hosts';
 import type { Project, Provider, ProviderInfo } from '@/lib/protocol';
 import { openThread } from '@/lib/threads';
-import { Icon, Note, Row, c, home, providerIcon, useLoad } from '@/components/ui';
+import { Icon, Note, Row, c, home, providerIcon, useLoad, listStyle } from '@/components/ui';
 
 // "Send to Luther": a message (from a Shortcut, Siri, the Share Sheet via a
 // Shortcut, a widget, or the home-screen icon's menu) to a new thread in a
@@ -36,6 +36,7 @@ export default function Send() {
     <>
       <Stack.Screen options={{ title: 'Send to Luther' }} />
       <FlatList
+        contentContainerStyle={listStyle}
         style={{ flex: 1, backgroundColor: c.bg as any }}
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"

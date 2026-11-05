@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import { useQuickActionRouting } from 'expo-quick-actions/router';
 import { c } from '@/components/ui';
@@ -44,25 +46,43 @@ export default function Layout() {
     };
   }, []);
 
+  // Pushed screens get an opaque header: content (the chat above all) must not
+  // scroll under a see-through bar.
+  const sheet = { headerShown: false, presentation: 'formSheet', sheetGrabberVisible: true, contentStyle: { backgroundColor: c.surface as string } } as const;
   return (
-    <>
-      <Stack
-        screenOptions={{
-          headerTintColor: c.accent as any,
-          headerBackButtonDisplayMode: 'minimal',
-          contentStyle: { backgroundColor: c.bg as any },
-        }}
-      >
-        <Stack.Screen name="index" options={{ title: 'Luther', headerLargeTitle: true }} />
-        <Stack.Screen name="project" options={{ headerLargeTitle: true }} />
-        <Stack.Screen name="pair" options={{ title: 'Pair a Mac', presentation: 'modal' }} />
-        <Stack.Screen name="new" options={{ title: 'New thread', presentation: 'formSheet', sheetAllowedDetents: [0.6, 1], sheetGrabberVisible: true }} />
-        <Stack.Screen name="settings" options={{ title: 'Settings' }} />
-        <Stack.Screen name="browse" options={{ title: 'Pick a folder' }} />
-        <Stack.Screen name="send" options={{ title: 'Send to Luther', presentation: 'modal' }} />
-      </Stack>
-      {host && <Feed key={host} host={host} />}
-    </>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: c.bg as string }}>
+      <KeyboardProvider>
+        <Stack
+          screenOptions={{
+            headerTintColor: c.accent as string,
+            headerTitleStyle: { color: c.text as string },
+            headerStyle: { backgroundColor: c.bg as string },
+            headerShadowVisible: false,
+            headerTransparent: false,
+            headerBackButtonDisplayMode: 'minimal',
+            contentStyle: { backgroundColor: c.bg as string },
+          }}
+        >
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="thread/[id]" options={{ headerStyle: { backgroundColor: c.surface as string }, contentStyle: { backgroundColor: c.surface as string } }} />
+          <Stack.Screen name="project" options={{ headerLargeTitle: true, headerTransparent: process.env.EXPO_OS === 'ios', headerLargeTitleShadowVisible: false }} />
+          <Stack.Screen name="pair" options={{ title: 'Pair a Mac', presentation: 'modal' }} />
+          <Stack.Screen name="new" options={{ ...sheet, sheetAllowedDetents: [0.75, 1] }} />
+          <Stack.Screen name="send" options={{ title: 'Send to Luther', presentation: 'modal' }} />
+          <Stack.Screen name="browse" options={{ title: 'Pick a folder' }} />
+          <Stack.Screen name="files" options={{ title: 'Files' }} />
+          <Stack.Screen name="git" options={{ title: 'Changes' }} />
+          <Stack.Screen name="diff" options={{ title: 'Diff' }} />
+          <Stack.Screen name="turns" options={{ title: 'Turns' }} />
+          <Stack.Screen name="preview" options={{ title: 'Preview' }} />
+          <Stack.Screen name="instructions" options={{ title: 'Instructions' }} />
+          <Stack.Screen name="edit" options={{ title: 'Edit' }} />
+          <Stack.Screen name="schedule" options={{ title: 'Schedule', presentation: 'modal' }} />
+          <Stack.Screen name="term/[name]" options={{ title: 'Terminal' }} />
+        </Stack>
+        {host && <Feed key={host} host={host} />}
+      </KeyboardProvider>
+    </GestureHandlerRootView>
   );
 }
 

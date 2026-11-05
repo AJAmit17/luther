@@ -3,7 +3,7 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { api, del, post } from '@/lib/hosts';
 import type { Job } from '@/lib/protocol';
 import { describe } from '@/lib/cron';
-import { Note, ProviderIcon, Row, ago, c, until, useLoad } from '@/components/ui';
+import { Note, ProviderIcon, Row, ago, c, until, useLoad, listStyle } from '@/components/ui';
 
 // Agent runs on a timetable: each opens a new thread with its prompt. The Mac
 // runs them (while it's awake); the phone hears about them like any run.
@@ -35,6 +35,7 @@ export default function Schedules() {
         <Stack.Toolbar.Button icon="plus" onPress={() => router.push({ pathname: '/schedule', params: cwd ? { cwd } : {} })} />
       </Stack.Toolbar>
       <FlatList
+        contentContainerStyle={listStyle}
         style={{ flex: 1, backgroundColor: c.bg as any }}
         contentInsetAdjustmentBehavior="automatic"
         data={jobs}

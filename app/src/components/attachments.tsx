@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { ActionSheetIOS, ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { upload } from '@/lib/hosts';
-import { Icon, c } from '@/components/ui';
+import { Icon, c, type } from '@/components/ui';
 
 type Item = { key: string; uri: string; name: string; image: boolean; path?: string };
 
@@ -30,18 +30,17 @@ export function useAttachments() {
   const fromImages = (r: ImagePicker.ImagePickerResult) =>
     !r.canceled && add(r.assets.map((a) => ({ uri: a.uri, name: a.fileName ?? `photo-${Date.now()}.jpg`, image: true })));
 
-  const pick = () =>
-    ActionSheetIOS.showActionSheetWithOptions({ options: ['Photo Library', 'Take Photo', 'Files', 'Cancel'], cancelButtonIndex: 3 }, async (i) => {
-      if (i === 0) fromImages(await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 0.8 }));
-      if (i === 1) {
-        if (!(await ImagePicker.requestCameraPermissionsAsync()).granted) return Alert.alert('Camera access is off', 'Turn it on for Luther in Settings.');
-        fromImages(await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 }));
-      }
-      if (i === 2) {
-        const r = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
-        if (!r.canceled) add(r.assets.map((a) => ({ uri: a.uri, name: a.name, image: !!a.mimeType?.startsWith('image/') })));
-      }
-    });
+  const pick = async (from: 'photos' | 'camera' | 'files') => {
+    if (from === 'photos') fromImages(await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 0.8 }));
+    if (from === 'camera') {
+      if (!(await ImagePicker.requestCameraPermissionsAsync()).granted) return Alert.alert('Camera access is off', 'Turn it on for Luther in Settings.');
+      fromImages(await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 }));
+    }
+    if (from === 'files') {
+      const r = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
+      if (!r.canceled) add(r.assets.map((a) => ({ uri: a.uri, name: a.name, image: !!a.mimeType?.startsWith('image/') })));
+    }
+  };
 
   return {
     items,
@@ -53,27 +52,27 @@ export function useAttachments() {
   };
 }
 
-export function AttachmentChips({ items, onRemove }: { items: Item[]; onRemove: (key: string) => void }) {
+export function AttachmentStrip({ items, onRemove }: { items: Item[]; onRemove: (key: string) => void }) {
   if (!items.length) return null;
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 12, paddingTop: 8 }}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8 }}>
       {items.map((x) => (
-        <View key={x.key} style={{ width: 64, height: 64, borderRadius: 12, borderCurve: 'continuous', backgroundColor: c.card, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+        <View key={x.key} style={{ width: 56, height: 56, borderRadius: 12, borderCurve: 'continuous', backgroundColor: c.muted, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
           {x.image ? (
-            <Image source={{ uri: x.uri }} style={{ width: 64, height: 64 }} contentFit="cover" />
+            <Image source={{ uri: x.uri }} style={{ width: 56, height: 56 }} contentFit="cover" />
           ) : (
             <View style={{ alignItems: 'center', gap: 2, padding: 4 }}>
-              <Icon name="doc" size={20} />
-              <Text style={{ color: c.dim, fontSize: 9 }} numberOfLines={1}>{x.name}</Text>
+              <Icon name="doc" size={18} />
+              <Text style={[type.caption2, { fontSize: 9 }]} numberOfLines={1}>{x.name}</Text>
             </View>
           )}
           {!x.path && (
-            <View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0006' }}>
+            <View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0007' }}>
               <ActivityIndicator color="#fff" />
             </View>
           )}
-          <Pressable onPress={() => onRemove(x.key)} hitSlop={8} style={{ position: 'absolute', top: 3, right: 3 }}>
-            <Icon name="xmark.circle.fill" size={18} color="#fffd" />
+          <Pressable onPress={() => onRemove(x.key)} hitSlop={8} accessibilityLabel={`Remove ${x.name}`} style={{ position: 'absolute', top: 3, right: 3 }}>
+            <Icon name="xmark.circle.fill" size={17} color="#FFFFFFE6" />
           </Pressable>
         </View>
       ))}
