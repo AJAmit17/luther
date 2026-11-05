@@ -4,7 +4,9 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import { useQuickActionRouting } from 'expo-quick-actions/router';
-import { c } from '@/components/ui';
+import { useHex } from '@/components/ui';
+import { StatusBar } from 'expo-status-bar';
+import '@/lib/theme'; // applies the saved appearance before the first render
 import { onActivityStop } from '@/lib/activities';
 import { scheduleBackgroundRefresh } from '@/lib/background'; // also defines the task at import
 import { useFeed } from '@/lib/feed';
@@ -15,6 +17,7 @@ import { setQuickActions } from '@/lib/quick-actions';
 
 export default function Layout() {
   const [host, setHost] = useState<string | null>(null);
+  const h = useHex();
   useQuickActionRouting();
 
   useEffect(() => {
@@ -48,23 +51,25 @@ export default function Layout() {
 
   // Pushed screens get an opaque header: content (the chat above all) must not
   // scroll under a see-through bar.
-  const sheet = { headerShown: false, presentation: 'formSheet', sheetGrabberVisible: true, contentStyle: { backgroundColor: c.surface as string } } as const;
+  const sheet = { headerShown: false, presentation: 'formSheet', sheetGrabberVisible: true, contentStyle: { backgroundColor: h.surface } } as const;
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: c.bg as string }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: h.bg }}>
       <KeyboardProvider>
+        <StatusBar style={h.dark ? 'light' : 'dark'} />
         <Stack
           screenOptions={{
-            headerTintColor: c.accent as string,
-            headerTitleStyle: { color: c.text as string },
-            headerStyle: { backgroundColor: c.bg as string },
+            headerTintColor: h.accent,
+            headerTitleStyle: { color: h.text },
+            headerLargeTitleStyle: { color: h.text },
+            headerStyle: { backgroundColor: h.bg },
             headerShadowVisible: false,
             headerTransparent: false,
             headerBackButtonDisplayMode: 'minimal',
-            contentStyle: { backgroundColor: c.bg as string },
+            contentStyle: { backgroundColor: h.bg },
           }}
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="thread/[id]" options={{ headerStyle: { backgroundColor: c.surface as string }, contentStyle: { backgroundColor: c.surface as string } }} />
+          <Stack.Screen name="thread/[id]" options={{ headerStyle: { backgroundColor: h.surface }, contentStyle: { backgroundColor: h.surface } }} />
           <Stack.Screen name="project" options={{ headerLargeTitle: true, headerTransparent: process.env.EXPO_OS === 'ios', headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="pair" options={{ title: 'Pair a Mac', presentation: 'modal' }} />
           <Stack.Screen name="new" options={{ ...sheet, sheetAllowedDetents: [0.75, 1] }} />

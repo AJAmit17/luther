@@ -5,11 +5,11 @@ import { api, post } from '@/lib/hosts';
 import type { Job, Mode, Project, Provider, ProviderInfo } from '@/lib/protocol';
 import { DAYS, describe, fromCron, parseTime, toCron, type Preset } from '@/lib/cron';
 import { peek } from '@/lib/cache';
-import { Button, Icon, MODES, Note, c, home, mono, providerIcon, useLoad } from '@/components/ui';
+import { Button, Icon, MODES, Note, c, home, mono, useLoad, ProviderMark } from '@/components/ui';
 
-const Chip = ({ label, on, onPress, icon }: { label: string; on: boolean; onPress: () => void; icon?: string }) => (
+const Chip = ({ label, on, onPress, icon, mark }: { label: string; on: boolean; onPress: () => void; icon?: string; mark?: React.ReactNode }) => (
   <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: on ? c.accent : c.card }}>
-    {!!icon && <Icon name={icon} size={13} color={on ? '#fff' : c.text} />}
+    {mark ?? (!!icon && <Icon name={icon} size={13} color={on ? '#fff' : c.text} />)}
     <Text style={{ color: on ? '#fff' : c.text, fontWeight: '500' }}>{label}</Text>
   </Pressable>
 );
@@ -87,7 +87,7 @@ export default function ScheduleEditor() {
 
       <Label>AGENT</Label>
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-        {installed.map((p) => <Chip key={p.id} label={p.name} icon={providerIcon(p.id)} on={agent === p.id} onPress={() => setProvider(p.id)} />)}
+        {installed.map((p) => <Chip key={p.id} label={p.name} mark={<ProviderMark p={p.id} size={14} color={agent === p.id ? '#FFFFFF' : undefined} />} on={agent === p.id} onPress={() => setProvider(p.id)} />)}
       </View>
 
       <Label>PERMISSIONS</Label>

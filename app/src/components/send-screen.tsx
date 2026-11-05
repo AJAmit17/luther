@@ -4,7 +4,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { api } from '@/lib/hosts';
 import type { Project, Provider, ProviderInfo } from '@/lib/protocol';
 import { openThread } from '@/lib/threads';
-import { Icon, Note, Row, c, home, providerIcon, useLoad, listStyle } from '@/components/ui';
+import { Icon, Note, Row, c, home, useLoad, listStyle, ProviderMark } from '@/components/ui';
 
 // "Send to Luther": a message (from a Shortcut, Siri, the Share Sheet via a
 // Shortcut, a widget, or the home-screen icon's menu) to a new thread in a
@@ -56,7 +56,7 @@ export default function Send() {
             <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
               {installed.map((p) => (
                 <Pressable key={p.id} onPress={() => setPicked(p.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: provider === p.id ? c.accent : c.card }}>
-                  <Icon name={providerIcon(p.id)} size={13} color={provider === p.id ? '#fff' : c.text} />
+                  <ProviderMark p={p.id} size={14} color={provider === p.id ? '#FFFFFF' : undefined} />
                   <Text style={{ color: provider === p.id ? '#fff' : c.text, fontWeight: '500' }}>{p.name}</Text>
                 </Pressable>
               ))}

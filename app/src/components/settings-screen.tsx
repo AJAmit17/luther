@@ -5,6 +5,7 @@ import { api, currentHost, del, keyFor, removeHost, resolve, routeInUse, upsertH
 import type { Device } from '@/lib/protocol';
 import { Group, GroupRow, Icon, IconTile, Note, Pill, ago, c, card, mono, type } from '@/components/ui';
 import { UsageSection } from '@/components/usage-section';
+import { AppearancePicker } from '@/components/appearance-picker';
 
 const input = { ...type.subhead, fontFamily: mono, paddingHorizontal: 16, paddingVertical: 13 } as const;
 
@@ -67,7 +68,10 @@ export default function Settings() {
     <ScrollView contentInsetAdjustmentBehavior="automatic" style={{ flex: 1, backgroundColor: c.bg }} contentContainerStyle={{ padding: 16, gap: 22, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
       <Stack.Screen options={{ title: 'Settings' }} />
       {!h ? (
-        <Note>No Mac paired.</Note>
+        <>
+          <AppearancePicker />
+          <Note>No Mac paired.</Note>
+        </>
       ) : (
         <>
           <View style={[card, { padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }]}>
@@ -80,6 +84,8 @@ export default function Settings() {
               </View>
             </View>
           </View>
+
+          <AppearancePicker />
 
           <UsageSection />
 

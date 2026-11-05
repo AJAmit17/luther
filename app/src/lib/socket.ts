@@ -133,27 +133,28 @@ export function useThread(id: string) {
   };
 }
 
-// A terminal: rendered ANSI screen out, raw bytes in.
-export function useTerm(name: string) {
-  const [screen, setScreen] = useState('');
+// A terminal: the Mac's pty bytes out (base64, for the native view to render),
+// typed bytes in. The size is re-announced after every reconnect.
+export function useTerm(name: string, onData: (b64: string) => void) {
   const size = useRef<object | null>(null);
+  const cb = useRef(onData);
+  useEffect(() => {
+    cb.current = onData;
+  });
   const sock = useSocket(
     `/terms/${encodeURIComponent(name)}/events`,
-    (f) => f.type === 'screen' && setScreen(f.ansi),
-    (ws) => size.current && ws.send(JSON.stringify(size.current)), // re-announce after reconnects
+    (f) => f.type === 'data' && cb.current(f.b64),
+    (ws) => size.current && ws.send(JSON.stringify(size.current)),
   );
   return {
     ...sock,
-    screen,
-    input: (s: string) => sock.send({ type: 'input', hex: toHex(s) }),
+    input: (b64: string) => sock.ws.current?.readyState === WebSocket.OPEN && sock.ws.current.send(JSON.stringify({ type: 'input', b64 })),
     resize: (cols: number, rows: number) => {
       size.current = { type: 'size', cols, rows };
       if (sock.ws.current?.readyState === WebSocket.OPEN) sock.ws.current.send(JSON.stringify(size.current));
     },
   };
 }
-
-export const toHex = (s: string) => Array.from(new TextEncoder().encode(s), (b) => b.toString(16).padStart(2, '0')).join('');
 
 /** A socket to path on h: plain (React Native's WebSocket takes the token and
  *  Cloudflare Access headers), or end-to-end encrypted through /e/ws — the same

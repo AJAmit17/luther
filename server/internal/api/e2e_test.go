@@ -146,7 +146,7 @@ func TestEndToEnd(t *testing.T) {
 			t.Fatal(err)
 		}
 		plain, err := seal.Open(key, "ws<:w2:0", b)
-		if err != nil || !strings.Contains(string(plain), `"screen"`) {
+		if err != nil || !strings.Contains(string(plain), `"data"`) {
 			t.Fatalf("first frame: %v %.80s", err, plain)
 		}
 	}

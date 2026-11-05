@@ -1,8 +1,9 @@
 import { Stack } from 'expo-router';
-import { c } from '@/components/ui';
+import { useHex } from '@/components/ui';
 
 // A tab's own stack: large title drawn over the list (which insets itself).
 export default function TabStack() {
+  const h = useHex();
   return (
     <Stack
       screenOptions={{
@@ -10,9 +11,11 @@ export default function TabStack() {
         headerTransparent: process.env.EXPO_OS === 'ios',
         headerLargeTitleShadowVisible: false,
         headerShadowVisible: false,
-        headerTintColor: c.accent as string,
+        headerTintColor: h.accent,
+        headerTitleStyle: { color: h.text },
+        headerLargeTitleStyle: { color: h.text },
         headerBackButtonDisplayMode: 'minimal',
-        contentStyle: { backgroundColor: c.bg as string },
+        contentStyle: { backgroundColor: h.bg },
       }}
     />
   );

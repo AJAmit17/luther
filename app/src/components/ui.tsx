@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Animated, DynamicColorIOS, Pressable, StyleSheet, Text, View, type ColorValue, type TextStyle, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Animated, DynamicColorIOS, Pressable, StyleSheet, Text, View, useColorScheme, type ColorValue, type TextStyle, type ViewStyle } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
 import { MenuView, type MenuAction } from '@expo/ui/community/menu';
@@ -34,7 +34,17 @@ const ios = process.env.EXPO_OS === 'ios';
 const dyn = ([light, dark]: Pair): ColorValue => (ios ? DynamicColorIOS({ light, dark }) : dark);
 const hexA = (hex: string, a: number) => hex + Math.round(a * 255).toString(16).padStart(2, '0');
 
+/** Both schemes as hex (previews in Settings → Appearance). */
+export const palettes = { light: Object.fromEntries(Object.entries(P).map(([k, v]) => [k, v[0]])), dark: Object.fromEntries(Object.entries(P).map(([k, v]) => [k, v[1]])) } as Record<'light' | 'dark', Record<keyof typeof P, string>>;
+
 export const c = Object.fromEntries(Object.entries(P).map(([k, v]) => [k, dyn(v)])) as Record<keyof typeof P, ColorValue>;
+
+/** The palette as plain hex for the active scheme: for native props (headers,
+ *  tab bar, status bar) that don't resolve adaptive colours. */
+export function useHex(): Record<keyof typeof P, string> & { dark: boolean } {
+  const dark = useColorScheme() !== 'light';
+  return { ...(Object.fromEntries(Object.entries(P).map(([k, v]) => [k, v[dark ? 1 : 0]])) as Record<keyof typeof P, string>), dark };
+}
 
 /** A palette colour at an opacity (pill and button backgrounds). */
 export const tint = (k: keyof typeof P, a: number) => dyn([hexA(P[k][0], a), hexA(P[k][1], a)]);
@@ -227,9 +237,23 @@ export const providerIcon = (p: Provider) => info(p).icon;
 export const providerName = (p: Provider) => info(p).name;
 export const providerColor = (p: Provider) => info(p).color;
 
+// The agents' own marks (Simple Icons, CC0): Claude's for Claude Code, OpenAI's
+// (monochrome, tinted to the text colour) for Codex. Others get an SF Symbol.
+const MARKS: Partial<Record<Provider, { src: number; tint?: boolean }>> = {
+  claude: { src: require('../../assets/agents/claude.png') },
+  codex: { src: require('../../assets/agents/codex.png'), tint: true },
+};
+
+/** An agent's logo at `size`, or its symbol. */
+export function ProviderMark({ p, size = 16, color }: { p: Provider; size?: number; color?: ColorValue }) {
+  const m = MARKS[p];
+  if (!m) return <Icon name={providerIcon(p)} size={size} color={color ?? info(p).color} />;
+  return <Image source={m.src} style={{ width: size, height: size }} tintColor={m.tint ? ((color ?? c.text) as string) : undefined} contentFit="contain" />;
+}
+
 export const ProviderIcon = ({ p, size = 34 }: { p: Provider; size?: number }) => (
   <View style={{ width: size, height: size, borderRadius: size * 0.3, borderCurve: 'continuous', backgroundColor: c.muted, alignItems: 'center', justifyContent: 'center' }}>
-    <Icon name={providerIcon(p)} size={size * 0.47} color={info(p).color} />
+    <ProviderMark p={p} size={size * 0.52} />
   </View>
 );
 

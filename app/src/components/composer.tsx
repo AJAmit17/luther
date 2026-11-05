@@ -3,13 +3,13 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { MenuView } from '@expo/ui/community/menu';
 import * as Haptics from 'expo-haptics';
 import { AttachmentStrip, type useAttachments } from '@/components/attachments';
-import { Icon, MODES, c, mono, providerColor, providerIcon, providerName, tint, type } from '@/components/ui';
+import { Icon, MODES, ProviderMark, c, mono, providerName, tint, type } from '@/components/ui';
 import type { Mode, Provider } from '@/lib/protocol';
 import type { useVoice } from '@/lib/voice';
 
-const Chip = ({ icon, label, color = c.dim, bg }: { icon: string; label: string; color?: any; bg?: any }) => (
+const Chip = ({ icon, mark, label, color = c.dim, bg }: { icon?: string; mark?: React.ReactNode; label: string; color?: any; bg?: any }) => (
   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 999, backgroundColor: bg }}>
-    <Icon name={icon} size={12} color={color} />
+    {mark ?? <Icon name={icon!} size={12} color={color} />}
     <Text numberOfLines={1} style={[type.caption, { fontFamily: mono, color, maxWidth: 150 }]}>{label}</Text>
   </View>
 );
@@ -85,7 +85,7 @@ export function Composer(p: {
           </MenuView>
         )}
         <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', gap: 2 }}>
-          {!!p.provider && <Chip icon={providerIcon(p.provider)} label={providerName(p.provider)} color={providerColor(p.provider)} />}
+          {!!p.provider && <Chip mark={<ProviderMark p={p.provider} size={13} />} label={providerName(p.provider)} />}
           <MenuView
             title="Model"
             actions={(p.models.length ? p.models : p.model ? [p.model] : []).map((x) => ({ id: x, title: x, state: p.model === x || p.model.includes(x) ? 'on' : 'off' }))}

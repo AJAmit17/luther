@@ -1,10 +1,11 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { c } from '@/components/ui';
+import { useHex } from '@/components/ui';
 
 // The system's tab bar (Liquid Glass on iOS 26+), shrinking while you scroll.
 export default function Tabs() {
+  const h = useHex();
   return (
-    <NativeTabs minimizeBehavior="onScrollDown" tintColor={c.accent as string}>
+    <NativeTabs minimizeBehavior="onScrollDown" tintColor={h.accent}>
       <NativeTabs.Trigger name="(home)">
         <NativeTabs.Trigger.Icon sf="desktopcomputer" md="computer" />
         <NativeTabs.Trigger.Label>Mac</NativeTabs.Trigger.Label>
