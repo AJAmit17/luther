@@ -1,4 +1,5 @@
-package main
+// Package protocol: the wire types between `luther serve` and the phone app.
+package protocol
 
 import "time"
 
@@ -13,11 +14,15 @@ import "time"
 //   GET  /events  (WS)                    → {type:"run", run: Run} for every thread, on every change
 //   GET  /runs                            → [Run] (open threads; for background refresh)
 //   POST /threads/{id}/interrupt          (the Live Activity's Stop)
+//   POST /threads/{id}/answer Answer      (a notification's Approve / Deny / Reply)
+//   GET  /threads/{id}/turns              → [Turn] · GET …/turns/{n}/diff (text) · POST …/turns/{n}/revert
 //   GET  /providers                       → [ProviderInfo]
 //   GET  /models?provider=                → [string]
 //   GET  /projects                        → [Project]
 //   GET  /dirs?path=                      → [string] (folders under $HOME)
-//   GET  /sessions?cwd=                   → [Session] (past conversations of every provider)
+//   GET  /sessions?cwd=|q=[&archived=1]   → [Session] (past conversations of every provider; worktrees fold into their repo)
+//   PATCH /sessions/{provider}/{id} {title?, pinned?, archived?}
+//   POST /uploads?name=  (raw body ≤ 25 MB) → {path}  (attach to the next send)
 //   POST /threads OpenReq                 → {id}     (409: held by a CLI outside Luther)
 //   GET  /threads                         → [ThreadInfo] (open threads)
 //   DELETE /threads/{id}
@@ -27,6 +32,7 @@ import "time"
 //   GET  /terms/{name}/events  (WS)       → {type:"screen",ansi} | {type:"ended"}; in: {type:"size",cols,rows} | {type:"input",hex}
 //   GET  /files?cwd=&path=                → FileEntry list (dir) or FileContent (file)
 //   GET  /git/status?cwd= · GET /git/diff?cwd=&path= · POST /git/commit {cwd, message}
+//   POST /git/push {cwd} · POST /git/pr {cwd, title, body} → {url} · DELETE /git/worktree?cwd=
 
 type Provider string
 
@@ -69,6 +75,9 @@ type Session struct {
 	LastActive time.Time `json:"lastActive"`
 	Live       string    `json:"live"` // open thread id, if any
 	Busy       bool      `json:"busy"` // held by a CLI outside Luther
+	Pinned     bool      `json:"pinned,omitempty"`
+	Archived   bool      `json:"archived,omitempty"`
+	Worktree   string    `json:"worktree,omitempty"` // branch, when it ran in a Luther worktree of this project
 }
 
 type OpenReq struct {
@@ -79,6 +88,7 @@ type OpenReq struct {
 	Move     bool     `json:"move,omitempty"` // stop the CLI holding it, then host it here
 	Model    string   `json:"model,omitempty"`
 	Mode     string   `json:"mode,omitempty"`
+	Worktree bool     `json:"worktree,omitempty"` // new thread in its own git worktree + branch
 }
 
 type ThreadInfo struct {
@@ -99,7 +109,22 @@ type State struct {
 	Mode     string   `json:"mode"`
 	Commands []string `json:"commands,omitempty"`
 	Usage    *Usage   `json:"usage,omitempty"`
-	Dup      bool     `json:"dup,omitempty"` // a CLI outside Luther also has it open
+	Tasks    []Task   `json:"tasks,omitempty"` // the agent's own todo list / plan
+	Dup      bool     `json:"dup,omitempty"`   // a CLI outside Luther also has it open
+}
+
+type Task struct {
+	Text   string `json:"text"`
+	Status string `json:"status"` // pending | in_progress | completed
+}
+
+// Turn: one user turn's checkpoint (git trees before and after), for diff and revert.
+type Turn struct {
+	N         int    `json:"n"`
+	Prompt    string `json:"prompt"`
+	StartedAt int64  `json:"startedAt"`
+	EndedAt   int64  `json:"endedAt,omitempty"`
+	Files     int    `json:"files"` // changed by the turn
 }
 
 type Usage struct {
@@ -140,7 +165,7 @@ type Prompt struct {
 	Options   []Option   `json:"options,omitempty"`
 	Questions []Question `json:"questions,omitempty"`
 
-	priv any // provider-side data needed to answer
+	Priv any `json:"-"` // provider-side data needed to answer
 }
 
 // Answer: Choice indexes Options (-1 = decline, with Message as "do this instead").
@@ -161,10 +186,11 @@ type Answer struct {
 
 // ClientFrame, client → server.
 type ClientFrame struct {
-	Type  string `json:"type"` // send | answer | interrupt | mode | model
-	Text  string `json:"text,omitempty"`
-	Mode  string `json:"mode,omitempty"`
-	Model string `json:"model,omitempty"`
+	Type  string   `json:"type"` // send | answer | interrupt | mode | model
+	Text  string   `json:"text,omitempty"`
+	Files []string `json:"files,omitempty"` // with send: paths from POST /uploads
+	Mode  string   `json:"mode,omitempty"`
+	Model string   `json:"model,omitempty"`
 	Answer
 }
 
@@ -179,6 +205,10 @@ type Run struct {
 	Detail    string   `json:"detail"`
 	StartedAt int64    `json:"startedAt"` // ms, current or last turn
 	EndedAt   int64    `json:"endedAt,omitempty"`
+	Prompt    string   `json:"prompt,omitempty"` // waiting on this prompt id (permission/plan: notification actions)
+	Kind      string   `json:"kind,omitempty"`   // its kind
+	Done      int      `json:"done,omitempty"`   // tasks completed
+	Total     int      `json:"total,omitempty"`  // tasks
 }
 
 type Command struct {
@@ -214,11 +244,32 @@ type FileContent struct {
 }
 
 type GitStatus struct {
-	Branch string      `json:"branch"`
-	Files  []GitChange `json:"files"`
+	Branch   string      `json:"branch"`
+	Upstream string      `json:"upstream,omitempty"`
+	Ahead    int         `json:"ahead"`
+	Worktree bool        `json:"worktree,omitempty"` // a Luther worktree (removable)
+	Files    []GitChange `json:"files"`
 }
 
 type GitChange struct {
 	Path   string `json:"path"`
 	Status string `json:"status"` // porcelain XY, e.g. " M", "??", "A "
 }
+
+func ValidMode(m string) bool {
+	return m == ModeAsk || m == ModeEdits || m == ModePlan || m == ModeFull
+}
+
+// Name: how the app and notifications call an agent.
+func (p Provider) Name() string {
+	switch p {
+	case Claude:
+		return "Claude"
+	case Codex:
+		return "Codex"
+	}
+	return string(p)
+}
+
+// Version of luther serve, reported by /healthz and to Codex.
+const Version = "0.1.0-dev"

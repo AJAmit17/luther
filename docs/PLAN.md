@@ -31,6 +31,7 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 | No hosted relay, no push service (for now) | Phones talk to the Mac directly over the tailnet or tunnel. Notifications are **local**: the Mac streams run events (WS `/events`), the app posts notifications and drives Live Activities; a background task replays `GET /runs` when iOS wakes the app (~15 min). Limit: a closed or long-suspended app hears late; instant delivery needs APNs (paid Apple account) — the Mac would send it directly, no third party. Free Apple team works: `withoutPush` drops the push entitlement. |
 | App layout: routes in `src/app` are one-line re-exports; screens and UI in `src/components`; logic in `src/lib` (pure parts with `node --test`); iOS-only pieces as `.ios.ts` | Small, findable files; logic testable without a simulator. |
 | iOS first: native stack toolbars/menus, SF Symbols, system colors | The user's phone is an iPhone. Android builds, but header actions (toolbars) are iOS-only for now. |
+| Server = one Go package per feature (`server/internal/*`), each a deep module with a small interface + `Routes(mux, wrap)`; `internal/api` wires them | Locality: a feature's code, state and routes live together; packages are reusable and testable through their interface. The only real seam is `hub.Runtime` (Claude, Codex adapters). |
 | No database: config + devices in a JSON file; projects and threads come from the CLIs' own session stores | Luther owns almost no state; duplicating history would drift from the CLIs. |
 | Go structs are the wire-protocol source of truth; `app/src/lib/protocol.ts` mirrors them | Two languages, one small protocol. Keep both in the same change. |
 | Codex wire types generated from `codex app-server generate-json-schema` | The protocol is large and versioned; generate, don't hand-write. |
@@ -88,7 +89,17 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 ### Phase 8: `luther` CLI
 - [x] `serve`, `pair` (QR: name, routes, one-time code), `tailscale`, `tunnel`, `service install|uninstall` (LaunchAgents `dev.luther.server` and `dev.luther.tunnel`), `doctor` (CLIs, server, each route, devices); logs in `~/.luther`
 
-### Phase 9: End-to-end tests
+### Phase 9: P0 product gaps
+- [x] Server packages (see decision) — `go list` shows a clean DAG
+- [ ] Approve / deny / reply from the notification: Run carries the waiting prompt; `POST /threads/{id}/answer`; app notification category with actions (approve needs unlock)
+- [x] Server: attachments — `POST /uploads` → path; Claude gets images as image blocks, Codex as `localImage`; other files as paths · [ ] app picker + upload
+- [x] Server: parallel agents in git worktrees — `OpenReq.worktree` → `~/.luther/worktrees/<repo>-<id>` on `luther/<id>`; sessions fold into their project; `DELETE /git/worktree` · [ ] app toggle + badges
+- [x] Server: per-turn checkpoints — tree before/after each turn via a throwaway index; `GET …/turns`, diff, revert · [ ] app turn list, diff, revert
+- [x] Server: task progress — Claude `TodoWrite`, Codex `turn/plan/updated` → `State.tasks`, Run done/total · [ ] app task list + Live Activity count
+- [x] Server: rename / pin / archive (`PATCH /sessions/…`, Luther-side `sessions.json`), search (`GET /sessions?q=`) · [ ] app
+- [x] Server: push + PR (`POST /git/push`, `POST /git/pr` via `gh`) · [ ] app
+
+### Phase 10: End-to-end tests
 - [ ] Pair over tailnet and over Cloudflare
 - [ ] Claude thread: chat, approval, question, plan, Stop, model/mode switch
 - [ ] Codex thread: the same
@@ -98,5 +109,5 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [ ] Push while the app is closed; tap opens the thread
 - [ ] Mac reboot: service comes back; phone reconnects
 
-### Phase 10: Publish (later)
+### Phase 11: Publish (later)
 - [ ] README, license choice, install script, TestFlight (push on iOS needs a paid Apple account)

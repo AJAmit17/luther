@@ -1,24 +1,27 @@
-package main
+package claude
 
 import (
 	"bufio"
 	"bytes"
 	"encoding/json"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/AJAmit17/luther/server/internal/protocol"
+	"github.com/AJAmit17/luther/server/internal/text"
 )
 
-// Session index: past conversations come from each CLI's own store, read-only.
-// Claude: ~/.claude/projects/*/*.jsonl, parsed here (stat-cached). Codex: its
-// app-server's thread/list. Projects are the folders those sessions ran in.
+// Index: Claude Code's transcripts (~/.claude/projects/*/*.jsonl), read-only and
+// stat-cached, as sessions.
 
-var claudeIndex = &indexer{cache: map[string]cachedSession{}}
+var index = &indexer{cache: map[string]cachedSession{}}
+
+// Sessions: every Claude conversation on this Mac (rescanned per call; cheap).
+func Sessions() []protocol.Session { return index.sessions() }
 
 type indexer struct {
 	mu    sync.Mutex
@@ -28,18 +31,18 @@ type indexer struct {
 type cachedSession struct {
 	mod  time.Time
 	size int64
-	s    Session
+	s    protocol.Session
 	ok   bool
 }
 
 // Sessions rescans the store; unchanged files (same mtime+size) come from cache.
 // Top level only: <id>/subagents/ are sidechains.
-func (ix *indexer) Sessions() []Session {
-	paths, _ := filepath.Glob(filepath.Join(claudeRoot(), "*", "*.jsonl"))
+func (ix *indexer) sessions() []protocol.Session {
+	paths, _ := filepath.Glob(filepath.Join(root(), "*", "*.jsonl"))
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 	seen := map[string]bool{}
-	var out []Session
+	var out []protocol.Session
 	for _, p := range paths {
 		fi, err := os.Stat(p)
 		if err != nil {
@@ -50,10 +53,10 @@ func (ix *indexer) Sessions() []Session {
 		if !hit || !c.mod.Equal(fi.ModTime()) || c.size != fi.Size() {
 			c = cachedSession{mod: fi.ModTime(), size: fi.Size()}
 			if f, err := os.Open(p); err == nil {
-				c.s, c.ok = parseClaudeSession(f)
+				c.s, c.ok = parseSession(f)
 				f.Close()
 			}
-			c.s.Provider = Claude
+			c.s.Provider = protocol.Claude
 			c.s.ID = strings.TrimSuffix(filepath.Base(p), ".jsonl")
 			c.s.LastActive = fi.ModTime()
 			ix.cache[p] = c
@@ -90,11 +93,11 @@ var (
 	hasUser   = []byte(`"type":"user"`)
 )
 
-// parseClaudeSession: cwd from the first record that has one (never the folder
+// parseSession: cwd from the first record that has one (never the folder
 // name: its encoding is lossy); title = custom > AI > first real prompt, last
 // occurrence wins. Only lines that can matter are unmarshalled (files reach 60MB+).
-func parseClaudeSession(r io.Reader) (Session, bool) {
-	var s Session
+func parseSession(r io.Reader) (protocol.Session, bool) {
+	var s protocol.Session
 	var custom, ai, first string
 	br := bufio.NewReaderSize(r, 1<<16)
 	for {
@@ -115,7 +118,7 @@ func parseClaudeSession(r io.Reader) (Session, bool) {
 					case "ai-title":
 						ai = rec.AITitle
 					case "last-prompt":
-						s.Preview = oneLine(rec.LastPrompt)
+						s.Preview = text.OneLine(rec.LastPrompt)
 					case "user":
 						if wantFirst && !rec.IsMeta {
 							first = promptText(rec.Message.Content)
@@ -128,98 +131,27 @@ func parseClaudeSession(r io.Reader) (Session, bool) {
 			break
 		}
 	}
-	s.Title = orDefault(custom, orDefault(ai, first))
-	s.Preview = orDefault(s.Preview, first)
+	s.Title = text.OrDefault(custom, text.OrDefault(ai, first))
+	s.Preview = text.OrDefault(s.Preview, first)
 	return s, s.Cwd != ""
 }
 
 // promptText: the typed prompt, or "" for tool results and <command-…> wrappers.
 func promptText(raw json.RawMessage) string {
-	var text string
-	if json.Unmarshal(raw, &text) != nil {
+	var msg string
+	if json.Unmarshal(raw, &msg) != nil {
 		var blocks []struct{ Type, Text string }
 		json.Unmarshal(raw, &blocks)
 		for _, b := range blocks {
 			if b.Type == "text" {
-				text = b.Text
+				msg = b.Text
 				break
 			}
 		}
 	}
-	text = oneLine(text)
-	if strings.HasPrefix(text, "<") {
+	msg = text.OneLine(msg)
+	if strings.HasPrefix(msg, "<") {
 		return ""
 	}
-	return text
-}
-
-// allSessions: every provider, newest first, with live/busy filled in.
-func allSessions(cwd string) []Session {
-	var ss []Session
-	for _, s := range claudeIndex.Sessions() {
-		if cwd == "" || s.Cwd == cwd {
-			ss = append(ss, s)
-		}
-	}
-	ss = append(ss, codexSessions(cwd)...)
-	busy := claudeBusy()
-	live := map[string]string{}
-	for _, t := range listThreads() {
-		live[t.ID], live[t.State().Session] = t.ID, t.ID
-	}
-	for i := range ss {
-		ss[i].Live = live[ss[i].ID]
-		ss[i].Busy = ss[i].Provider == Claude && busy[ss[i].ID] && ss[i].Live == ""
-	}
-	sort.Slice(ss, func(i, j int) bool { return ss[i].LastActive.After(ss[j].LastActive) })
-	return ss
-}
-
-func (s *server) sessions(w http.ResponseWriter, r *http.Request) {
-	cwd := r.URL.Query().Get("cwd")
-	if !inHome(cwd) {
-		http.Error(w, "cwd must be inside your home folder", http.StatusBadRequest)
-		return
-	}
-	writeJSON(w, orEmpty(allSessions(cwd)))
-}
-
-// projects: folders sessions ran in (gone or outside $HOME hidden), plus folders
-// with only an open thread or terminal; most recently active first.
-func (s *server) projects(w http.ResponseWriter, r *http.Request) {
-	by := map[string]*Project{}
-	get := func(cwd string) *Project {
-		p := by[cwd]
-		if p == nil {
-			p = &Project{Cwd: cwd, Name: filepath.Base(cwd)}
-			by[cwd] = p
-		}
-		return p
-	}
-	for _, ss := range allSessions("") {
-		p := get(ss.Cwd)
-		p.Sessions++
-		if ss.LastActive.After(p.LastActive) {
-			p.LastActive = ss.LastActive
-		}
-	}
-	for _, t := range listThreads() {
-		get(t.State().Cwd).Live++
-	}
-	for _, tm := range listTerms() {
-		get(tm.Cwd).Live++
-	}
-	out := []Project{}
-	for cwd, p := range by {
-		if inHome(cwd) && isDir(cwd) {
-			out = append(out, *p)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if (out[i].Live > 0) != (out[j].Live > 0) {
-			return out[i].Live > 0
-		}
-		return out[i].LastActive.After(out[j].LastActive)
-	})
-	writeJSON(w, out)
+	return msg
 }

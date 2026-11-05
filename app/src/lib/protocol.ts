@@ -16,9 +16,12 @@ export type Session = {
   lastActive: string;
   live: string;
   busy: boolean;
+  pinned?: boolean;
+  archived?: boolean;
+  worktree?: string; // branch, when it ran in a Luther worktree of this project
 };
 
-export type OpenReq = { provider: Provider; cwd: string; resume?: string; fork?: boolean; move?: boolean; model?: string; mode?: Mode };
+export type OpenReq = { provider: Provider; cwd: string; resume?: string; fork?: boolean; move?: boolean; model?: string; mode?: Mode; worktree?: boolean };
 
 export type Usage = { inputTokens: number; outputTokens: number; costUsd?: number };
 
@@ -32,8 +35,12 @@ export type State = {
   mode: Mode;
   commands?: string[];
   usage?: Usage;
+  tasks?: Task[];
   dup?: boolean;
 };
+
+export type Task = { text: string; status: 'pending' | 'in_progress' | 'completed' };
+export type Turn = { n: number; prompt: string; startedAt: number; endedAt?: number; files: number };
 
 export type ThreadInfo = State & { id: string; title: string; clients: number };
 
@@ -63,7 +70,7 @@ export type Frame =
   | { type: 'ended' };
 
 export type ClientFrame =
-  | { type: 'send'; text: string }
+  | { type: 'send'; text: string; files?: string[] }
   | ({ type: 'answer' } & Answer)
   | { type: 'interrupt' }
   | { type: 'mode'; mode: Mode }
@@ -79,6 +86,10 @@ export type Run = {
   detail: string;
   startedAt: number;
   endedAt?: number;
+  prompt?: string; // waiting on this prompt id
+  kind?: Prompt['kind'];
+  done?: number;
+  total?: number;
 };
 
 export type Command = { name: string; desc: string };
@@ -87,4 +98,4 @@ export type Term = { name: string; cwd: string; attached: boolean; created: numb
 export type FileEntry = { name: string; dir: boolean; size: number };
 export type FileContent = { path: string; text: string; binary?: boolean; truncated?: boolean };
 export type GitChange = { path: string; status: string };
-export type GitStatus = { branch: string; files: GitChange[] };
+export type GitStatus = { branch: string; upstream?: string; ahead: number; worktree?: boolean; files: GitChange[] };

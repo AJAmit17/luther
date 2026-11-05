@@ -1,4 +1,6 @@
-package main
+// Package codex: the Codex adapter. One shared `codex app-server` process
+// (JSON-RPC over stdio) hosts every open Codex thread.
+package codex
 
 import (
 	"bufio"
@@ -7,10 +9,16 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/AJAmit17/luther/server/internal/env"
+	"github.com/AJAmit17/luther/server/internal/hub"
+	"github.com/AJAmit17/luther/server/internal/paths"
+	"github.com/AJAmit17/luther/server/internal/protocol"
+	"github.com/AJAmit17/luther/server/internal/text"
+	"github.com/AJAmit17/luther/server/internal/uploads"
 )
 
 // Codex runtime: one shared `codex app-server` process (JSON-RPC over stdio)
@@ -24,14 +32,14 @@ import (
 //     a fileChange approval carries no diff — it arrived earlier in item/started;
 //   - thread/list {cwd} and thread/resume (turns included) replay history.
 
-var codexBin = "codex"
+var Bin = "codex"
 
 // Codex has no plan mode: plan maps to read-only with on-request approvals.
-var codexPolicies = map[string]struct{ approval, sandbox, sandboxType string }{
-	ModeAsk:   {"untrusted", "workspace-write", "workspaceWrite"},
-	ModeEdits: {"on-request", "workspace-write", "workspaceWrite"},
-	ModePlan:  {"on-request", "read-only", "readOnly"},
-	ModeFull:  {"never", "danger-full-access", "dangerFullAccess"},
+var policies = map[string]struct{ approval, sandbox, sandboxType string }{
+	protocol.ModeAsk:   {"untrusted", "workspace-write", "workspaceWrite"},
+	protocol.ModeEdits: {"on-request", "workspace-write", "workspaceWrite"},
+	protocol.ModePlan:  {"on-request", "read-only", "readOnly"},
+	protocol.ModeFull:  {"never", "danger-full-access", "dangerFullAccess"},
 }
 
 type rpcErr struct {
@@ -47,7 +55,7 @@ type rpcMsg struct {
 	Error  *rpcErr         `json:"error,omitempty"`
 }
 
-type codexServer struct {
+type server struct {
 	cmd  *exec.Cmd
 	inMu sync.Mutex
 	in   io.WriteCloser
@@ -55,25 +63,25 @@ type codexServer struct {
 	mu      sync.Mutex
 	next    int64
 	pending map[string]chan rpcMsg
-	rts     map[string]*codexRT // codex thread id → runtime
+	rts     map[string]*runtime // codex thread id → runtime
 	dead    bool
 }
 
-var codexProc struct {
+var proc struct {
 	sync.Mutex
-	s *codexServer
+	s *server
 }
 
-// codexSrv returns the running app-server, starting (or restarting) it.
-func codexSrv() (*codexServer, error) {
-	codexProc.Lock()
-	defer codexProc.Unlock()
-	if s := codexProc.s; s != nil && !s.isDead() {
+// srv returns the running app-server, starting (or restarting) it.
+func srv() (*server, error) {
+	proc.Lock()
+	defer proc.Unlock()
+	if s := proc.s; s != nil && !s.isDead() {
 		return s, nil
 	}
-	cmd := exec.Command(codexBin, "app-server")
-	cmd.Dir = home
-	cmd.Stderr = &logTail{prefix: "codex: "}
+	cmd := exec.Command(Bin, "app-server")
+	cmd.Dir = paths.Home
+	cmd.Stderr = &env.LogTail{Prefix: "codex: "}
 	in, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -85,24 +93,24 @@ func codexSrv() (*codexServer, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start codex app-server: %w", err)
 	}
-	s := &codexServer{cmd: cmd, in: in, pending: map[string]chan rpcMsg{}, rts: map[string]*codexRT{}}
+	s := &server{cmd: cmd, in: in, pending: map[string]chan rpcMsg{}, rts: map[string]*runtime{}}
 	go s.read(out)
-	if _, err := s.call("initialize", map[string]any{"clientInfo": map[string]string{"name": "luther", "title": "Luther", "version": version}}); err != nil {
+	if _, err := s.call("initialize", map[string]any{"clientInfo": map[string]string{"name": "luther", "title": "Luther", "version": protocol.Version}}); err != nil {
 		cmd.Process.Kill()
 		return nil, fmt.Errorf("codex initialize: %w", err)
 	}
 	s.send(map[string]any{"method": "initialized"})
-	codexProc.s = s
+	proc.s = s
 	return s, nil
 }
 
-func (s *codexServer) isDead() bool {
+func (s *server) isDead() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.dead
 }
 
-func (s *codexServer) send(v any) error {
+func (s *server) send(v any) error {
 	b, _ := json.Marshal(v)
 	s.inMu.Lock()
 	defer s.inMu.Unlock()
@@ -110,7 +118,7 @@ func (s *codexServer) send(v any) error {
 	return err
 }
 
-func (s *codexServer) call(method string, params any) (json.RawMessage, error) {
+func (s *server) call(method string, params any) (json.RawMessage, error) {
 	s.mu.Lock()
 	if s.dead {
 		s.mu.Unlock()
@@ -138,15 +146,15 @@ func (s *codexServer) call(method string, params any) (json.RawMessage, error) {
 	}
 }
 
-func (s *codexServer) reply(id json.RawMessage, result any) error {
+func (s *server) reply(id json.RawMessage, result any) error {
 	return s.send(map[string]any{"id": id, "result": result})
 }
 
-func (s *codexServer) replyErr(id json.RawMessage, msg string) {
+func (s *server) replyErr(id json.RawMessage, msg string) {
 	s.send(map[string]any{"id": id, "error": rpcErr{Code: -32601, Message: msg}})
 }
 
-func (s *codexServer) read(out io.Reader) {
+func (s *server) read(out io.Reader) {
 	br := bufio.NewReaderSize(out, 1<<20)
 	for {
 		line, err := br.ReadBytes('\n')
@@ -164,14 +172,14 @@ func (s *codexServer) read(out io.Reader) {
 		ch <- rpcMsg{Error: &rpcErr{Message: "codex app-server exited"}}
 	}
 	rts := s.rts
-	s.rts = map[string]*codexRT{}
+	s.rts = map[string]*runtime{}
 	s.mu.Unlock()
 	for _, rt := range rts {
-		rt.t.end()
+		rt.t.End()
 	}
 }
 
-func (s *codexServer) dispatch(line []byte) {
+func (s *server) dispatch(line []byte) {
 	var m rpcMsg
 	if json.Unmarshal(line, &m) != nil {
 		return
@@ -205,9 +213,9 @@ func (s *codexServer) dispatch(line []byte) {
 
 // ---- one open Codex thread ----
 
-type codexRT struct {
-	t  *Thread
-	s  *codexServer
+type runtime struct {
+	t  *hub.Thread
+	s  *server
 	id string // codex thread id
 
 	mu    sync.Mutex
@@ -217,17 +225,17 @@ type codexRT struct {
 	items map[string]map[string]any // in-flight items by id (approval bodies)
 }
 
-type codexPrompt struct {
+type promptData struct {
 	rpcID  json.RawMessage
 	method string
 }
 
-type codexThreadResp struct {
-	Model  string         `json:"model"`
-	Thread codexThreadRec `json:"thread"`
+type threadResp struct {
+	Model  string    `json:"model"`
+	Thread threadRec `json:"thread"`
 }
 
-type codexThreadRec struct {
+type threadRec struct {
 	ID      string `json:"id"`
 	Cwd     string `json:"cwd"`
 	Name    string `json:"name"`
@@ -241,15 +249,15 @@ type codexThreadRec struct {
 	} `json:"turns"`
 }
 
-// openCodex starts, resumes or forks a Codex thread. RPCs can take seconds
+// Open starts, resumes or forks a Codex thread. RPCs can take seconds
 // (MCP servers start), so callers must not hold the threads lock.
-func openCodex(r OpenReq) (*Thread, error) {
-	s, err := codexSrv()
+func Open(r protocol.OpenReq) (*hub.Thread, error) {
+	s, err := srv()
 	if err != nil {
 		return nil, err
 	}
-	mode := orDefault(r.Mode, ModeAsk)
-	pol := codexPolicies[mode]
+	mode := text.OrDefault(r.Mode, protocol.ModeAsk)
+	pol := policies[mode]
 	params := map[string]any{"cwd": r.Cwd, "approvalPolicy": pol.approval, "sandbox": pol.sandbox}
 	if r.Model != "" {
 		params["model"] = r.Model
@@ -266,29 +274,34 @@ func openCodex(r OpenReq) (*Thread, error) {
 	if err != nil {
 		return nil, err
 	}
-	var resp codexThreadResp
+	var resp threadResp
 	if err := json.Unmarshal(raw, &resp); err != nil || resp.Thread.ID == "" {
 		return nil, fmt.Errorf("codex %s: unexpected reply", method)
 	}
 	id := resp.Thread.ID
-	t := newThread(id, State{Provider: Codex, Session: id, Cwd: orDefault(resp.Thread.Cwd, r.Cwd), Mode: mode, Model: resp.Model})
-	rt := &codexRT{t: t, s: s, id: id, mode: mode, model: r.Model, items: map[string]map[string]any{}}
-	t.rt = rt
+	cwd := resp.Thread.Cwd
+	if cwd == "" && len(resp.Thread.Envs) > 0 {
+		cwd = resp.Thread.Envs[0].Cwd
+	}
+	t := hub.New(id, protocol.State{Provider: protocol.Codex, Session: id, Cwd: text.OrDefault(cwd, r.Cwd), Mode: mode, Model: resp.Model})
+	rt := &runtime{t: t, s: s, id: id, mode: mode, model: r.Model, items: map[string]map[string]any{}}
+	t.SetRuntime(rt)
+	var hist []protocol.Msg
 	for _, turn := range resp.Thread.Turns {
 		for _, it := range turn.Items {
-			if m, ok := codexMsg(it); ok {
-				t.msgs = append(t.msgs, m)
+			if m, ok := toMsg(it); ok {
+				hist = append(hist, m)
 			}
 		}
 	}
-	t.msgs = t.msgs[max(0, len(t.msgs)-keepMsgs):]
+	t.SetHistory(hist)
 	s.mu.Lock()
 	s.rts[id] = rt
 	s.mu.Unlock()
 	return t, nil
 }
 
-func (c *codexRT) onNotify(method string, raw json.RawMessage) {
+func (c *runtime) onNotify(method string, raw json.RawMessage) {
 	var p struct {
 		TurnID string         `json:"turnId"`
 		Turn   map[string]any `json:"turn"`
@@ -313,75 +326,85 @@ func (c *codexRT) onNotify(method string, raw json.RawMessage) {
 		c.mu.Lock()
 		c.turn, _ = p.Turn["id"].(string)
 		c.mu.Unlock()
-		t.do(t.turnStart)
+		t.Do(func(*protocol.State) { t.TurnStart() })
 	case "item/started":
 		id, _ := p.Item["id"].(string)
 		c.mu.Lock()
 		c.items[id] = p.Item
 		c.mu.Unlock()
-		t.do(func() {
+		t.Do(func(st *protocol.State) {
 			switch p.Item["type"] {
 			case "agentMessage":
-				t.st.Activity = ""
-				t.resetDraft()
+				st.Activity = ""
+				t.ResetDraft()
 			case "reasoning":
-				t.st.Activity = "Thinking…"
+				st.Activity = "Thinking…"
 			case "commandExecution":
-				t.st.Activity = "Running " + clip(str(p.Item, "command"), 40) + "…"
+				st.Activity = "Running " + text.Clip(str(p.Item, "command"), 40) + "…"
 			case "fileChange":
-				t.st.Activity = "Editing files…"
+				st.Activity = "Editing files…"
 			case "mcpToolCall", "dynamicToolCall":
-				t.st.Activity = "Calling " + str(p.Item, "tool") + "…"
+				st.Activity = "Calling " + str(p.Item, "tool") + "…"
 			case "webSearch":
-				t.st.Activity = "Searching the web…"
+				st.Activity = "Searching the web…"
 			}
 		})
 	case "item/agentMessage/delta":
-		t.do(func() { t.delta(p.Delta) })
+		t.Do(func(st *protocol.State) { t.Delta(p.Delta) })
 	case "item/completed":
 		id, _ := p.Item["id"].(string)
 		c.mu.Lock()
 		delete(c.items, id)
 		c.mu.Unlock()
-		if m, ok := codexMsg(p.Item); ok {
-			t.do(func() { t.add(m) })
+		if m, ok := toMsg(p.Item); ok {
+			t.Do(func(st *protocol.State) { t.Add(m) })
 		}
+	case "turn/plan/updated":
+		var pl struct {
+			Plan []struct{ Step, Status string } `json:"plan"`
+		}
+		json.Unmarshal(raw, &pl)
+		t.Do(func(st *protocol.State) {
+			st.Tasks = st.Tasks[:0:0]
+			for _, k := range pl.Plan {
+				status := map[string]string{"inProgress": "in_progress", "in_progress": "in_progress", "completed": "completed"}[k.Status]
+				st.Tasks = append(st.Tasks, protocol.Task{Text: k.Step, Status: text.OrDefault(status, "pending")})
+			}
+		})
 	case "thread/tokenUsage/updated":
-		t.do(func() {
-			t.st.Usage = &Usage{InputTokens: p.TokenUsage.Total.InputTokens, OutputTokens: p.TokenUsage.Total.OutputTokens}
+		t.Do(func(st *protocol.State) {
+			st.Usage = &protocol.Usage{InputTokens: p.TokenUsage.Total.InputTokens, OutputTokens: p.TokenUsage.Total.OutputTokens}
 		})
 	case "serverRequest/resolved": // answered elsewhere or auto-resolved
-		t.do(func() {
-			for _, pr := range t.prompts {
-				if cp, ok := pr.priv.(*codexPrompt); ok && string(cp.rpcID) == string(p.RequestID) {
-					t.closePrompt(pr.ID)
-					return
-				}
-			}
+		t.Do(func(st *protocol.State) {
+			t.ClosePromptWhere(func(pr *protocol.Prompt) bool {
+				cp, ok := pr.Priv.(*promptData)
+				return ok && string(cp.rpcID) == string(p.RequestID)
+			})
 		})
 	case "error":
 		if !p.WillRetry && p.Error.Message != "" {
-			t.do(func() { t.fail(p.Error.Message) })
+			t.Do(func(st *protocol.State) { t.Fail(p.Error.Message) })
 		}
 	case "turn/completed":
 		c.mu.Lock()
 		c.turn = ""
 		c.mu.Unlock()
-		t.do(func() {
+		t.Do(func(st *protocol.State) {
 			switch p.Turn["status"] {
 			case "failed":
 				if e, ok := p.Turn["error"].(map[string]any); ok {
-					t.fail(fmt.Sprint(e["message"]))
+					t.Fail(fmt.Sprint(e["message"]))
 				}
 			case "interrupted":
-				t.add(Msg{ID: "int-" + randHex(4), Role: "system", Text: "Interrupted"})
+				t.Add(protocol.Msg{ID: "int-" + text.RandHex(4), Role: "system", Text: "Interrupted"})
 			}
-			t.turnEnd()
+			t.TurnEnd()
 		})
 	}
 }
 
-func (c *codexRT) onRequest(rpcID json.RawMessage, method string, raw json.RawMessage) {
+func (c *runtime) onRequest(rpcID json.RawMessage, method string, raw json.RawMessage) {
 	var p struct {
 		ItemID    string `json:"itemId"`
 		Command   string `json:"command"`
@@ -398,24 +421,24 @@ func (c *codexRT) onRequest(rpcID json.RawMessage, method string, raw json.RawMe
 		} `json:"questions"`
 	}
 	json.Unmarshal(raw, &p)
-	pr := &Prompt{ID: "cx-" + randHex(6), priv: &codexPrompt{rpcID: rpcID, method: method}}
-	approve := []Option{{Label: "Yes"}, {Label: "Yes, and don't ask again this session"}, {Label: "No"}}
+	pr := &protocol.Prompt{ID: "cx-" + text.RandHex(6), Priv: &promptData{rpcID: rpcID, method: method}}
+	approve := []protocol.Option{{Label: "Yes"}, {Label: "Yes, and don't ask again this session"}, {Label: "No"}}
 	switch method {
 	case "item/commandExecution/requestApproval":
 		pr.Kind, pr.Tool, pr.Title, pr.Options = "permission", "Shell", "Run this command?", approve
-		pr.Body = strings.TrimSpace(orDefault(p.Reason, "") + "\n$ " + clip(p.Command, 2000))
+		pr.Body = strings.TrimSpace(text.OrDefault(p.Reason, "") + "\n$ " + text.Clip(p.Command, 2000))
 	case "item/fileChange/requestApproval":
 		pr.Kind, pr.Tool, pr.Title, pr.Options = "permission", "Edit", "Apply these changes?", approve
 		c.mu.Lock()
 		item := c.items[p.ItemID]
 		c.mu.Unlock()
-		pr.Body = strings.TrimSpace(orDefault(p.Reason, "") + "\n" + fileChangeText(item, true))
+		pr.Body = strings.TrimSpace(text.OrDefault(p.Reason, "") + "\n" + fileChangeText(item, true))
 	case "item/tool/requestUserInput":
 		pr.Kind, pr.Tool, pr.Title = "question", "Question", "Codex has a question"
 		for _, q := range p.Questions {
-			qq := Question{ID: q.ID, Question: q.Question, Header: q.Header}
+			qq := protocol.Question{ID: q.ID, Question: q.Question, Header: q.Header}
 			for _, o := range q.Options {
-				qq.Options = append(qq.Options, Option{Label: o.Label, Desc: o.Description})
+				qq.Options = append(qq.Options, protocol.Option{Label: o.Label, Desc: o.Description})
 			}
 			pr.Questions = append(pr.Questions, qq)
 		}
@@ -424,18 +447,18 @@ func (c *codexRT) onRequest(rpcID json.RawMessage, method string, raw json.RawMe
 		return
 	case "item/permissions/requestApproval":
 		pr.Kind, pr.Tool, pr.Title = "permission", "Permissions", "Allow extra permissions?"
-		pr.Body = orDefault(p.Reason, "Codex asks for permissions beyond its sandbox.")
-		pr.Options = []Option{{Label: "Yes, for this turn"}, {Label: "No"}}
-		pr.priv.(*codexPrompt).method = method + "|" + string(raw)
+		pr.Body = text.OrDefault(p.Reason, "Codex asks for permissions beyond its sandbox.")
+		pr.Options = []protocol.Option{{Label: "Yes, for this turn"}, {Label: "No"}}
+		pr.Priv.(*promptData).method = method + "|" + string(raw)
 	default:
 		c.s.replyErr(rpcID, "unsupported by luther: "+method)
 		return
 	}
-	c.t.do(func() { c.t.addPrompt(pr) })
+	c.t.Do(func(st *protocol.State) { c.t.AddPrompt(pr) })
 }
 
-func (c *codexRT) Answer(p *Prompt, a Answer) error {
-	cp := p.priv.(*codexPrompt)
+func (c *runtime) Answer(p *protocol.Prompt, a protocol.Answer) error {
+	cp := p.Priv.(*promptData)
 	method, rawParams, _ := strings.Cut(cp.method, "|")
 	switch method {
 	case "item/commandExecution/requestApproval", "item/fileChange/requestApproval":
@@ -450,7 +473,7 @@ func (c *codexRT) Answer(p *Prompt, a Answer) error {
 			return err
 		}
 		if decision == "decline" && strings.TrimSpace(a.Message) != "" {
-			return c.Send(a.Message) // "no, do this instead" steers the running turn
+			return c.Send(a.Message, nil) // "no, do this instead" steers the running turn
 		}
 		return nil
 	case "item/tool/requestUserInput":
@@ -473,21 +496,34 @@ func (c *codexRT) Answer(p *Prompt, a Answer) error {
 	return nil
 }
 
-func userInput(text string) []map[string]any {
-	return []map[string]any{{"type": "text", "text": text}}
+// userInput: images as localImage inputs, other files named in the text.
+func userInput(msg string, files []string) []map[string]any {
+	var in []map[string]any
+	var other []string
+	for _, f := range files {
+		if uploads.IsImage(f) {
+			in = append(in, map[string]any{"type": "localImage", "path": f})
+		} else {
+			other = append(other, f)
+		}
+	}
+	if len(other) > 0 {
+		msg += "\n\nAttached files: " + strings.Join(other, ", ")
+	}
+	return append(in, map[string]any{"type": "text", "text": text.OrDefault(msg, "(see attachment)")})
 }
 
 // Send starts a turn, or steers the running one.
-func (c *codexRT) Send(text string) error {
+func (c *runtime) Send(msg string, files []string) error {
 	c.mu.Lock()
 	turn, mode, model := c.turn, c.mode, c.model
 	c.mu.Unlock()
 	if turn != "" {
-		_, err := c.s.call("turn/steer", map[string]any{"threadId": c.id, "expectedTurnId": turn, "input": userInput(text)})
+		_, err := c.s.call("turn/steer", map[string]any{"threadId": c.id, "expectedTurnId": turn, "input": userInput(msg, files)})
 		return err
 	}
-	pol := codexPolicies[mode]
-	params := map[string]any{"threadId": c.id, "input": userInput(text), "approvalPolicy": pol.approval,
+	pol := policies[mode]
+	params := map[string]any{"threadId": c.id, "input": userInput(msg, files), "approvalPolicy": pol.approval,
 		"sandboxPolicy": map[string]any{"type": pol.sandboxType}}
 	if model != "" {
 		params["model"] = model
@@ -496,7 +532,7 @@ func (c *codexRT) Send(text string) error {
 	return err
 }
 
-func (c *codexRT) Interrupt() error {
+func (c *runtime) Interrupt() error {
 	c.mu.Lock()
 	turn := c.turn
 	c.mu.Unlock()
@@ -508,154 +544,30 @@ func (c *codexRT) Interrupt() error {
 }
 
 // SetMode / SetModel apply from the next turn (Codex takes them per turn/start).
-func (c *codexRT) SetMode(m string) error {
+func (c *runtime) SetMode(m string) error {
 	c.mu.Lock()
 	c.mode = m
 	c.mu.Unlock()
-	c.t.do(func() { c.t.st.Mode = m })
+	c.t.Do(func(st *protocol.State) { st.Mode = m })
 	return nil
 }
 
-func (c *codexRT) SetModel(m string) error {
+func (c *runtime) SetModel(m string) error {
 	if m == "" {
 		return errors.New("empty model")
 	}
 	c.mu.Lock()
 	c.model = m
 	c.mu.Unlock()
-	c.t.do(func() { c.t.st.Model = m })
+	c.t.Do(func(st *protocol.State) { st.Model = m })
 	return nil
 }
 
 // Stop unloads the thread from the shared app-server; its history stays in Codex's store.
-func (c *codexRT) Stop() {
+func (c *runtime) Stop() {
 	c.s.call("thread/unsubscribe", map[string]any{"threadId": c.id})
 	c.s.mu.Lock()
 	delete(c.s.rts, c.id)
 	c.s.mu.Unlock()
-	c.t.end()
-}
-
-// ---- items → messages ----
-
-func str(m map[string]any, k string) string { s, _ := m[k].(string); return s }
-
-func codexMsg(it map[string]any) (Msg, bool) {
-	id := str(it, "id")
-	switch it["type"] {
-	case "userMessage":
-		var parts []string
-		if cs, ok := it["content"].([]any); ok {
-			for _, c := range cs {
-				if cm, ok := c.(map[string]any); ok && cm["type"] == "text" {
-					parts = append(parts, str(cm, "text"))
-				}
-			}
-		}
-		if len(parts) == 0 {
-			return Msg{}, false
-		}
-		return Msg{ID: id, Role: "user", Text: strings.Join(parts, "\n")}, true
-	case "agentMessage":
-		if strings.TrimSpace(str(it, "text")) == "" {
-			return Msg{}, false
-		}
-		return Msg{ID: id, Role: "assistant", Text: str(it, "text")}, true
-	case "plan":
-		return Msg{ID: id, Role: "assistant", Text: "**Plan**\n" + str(it, "text")}, true
-	case "commandExecution":
-		text := clip(str(it, "command"), 300)
-		if code, ok := it["exitCode"].(float64); ok && code != 0 {
-			text += fmt.Sprintf("  (exit %d)", int(code))
-		}
-		if it["status"] == "declined" {
-			text += "  (declined)"
-		}
-		return Msg{ID: id, Role: "tool", Tool: "Shell", Text: text}, true
-	case "fileChange":
-		return Msg{ID: id, Role: "tool", Tool: "Edit", Text: fileChangeText(it, false)}, true
-	case "mcpToolCall", "dynamicToolCall":
-		name := str(it, "tool")
-		if srv := str(it, "server"); srv != "" {
-			name = srv + "." + name
-		}
-		return Msg{ID: id, Role: "tool", Tool: name}, true
-	case "webSearch":
-		return Msg{ID: id, Role: "tool", Tool: "WebSearch", Text: str(it, "query")}, true
-	case "contextCompaction":
-		return Msg{ID: id, Role: "system", Text: "Context compacted"}, true
-	}
-	return Msg{}, false
-}
-
-// fileChangeText: changed paths (relative), plus clipped diffs for approvals.
-func fileChangeText(it map[string]any, diffs bool) string {
-	var b strings.Builder
-	cs, _ := it["changes"].([]any)
-	for _, c := range cs {
-		cm, _ := c.(map[string]any)
-		path := str(cm, "path")
-		kind := ""
-		if k, ok := cm["kind"].(map[string]any); ok {
-			kind = str(k, "type")
-		}
-		fmt.Fprintf(&b, "%s %s\n", kind, filepath.Base(path))
-		if diffs {
-			b.WriteString(clip(str(cm, "diff"), 1500) + "\n")
-		}
-	}
-	return strings.TrimSpace(b.String())
-}
-
-// ---- past threads (Codex's own store, via the app-server) ----
-
-func codexSessions(cwd string) []Session {
-	s, err := codexSrv()
-	if err != nil {
-		return nil
-	}
-	params := map[string]any{"limit": 200}
-	if cwd != "" {
-		params["cwd"] = cwd
-	}
-	raw, err := s.call("thread/list", params) // ponytail: first page only (200 newest)
-	if err != nil {
-		return nil
-	}
-	var out struct {
-		Data []codexThreadRec `json:"data"`
-	}
-	json.Unmarshal(raw, &out)
-	var ss []Session
-	for _, th := range out.Data {
-		if th.Cwd == "" && len(th.Envs) > 0 {
-			th.Cwd = th.Envs[0].Cwd
-		}
-		ss = append(ss, Session{Provider: Codex, ID: th.ID, Cwd: th.Cwd, Title: oneLine(orDefault(th.Name, th.Preview)),
-			Preview: oneLine(th.Preview), LastActive: time.Unix(th.Updated, 0)})
-	}
-	return ss
-}
-
-func codexModels() []string {
-	s, err := codexSrv()
-	if err != nil {
-		return nil
-	}
-	raw, err := s.call("model/list", map[string]any{})
-	if err != nil {
-		return nil
-	}
-	var out struct {
-		Data []struct {
-			ID    string `json:"id"`
-			Model string `json:"model"`
-		} `json:"data"`
-	}
-	json.Unmarshal(raw, &out)
-	var ms []string
-	for _, m := range out.Data {
-		ms = append(ms, orDefault(m.ID, m.Model))
-	}
-	return ms
+	c.t.End()
 }

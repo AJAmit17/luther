@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"bytes"
@@ -14,26 +14,35 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AJAmit17/luther/server/internal/config"
+	"github.com/AJAmit17/luther/server/internal/env"
+	"github.com/AJAmit17/luther/server/internal/paths"
 	"github.com/mdp/qrterminal/v3"
 )
 
-// Mac-side commands. They talk to the running server with the admin token from
-// ~/.luther/config.json, or edit that config and launchd.
+// Package cli: the Mac-side commands — pair, tailscale, tunnel, service, doctor.
+// They talk to the running server with the admin token from the config, or edit
+// that config and launchd.
 
-func localURL() string { return fmt.Sprintf("http://127.0.0.1:%d", cfg.Port) }
+// CLI: the commands, over one loaded config.
+type CLI struct{ cfg *config.Config }
 
-func adminPost(path string) (*http.Response, error) {
-	req, _ := http.NewRequest("POST", localURL()+path, nil)
-	req.Header.Set("Authorization", "Bearer "+cfg.AdminToken)
+func New(cfg *config.Config) *CLI { return &CLI{cfg: cfg} }
+
+func (c *CLI) localURL() string { return fmt.Sprintf("http://127.0.0.1:%d", c.cfg.Port) }
+
+func (c *CLI) adminPost(path string) (*http.Response, error) {
+	req, _ := http.NewRequest("POST", c.localURL()+path, nil)
+	req.Header.Set("Authorization", "Bearer "+c.cfg.AdminToken)
 	return (&http.Client{Timeout: 5 * time.Second}).Do(req)
 }
 
 // pairCmd prints a QR the phone scans once: name, routes, one-time code.
-func pairCmd() error {
-	if len(cfg.routes()) == 0 {
+func (c *CLI) Pair() error {
+	if len(c.cfg.Routes()) == 0 {
 		fmt.Println("! No routes yet. Run `luther tailscale` and/or `luther tunnel` first; the phone needs a URL to reach this Mac.")
 	}
-	res, err := adminPost("/pair/code")
+	res, err := c.adminPost("/pair/code")
 	if err != nil {
 		return fmt.Errorf("server not running (%v); start it with `luther service install` or `luther serve`", err)
 	}
@@ -45,7 +54,7 @@ func pairCmd() error {
 	if res.StatusCode != 200 || json.NewDecoder(res.Body).Decode(&out) != nil {
 		return fmt.Errorf("server refused to issue a code (HTTP %d)", res.StatusCode)
 	}
-	b, _ := json.Marshal(map[string]any{"v": 1, "name": cfg.Name, "routes": cfg.routes(), "code": out.Code})
+	b, _ := json.Marshal(map[string]any{"v": 1, "name": c.cfg.DisplayName(), "routes": c.cfg.Routes(), "code": out.Code})
 	qrterminal.GenerateHalfBlock(string(b), qrterminal.L, os.Stdout)
 	fmt.Printf("\nScan with the Luther app (or paste):\n%s\n\nCode %s, single use, valid until %s.\n", b, out.Code, out.Expires.Format("15:04"))
 	return nil
@@ -53,7 +62,7 @@ func pairCmd() error {
 
 // tailscaleCmd: `tailscale serve` HTTPS on the tailnet → this server. Refuses to
 // take a port already proxied elsewhere unless --force.
-func tailscaleCmd(args []string) error {
+func (c *CLI) Tailscale(args []string) error {
 	fs := flag.NewFlagSet("tailscale", flag.ExitOnError)
 	port := fs.Int("https", 443, "HTTPS port on the tailnet")
 	force := fs.Bool("force", false, "replace an existing mapping on that port")
@@ -68,7 +77,7 @@ func tailscaleCmd(args []string) error {
 	if host == "" {
 		return fmt.Errorf("no MagicDNS name; enable MagicDNS and HTTPS in the Tailscale admin console")
 	}
-	target := localURL()
+	target := c.localURL()
 	if cur, _ := exec.Command("tailscale", "serve", "status", "--json").Output(); !*force {
 		var sc struct {
 			Web map[string]struct {
@@ -93,8 +102,7 @@ func tailscaleCmd(args []string) error {
 	if *port != 443 {
 		url += ":" + strconv.Itoa(*port)
 	}
-	cfg.Tailnet = url
-	if err := cfg.save(); err != nil {
+	if err := c.cfg.Set(func(cf *config.Config) { cf.Tailnet = url }); err != nil {
 		return err
 	}
 	fmt.Printf("✓ tailnet route: %s → %s\n  undo: tailscale serve --https=%d off\n", url, target, *port)
@@ -104,7 +112,7 @@ func tailscaleCmd(args []string) error {
 // tunnelCmd records the Cloudflare route and writes ~/.cloudflared/luther.yml
 // for an existing tunnel. Creating the tunnel needs your Cloudflare login, so
 // that part stays with you (printed below).
-func tunnelCmd(args []string) error {
+func (c *CLI) Tunnel(args []string) error {
 	fs := flag.NewFlagSet("tunnel", flag.ExitOnError)
 	url := fs.String("url", "", "public URL, e.g. https://luther.example.com")
 	id := fs.String("id", "", "tunnel UUID from `cloudflared tunnel create luther`")
@@ -119,16 +127,16 @@ func tunnelCmd(args []string) error {
 Optional: protect it with Cloudflare Access (service token) and enter that token in the app.`)
 		return nil
 	}
-	cfg.Tunnel = strings.TrimSuffix(*url, "/")
-	if err := cfg.save(); err != nil {
+	tunnel := strings.TrimSuffix(*url, "/")
+	if err := c.cfg.Set(func(cf *config.Config) { cf.Tunnel = tunnel }); err != nil {
 		return err
 	}
-	fmt.Println("✓ tunnel route:", cfg.Tunnel)
+	fmt.Println("✓ tunnel route:", tunnel)
 	if *id != "" {
-		host := strings.TrimPrefix(cfg.Tunnel, "https://")
+		host := strings.TrimPrefix(tunnel, "https://")
 		yml := fmt.Sprintf("tunnel: %s\ncredentials-file: %s\ningress:\n  - hostname: %s\n    service: %s\n  - service: http_status:404\n",
-			*id, filepath.Join(home, ".cloudflared", *id+".json"), host, localURL())
-		p := filepath.Join(home, ".cloudflared", "luther.yml")
+			*id, filepath.Join(paths.Home, ".cloudflared", *id+".json"), host, c.localURL())
+		p := filepath.Join(paths.Home, ".cloudflared", "luther.yml")
 		if err := os.WriteFile(p, []byte(yml), 0o600); err != nil {
 			return err
 		}
@@ -139,12 +147,12 @@ Optional: protect it with Cloudflare Access (service token) and enter that token
 
 // serviceCmd: launchd LaunchAgents (a GUI-session agent so the CLIs can reach the
 // login keychain): dev.luther.server, and dev.luther.tunnel if luther.yml exists.
-func serviceCmd(args []string) error {
+func (c *CLI) Service(args []string) error {
 	if len(args) == 0 || (args[0] != "install" && args[0] != "uninstall") {
 		return fmt.Errorf("usage: luther service install|uninstall")
 	}
 	domain := "gui/" + strconv.Itoa(os.Getuid())
-	agents := filepath.Join(home, "Library", "LaunchAgents")
+	agents := filepath.Join(paths.Home, "Library", "LaunchAgents")
 	if args[0] == "uninstall" {
 		for _, l := range []string{"dev.luther.server", "dev.luther.tunnel"} {
 			exec.Command("launchctl", "bootout", domain+"/"+l).Run()
@@ -160,28 +168,26 @@ func serviceCmd(args []string) error {
 		}
 	}
 	bin, _ = filepath.Abs(bin)
-	if err := launchAgent("dev.luther.server", []string{bin, "serve"}, filepath.Join(lutherDir(), "serve.log")); err != nil {
+	if err := launchAgent("dev.luther.server", []string{bin, "serve"}, filepath.Join(config.Dir(), "serve.log")); err != nil {
 		return err
 	}
 	fmt.Println("✓ server: LaunchAgent dev.luther.server (starts at login, restarts if it dies); log ~/.luther/serve.log")
-	yml := filepath.Join(home, ".cloudflared", "luther.yml")
-	if cf, err := exec.LookPath("cloudflared"); err == nil && isFile(yml) {
-		if err := launchAgent("dev.luther.tunnel", []string{cf, "tunnel", "--config", yml, "run"}, filepath.Join(lutherDir(), "tunnel.log")); err != nil {
+	yml := filepath.Join(paths.Home, ".cloudflared", "luther.yml")
+	if cf, err := exec.LookPath("cloudflared"); err == nil && paths.IsFile(yml) {
+		if err := launchAgent("dev.luther.tunnel", []string{cf, "tunnel", "--config", yml, "run"}, filepath.Join(config.Dir(), "tunnel.log")); err != nil {
 			return err
 		}
 		fmt.Println("✓ tunnel: LaunchAgent dev.luther.tunnel")
 	}
 	for i := 0; i < 40; i++ {
-		if res, err := http.Get(localURL() + "/healthz"); err == nil && res.StatusCode == 200 {
-			fmt.Println("✓ server answering on", localURL())
+		if res, err := http.Get(c.localURL() + "/healthz"); err == nil && res.StatusCode == 200 {
+			fmt.Println("✓ server answering on", c.localURL())
 			return nil
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
 	return fmt.Errorf("server didn't come up; see ~/.luther/serve.log")
 }
-
-func isFile(p string) bool { fi, err := os.Stat(p); return err == nil && !fi.IsDir() }
 
 func launchAgent(label string, args []string, logPath string) error {
 	esc := func(s string) string { var b bytes.Buffer; xml.EscapeText(&b, []byte(s)); return b.String() }
@@ -211,9 +217,9 @@ func launchAgent(label string, args []string, logPath string) error {
 </dict>
 </plist>
 `
-	dir := filepath.Join(home, "Library", "LaunchAgents")
+	dir := filepath.Join(paths.Home, "Library", "LaunchAgents")
 	os.MkdirAll(dir, 0o755)
-	os.MkdirAll(lutherDir(), 0o700)
+	os.MkdirAll(config.Dir(), 0o700)
 	path := filepath.Join(dir, label+".plist")
 	if err := os.WriteFile(path, []byte(plist), 0o644); err != nil {
 		return err
@@ -227,7 +233,7 @@ func launchAgent(label string, args []string, logPath string) error {
 }
 
 // doctorCmd: what's installed, whether the server and each route answer.
-func doctorCmd() {
+func (c *CLI) Doctor() {
 	ok := func(good bool, what, detail string) {
 		mark := "✓"
 		if !good {
@@ -235,8 +241,8 @@ func doctorCmd() {
 		}
 		fmt.Printf("%s %-12s %s\n", mark, what, detail)
 	}
-	loginPath()
-	for _, bin := range []string{"claude", "codex", "tmux", "git", "tailscale", "cloudflared"} {
+	env.LoginPath()
+	for _, bin := range []string{"claude", "codex", "tmux", "git", "gh", "tailscale", "cloudflared"} {
 		out, err := exec.Command(bin, "--version").CombinedOutput()
 		if bin == "tmux" {
 			out, err = exec.Command(bin, "-V").CombinedOutput()
@@ -247,9 +253,9 @@ func doctorCmd() {
 		}
 		ok(err == nil, bin, v)
 	}
-	res, err := (&http.Client{Timeout: 3 * time.Second}).Get(localURL() + "/healthz")
-	ok(err == nil && res.StatusCode == 200, "server", localURL())
-	for _, u := range cfg.routes() {
+	res, err := (&http.Client{Timeout: 3 * time.Second}).Get(c.localURL() + "/healthz")
+	ok(err == nil && res.StatusCode == 200, "server", c.localURL())
+	for _, u := range c.cfg.Routes() {
 		res, err := (&http.Client{Timeout: 6 * time.Second}).Get(u + "/healthz")
 		detail := u
 		if err != nil {
@@ -259,11 +265,9 @@ func doctorCmd() {
 		}
 		ok(err == nil && res.StatusCode == 200, "route", detail)
 	}
-	if len(cfg.routes()) == 0 {
+	if len(c.cfg.Routes()) == 0 {
 		ok(false, "route", "none: run `luther tailscale` or `luther tunnel`")
 	}
-	cfgMu.Lock()
-	n := len(cfg.Devices)
-	cfgMu.Unlock()
+	n := len(c.cfg.ListDevices())
 	ok(n > 0, "devices", fmt.Sprintf("%d paired (`luther pair` adds one)", n))
 }

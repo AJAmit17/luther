@@ -1,4 +1,4 @@
-package main
+package terminal
 
 import (
 	"context"
@@ -13,10 +13,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AJAmit17/luther/server/internal/httpx"
+	"github.com/AJAmit17/luther/server/internal/paths"
+	"github.com/AJAmit17/luther/server/internal/protocol"
+	"github.com/AJAmit17/luther/server/internal/text"
 	"github.com/coder/websocket"
 )
 
-// Terminals: plain shells in tmux on a private socket (`tmux -L luther`), so
+// Package terminal: plain shells in tmux on a private socket (`tmux -L luther`), so
 // they outlive phone disconnects and the user's own tmux is never touched. The
 // phone gets the rendered pane (capture-pane -e: ANSI colours) and sends raw
 // bytes; on the Mac, `tmux -L luther attach -t <name>` opens the same shell.
@@ -33,26 +37,26 @@ func tmux(args ...string) (string, error) {
 	return string(out), nil
 }
 
-func listTerms() []Term {
+func List() []protocol.Term {
 	// Space-separated with cwd last (it may contain spaces): tmux 3.6 prints a tab in -F as "_".
 	out, err := tmux("list-sessions", "-F", "#{session_name} #{session_attached} #{session_created} #{@luther_cwd}")
 	if err != nil {
 		return nil // no server running = no terminals
 	}
-	var ts []Term
+	var ts []protocol.Term
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		f := strings.SplitN(line, " ", 4)
 		if len(f) != 4 {
 			continue
 		}
 		created, _ := strconv.ParseInt(f[2], 10, 64)
-		ts = append(ts, Term{Name: f[0], Attached: f[1] != "0", Created: created, Cwd: f[3]})
+		ts = append(ts, protocol.Term{Name: f[0], Attached: f[1] != "0", Created: created, Cwd: f[3]})
 	}
 	return ts
 }
 
 func findTerm(name string) bool {
-	for _, t := range listTerms() {
+	for _, t := range List() {
 		if t.Name == name {
 			return true
 		}
@@ -61,7 +65,7 @@ func findTerm(name string) bool {
 }
 
 func createTerm(cwd string) (string, error) {
-	name := unsafeRe.ReplaceAllString(filepath.Base(cwd), "_") + "-" + randHex(2)
+	name := unsafeRe.ReplaceAllString(filepath.Base(cwd), "_") + "-" + text.RandHex(2)
 	_, err := tmux("new-session", "-d", "-s", name, "-c", cwd,
 		";", "set-option", "-t", "="+name+":", "@luther_cwd", cwd,
 		";", "set-option", "-g", "status", "off",
@@ -72,14 +76,20 @@ func createTerm(cwd string) (string, error) {
 	return name, err
 }
 
-func (s *server) terms(w http.ResponseWriter, r *http.Request) { writeJSON(w, orEmpty(listTerms())) }
+// Routes: GET/POST /terms, DELETE /terms/{name}, WS /terms/{name}/events.
+func Routes(mux *http.ServeMux, wrap httpx.Wrap) {
+	mux.HandleFunc("GET /terms", wrap(func(w http.ResponseWriter, r *http.Request) { httpx.WriteJSON(w, httpx.OrEmpty(List())) }))
+	mux.HandleFunc("POST /terms", wrap(newTerm))
+	mux.HandleFunc("DELETE /terms/{name}", wrap(killTerm))
+	mux.HandleFunc("GET /terms/{name}/events", wrap(events))
+}
 
-func (s *server) newTerm(w http.ResponseWriter, r *http.Request) {
+func newTerm(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Cwd string }
-	if !readJSON(w, r, &req) {
+	if !httpx.ReadJSON(w, r, &req) {
 		return
 	}
-	if !inHome(req.Cwd) || !isDir(req.Cwd) {
+	if !paths.ProjectDir(req.Cwd) {
 		http.Error(w, "cwd must be an existing folder inside your home folder", http.StatusBadRequest)
 		return
 	}
@@ -88,10 +98,10 @@ func (s *server) newTerm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, map[string]string{"name": name})
+	httpx.WriteJSON(w, map[string]string{"name": name})
 }
 
-func (s *server) killTerm(w http.ResponseWriter, r *http.Request) {
+func killTerm(w http.ResponseWriter, r *http.Request) {
 	if _, err := tmux("kill-session", "-t", "="+r.PathValue("name")); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 	}
@@ -99,13 +109,13 @@ func (s *server) killTerm(w http.ResponseWriter, r *http.Request) {
 
 // termEvents: WS /terms/{name}/events. In: {type:"size",cols,rows}, {type:"input",hex}.
 // Out: {type:"screen",ansi} whenever the pane changes, {type:"ended"}.
-func (s *server) termEvents(w http.ResponseWriter, r *http.Request) {
+func events(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if !findTerm(name) {
 		http.Error(w, "no such terminal", http.StatusNotFound)
 		return
 	}
-	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true}) // bearer auth, not cookies
+	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true}) // origin check off: bearer auth, never cookies
 	if err != nil {
 		return
 	}

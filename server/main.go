@@ -1,13 +1,17 @@
 // Luther: the Mac-side server. Runs the coding agents (Claude Code, Codex) on
-// this machine and serves them to paired phones. See docs/PLAN.md.
+// this machine and serves them to paired phones. See docs/PLAN.md; each feature
+// is a package under internal/, wired together in internal/api.
 package main
 
 import (
 	"fmt"
 	"os"
-)
 
-const version = "0.1.0-dev"
+	"github.com/AJAmit17/luther/server/internal/api"
+	"github.com/AJAmit17/luther/server/internal/cli"
+	"github.com/AJAmit17/luther/server/internal/config"
+	"github.com/AJAmit17/luther/server/internal/protocol"
+)
 
 const usage = `usage:
   luther serve                           run the server (launchd runs this)
@@ -25,28 +29,29 @@ func main() {
 		cmd = os.Args[1]
 	}
 	if cmd == "version" || cmd == "--version" || cmd == "-v" {
-		fmt.Println("luther", version)
+		fmt.Println("luther", protocol.Version)
 		return
 	}
-	var err error
-	if cfg, err = loadConfig(); err != nil {
+	cfg, err := config.Load()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "luther:", err)
 		os.Exit(1)
 	}
+	c := cli.New(cfg)
 	args := os.Args[min(2, len(os.Args)):]
 	switch cmd {
 	case "serve":
-		serve()
+		api.Serve(cfg)
 	case "pair":
-		err = pairCmd()
+		err = c.Pair()
 	case "tailscale":
-		err = tailscaleCmd(args)
+		err = c.Tailscale(args)
 	case "tunnel":
-		err = tunnelCmd(args)
+		err = c.Tunnel(args)
 	case "service":
-		err = serviceCmd(args)
+		err = c.Service(args)
 	case "doctor":
-		doctorCmd()
+		c.Doctor()
 	default:
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)

@@ -1,4 +1,4 @@
-package main
+package workspace
 
 import (
 	"bytes"
@@ -7,30 +7,48 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+
+	"github.com/AJAmit17/luther/server/internal/httpx"
+	"github.com/AJAmit17/luther/server/internal/paths"
+	"github.com/AJAmit17/luther/server/internal/protocol"
+	"github.com/AJAmit17/luther/server/internal/text"
 )
 
-// Workbench: browse and read project files, git status / diff / commit. Every
-// path is confined to the project folder (cwd), which must be under $HOME.
+// Package workspace: a project's files and git — browse and read files, status,
+// diff, commit, push, pull requests, and Luther's per-thread worktrees. Every path
+// is confined to the project folder (cwd), which must be under $HOME.
 
 const maxFile = 512 << 10
 
+// Routes: files, git status/diff/commit/push/pr, worktree removal.
+func Routes(mux *http.ServeMux, wrap httpx.Wrap) {
+	mux.HandleFunc("GET /files", wrap(files))
+	mux.HandleFunc("GET /git/status", wrap(gitStatus))
+	mux.HandleFunc("GET /git/diff", wrap(gitDiff))
+	mux.HandleFunc("POST /git/commit", wrap(gitCommit))
+	mux.HandleFunc("POST /git/push", wrap(gitPush))
+	mux.HandleFunc("POST /git/pr", wrap(gitPR))
+	mux.HandleFunc("DELETE /git/worktree", wrap(removeWorktree))
+}
+
 func projectDir(w http.ResponseWriter, r *http.Request) (string, bool) {
 	cwd := r.URL.Query().Get("cwd")
-	if !inHome(cwd) || !isDir(cwd) {
+	if !paths.ProjectDir(cwd) {
 		http.Error(w, "cwd must be an existing folder inside your home folder", http.StatusBadRequest)
 		return "", false
 	}
 	return cwd, true
 }
 
-// files: GET /files?cwd=&path= → []FileEntry for a folder, FileContent for a file.
-func (s *server) files(w http.ResponseWriter, r *http.Request) {
+// files: GET /files?cwd=&path= → []protocol.FileEntry for a folder, protocol.FileContent for a file.
+func files(w http.ResponseWriter, r *http.Request) {
 	cwd, ok := projectDir(w, r)
 	if !ok {
 		return
 	}
-	p, ok := within(cwd, r.URL.Query().Get("path"))
+	p, ok := paths.Within(cwd, r.URL.Query().Get("path"))
 	if !ok {
 		http.Error(w, "path escapes the project", http.StatusBadRequest)
 		return
@@ -46,13 +64,13 @@ func (s *server) files(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusForbidden)
 			return
 		}
-		out := []FileEntry{}
+		out := []protocol.FileEntry{}
 		for _, e := range ents {
 			if e.Name() == ".git" || e.Name() == ".DS_Store" {
 				continue
 			}
 			info, _ := e.Info()
-			fe := FileEntry{Name: e.Name(), Dir: e.IsDir()}
+			fe := protocol.FileEntry{Name: e.Name(), Dir: e.IsDir()}
 			if info != nil && !e.IsDir() {
 				fe.Size = info.Size()
 			}
@@ -64,7 +82,7 @@ func (s *server) files(w http.ResponseWriter, r *http.Request) {
 			}
 			return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
 		})
-		writeJSON(w, out)
+		httpx.WriteJSON(w, out)
 		return
 	}
 	f, err := os.Open(p)
@@ -76,14 +94,14 @@ func (s *server) files(w http.ResponseWriter, r *http.Request) {
 	buf := make([]byte, maxFile+1)
 	n, _ := f.Read(buf)
 	rel, _ := filepath.Rel(cwd, p)
-	fc := FileContent{Path: rel, Trunc: n > maxFile}
+	fc := protocol.FileContent{Path: rel, Trunc: n > maxFile}
 	b := buf[:min(n, maxFile)]
 	if bytes.IndexByte(b, 0) >= 0 {
 		fc.Binary = true
 	} else {
 		fc.Text = strings.ToValidUTF8(string(b), "\uFFFD") // a cut can split a multi-byte rune
 	}
-	writeJSON(w, fc)
+	httpx.WriteJSON(w, fc)
 }
 
 func git(cwd string, args ...string) (string, error) {
@@ -97,9 +115,9 @@ func git(cwd string, args ...string) (string, error) {
 
 type gitErr struct{ msg string }
 
-func (e *gitErr) Error() string { return orDefault(e.msg, "git failed") }
+func (e *gitErr) Error() string { return text.OrDefault(e.msg, "git failed") }
 
-func (s *server) gitStatus(w http.ResponseWriter, r *http.Request) {
+func gitStatus(w http.ResponseWriter, r *http.Request) {
 	cwd, ok := projectDir(w, r)
 	if !ok {
 		return
@@ -109,25 +127,34 @@ func (s *server) gitStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	st := GitStatus{Files: []GitChange{}}
+	st := protocol.GitStatus{Files: []protocol.GitChange{}, Worktree: IsWorktree(cwd)}
 	for _, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
 		switch {
 		case strings.HasPrefix(line, "## "):
-			st.Branch, _, _ = strings.Cut(strings.TrimPrefix(line, "## "), "...")
+			head := strings.TrimPrefix(line, "## ")
+			if b, rest, ok := strings.Cut(head, "..."); ok {
+				st.Branch = b
+				st.Upstream, _, _ = strings.Cut(rest, " ")
+				if m := aheadRe.FindStringSubmatch(rest); m != nil {
+					st.Ahead, _ = strconv.Atoi(m[1])
+				}
+			} else {
+				st.Branch, _, _ = strings.Cut(head, " ")
+			}
 		case len(line) > 3:
 			path := line[3:]
 			if _, to, ok := strings.Cut(path, " -> "); ok { // rename
 				path = to
 			}
-			st.Files = append(st.Files, GitChange{Path: path, Status: line[:2]})
+			st.Files = append(st.Files, protocol.GitChange{Path: path, Status: line[:2]})
 		}
 	}
-	writeJSON(w, st)
+	httpx.WriteJSON(w, st)
 }
 
 // gitDiff: GET /git/diff?cwd=&path= → plain-text unified diff of the working tree
 // against HEAD (one file, or everything). Untracked files show as additions.
-func (s *server) gitDiff(w http.ResponseWriter, r *http.Request) {
+func gitDiff(w http.ResponseWriter, r *http.Request) {
 	cwd, ok := projectDir(w, r)
 	if !ok {
 		return
@@ -136,7 +163,7 @@ func (s *server) gitDiff(w http.ResponseWriter, r *http.Request) {
 	abs := ""
 	if path != "" {
 		var ok bool
-		if abs, ok = within(cwd, path); !ok {
+		if abs, ok = paths.Within(cwd, path); !ok {
 			http.Error(w, "path escapes the project", http.StatusBadRequest)
 			return
 		}
@@ -154,15 +181,15 @@ func (s *server) gitDiff(w http.ResponseWriter, r *http.Request) {
 		out = string(b)
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Write([]byte(clip(out, 2<<20)))
+	w.Write([]byte(text.Clip(out, 2<<20)))
 }
 
-func (s *server) gitCommit(w http.ResponseWriter, r *http.Request) {
+func gitCommit(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Cwd, Message string }
-	if !readJSON(w, r, &req) {
+	if !httpx.ReadJSON(w, r, &req) {
 		return
 	}
-	if !inHome(req.Cwd) || !isDir(req.Cwd) || strings.TrimSpace(req.Message) == "" {
+	if !paths.ProjectDir(req.Cwd) || strings.TrimSpace(req.Message) == "" {
 		http.Error(w, "need a project folder and a message", http.StatusBadRequest)
 		return
 	}
@@ -175,5 +202,5 @@ func (s *server) gitCommit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	writeJSON(w, map[string]string{"output": strings.TrimSpace(out)})
+	httpx.WriteJSON(w, map[string]string{"output": strings.TrimSpace(out)})
 }
