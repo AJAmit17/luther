@@ -8,5 +8,4 @@ Control plane for the coding agents on a Mac (Claude Code, Codex), steered from 
 - App: `cd app && npx tsc --noEmit` before claiming done; use `npx expo install` for packages.
 - Wire protocol: Go types are the source of truth; mirror every change in `app/src/lib/protocol.ts`.
 - Never write to `~/.claude` or `~/.codex` — those are the CLIs' stores; Luther only reads them.
-- Code ported from t3code keeps its MIT notice (see `NOTICE`).
 - GitHub: account AJAmit17 (this repo's git config handles auth).

@@ -1,6 +1,6 @@
 # Luther: plan & spec
 
-Luther is a control plane for the coding agents on your Mac. The Mac keeps the files and runs the agents (Claude Code, Codex); your phone steers them from anywhere over your tailnet or a Cloudflare tunnel. Inspired by [t3code](https://github.com/pingdotgg/t3code) (MIT), deliberately simpler: one Mac-side server, one phone app.
+Luther is a control plane for the coding agents on your Mac. The Mac keeps the files and runs the agents (Claude Code, Codex); your phone steers them from anywhere over your tailnet or a Cloudflare tunnel. Deliberately simple: one Mac-side server, one phone app.
 
 Work rule: build phases 0–8 fully, then test end to end in phase 9. Tick a box only when its code is in.
 
@@ -28,17 +28,17 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 | Drive the agents' own headless protocols, never screen-scrape | `claude -p --input-format stream-json …` and `codex app-server` are what the vendors' SDKs use: real streaming, structured approvals, interrupt, resume. |
 | Agents run with the user's own CLI logins | Luther never handles provider credentials or API keys. |
 | Bind 127.0.0.1 only; tailnet and Cloudflare are reverse proxies; bearer token on every route | One listener, one auth path. Both proxies arrive from localhost, so the server can't tell routes apart. |
-| No hosted relay in v1 | t3code's relay (T3 Connect) is a hosted service for accounts, discovery and push; the hot path is already direct. Luther pushes from the Mac via Expo; a Worker relay is optional later. |
+| No hosted relay in v1 | Phones talk to the Mac directly over the tailnet or tunnel. Luther pushes from the Mac via Expo; a small hosted relay for discovery and offline push is optional later. |
 | Go structs are the wire-protocol source of truth; `app/src/lib/protocol.ts` mirrors them | Two languages, one small protocol. Keep both in the same change. |
 | Codex wire types generated from `codex app-server generate-json-schema` | The protocol is large and versioned; generate, don't hand-write. |
-| Reuse: Burrow's Go engine (Claude stream-json, verified wire facts, session indexer, pairing, push) and t3code's designs (adapter split, session import, route fallback) | Port logic, not frameworks. Ported t3code code keeps its MIT notice in `NOTICE`. |
+| Reuse Burrow's Go engine (Claude stream-json, verified wire facts, session indexer, pairing, push) | Same author, already verified against the real CLI. |
 | Never write to `~/.claude` or `~/.codex` | Those are the CLIs' stores; Luther only reads them. |
 
 ## Phases
 
 ### Phase 0: Scaffold
 - [x] Repo `AJAmit17/luther` (private), `server/` Go module, `app/` Expo (SDK 58, expo-router, TypeScript)
-- [x] `docs/PLAN.md`, `CLAUDE.md`, `NOTICE`, `.gitignore`
+- [x] `docs/PLAN.md`, `CLAUDE.md`, `.gitignore`
 
 ### Phase 1: Protocol
 - [ ] Concepts: environment (the Mac), project (a folder), thread (a conversation with one provider), turn, message, tool call, approval, question, plan, provider
