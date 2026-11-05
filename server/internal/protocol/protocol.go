@@ -8,7 +8,9 @@ import "time"
 //
 // HTTP (JSON, bearer device token on everything except /healthz and POST /pair):
 //   GET  /healthz                         → {ok, name, version}
-//   POST /pair {code, name}               → {deviceId, token}       (one-time code from `luther pair`)
+//   POST /pair {pub, box}                 → {box}  box = sealed {code, name, t} → sealed {deviceId, token} (package seal)
+//   POST /e  (X-Luther-Device, sealed)    → sealed response: any other request, end-to-end encrypted (package e2e)
+//   GET  /e/ws?d=&b=  (WS)                → any WebSocket above, each frame sealed
 //   POST /pair/code                       → {code, expires}        (admin token only: the CLI)
 //   GET  /devices · DELETE /devices/{id}
 //   GET  /events  (WS)                    → {type:"run", run: Run} for every thread, on every change
@@ -244,6 +246,8 @@ type Device struct {
 	Name     string    `json:"name"`
 	Created  time.Time `json:"created"`
 	LastSeen time.Time `json:"lastSeen"`
+	// Encrypted: it talks end-to-end encrypted (paired with a key).
+	Encrypted bool `json:"encrypted,omitempty"`
 }
 
 type Term struct {
@@ -307,5 +311,6 @@ type Port struct {
 	Cwd     string `json:"cwd,omitempty"`
 }
 
-// Version of luther serve, reported by /healthz and to Codex.
-const Version = "0.1.0-dev"
+// Version of luther serve, reported by /healthz and to Codex. Release builds
+// set it: -ldflags "-X github.com/AJAmit17/luther/server/internal/protocol.Version=v0.2.0".
+var Version = "0.1.0-dev"

@@ -5,6 +5,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/AJAmit17/luther/server/internal/paths"
 	"github.com/AJAmit17/luther/server/internal/protocol"
+	"github.com/AJAmit17/luther/server/internal/seal"
 	"github.com/AJAmit17/luther/server/internal/text"
 )
 
@@ -25,6 +27,7 @@ type Config struct {
 	Tailnet    string   `json:"tailnet,omitempty"` // https://mac.tailnet.ts.net[:port]
 	Tunnel     string   `json:"tunnel,omitempty"`  // https://luther.example.com
 	AdminToken string   `json:"adminToken"`        // for the local CLI (pair, doctor)
+	SecretKey  string   `json:"secretKey"`         // X25519, for end-to-end encryption with phones
 	Devices    []Device `json:"devices,omitempty"`
 }
 
@@ -32,6 +35,7 @@ type Config struct {
 type Device struct {
 	protocol.Device
 	TokenHash string `json:"tokenHash"`
+	Pub       string `json:"pub,omitempty"` // its X25519 key: it talks end-to-end encrypted
 }
 
 func Dir() string { return filepath.Join(paths.Home, ".luther") }
@@ -52,8 +56,13 @@ func Load() (*Config, error) {
 	if c.Name == "" {
 		c.Name, _ = os.Hostname()
 	}
-	if c.AdminToken == "" {
-		c.AdminToken = text.RandHex(32)
+	if c.AdminToken == "" || c.SecretKey == "" {
+		if c.AdminToken == "" {
+			c.AdminToken = text.RandHex(32)
+		}
+		if c.SecretKey == "" {
+			c.SecretKey = seal.NewKey()
+		}
 		if err := c.Save(); err != nil {
 			return nil, err
 		}
@@ -92,6 +101,46 @@ func (c *Config) Routes() []string {
 	return out
 }
 
+// PublicKey: this machine's X25519 key, base64 (it goes in the pairing QR).
+func (c *Config) PublicKey() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	pub, _ := seal.Public(c.SecretKey)
+	return pub
+}
+
+// DevicePub: a device's public key ("" for one paired before encryption).
+func (c *Config) DevicePub(id string) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, d := range c.Devices {
+		if d.ID == id {
+			return d.Pub
+		}
+	}
+	return ""
+}
+
+func (c *Config) secret() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.SecretKey
+}
+
+// Shared: the end-to-end key with device id, or an error if it has none.
+func (c *Config) Shared(id string) ([]byte, error) {
+	pub := c.DevicePub(id)
+	if pub == "" {
+		return nil, errNoKey
+	}
+	return seal.Shared(c.secret(), pub)
+}
+
+// SharedWith: the key with a phone's public key (pairing, before it's a device).
+func (c *Config) SharedWith(pub string) ([]byte, error) { return seal.Shared(c.secret(), pub) }
+
+var errNoKey = errors.New("this device was paired without end-to-end encryption; pair it again")
+
 func (c *Config) DisplayName() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -115,7 +164,9 @@ func (c *Config) ListDevices() []protocol.Device {
 	defer c.mu.Unlock()
 	out := []protocol.Device{}
 	for _, d := range c.Devices {
-		out = append(out, d.Device)
+		dd := d.Device
+		dd.Encrypted = d.Pub != ""
+		out = append(out, dd)
 	}
 	return out
 }

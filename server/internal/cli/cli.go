@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -20,7 +21,7 @@ import (
 	"github.com/mdp/qrterminal/v3"
 )
 
-// Package cli: the Mac-side commands — pair, tailscale, tunnel, service, doctor.
+// Package cli: the commands on the machine running the agents — pair, tailscale, tunnel, service, doctor.
 // They talk to the running server with the admin token from the config, or edit
 // that config and launchd.
 
@@ -37,9 +38,11 @@ func (c *CLI) adminPost(path string) (*http.Response, error) {
 	return (&http.Client{Timeout: 5 * time.Second}).Do(req)
 }
 
-// pairCmd prints a QR the phone scans once: name, routes, one-time code.
-func (c *CLI) Pair() error {
-	if len(c.cfg.Routes()) == 0 {
+// Pair prints a QR the phone scans once: name, routes, one-time code. With
+// --json it prints only the payload (for `luther remote pair` over ssh).
+func (c *CLI) Pair(args []string) error {
+	asJSON := len(args) > 0 && args[0] == "--json"
+	if len(c.cfg.Routes()) == 0 && !asJSON {
 		fmt.Println("! No routes yet. Run `luther tailscale` and/or `luther tunnel` first; the phone needs a URL to reach this Mac.")
 	}
 	res, err := c.adminPost("/pair/code")
@@ -54,10 +57,20 @@ func (c *CLI) Pair() error {
 	if res.StatusCode != 200 || json.NewDecoder(res.Body).Decode(&out) != nil {
 		return fmt.Errorf("server refused to issue a code (HTTP %d)", res.StatusCode)
 	}
-	b, _ := json.Marshal(map[string]any{"v": 1, "name": c.cfg.DisplayName(), "routes": c.cfg.Routes(), "code": out.Code})
+	b, _ := json.Marshal(c.payload(c.cfg.Routes(), out.Code))
+	if asJSON {
+		fmt.Println(string(b))
+		return nil
+	}
 	qrterminal.GenerateHalfBlock(string(b), qrterminal.L, os.Stdout)
 	fmt.Printf("\nScan with the Luther app (or paste):\n%s\n\nCode %s, single use, valid until %s.\n", b, out.Code, out.Expires.Format("15:04"))
 	return nil
+}
+
+// payload: what the phone scans. pub is this machine's key for end-to-end
+// encryption (the QR never crosses the network, so the phone can trust it).
+func (c *CLI) payload(routes []string, code string) map[string]any {
+	return map[string]any{"v": 2, "name": c.cfg.DisplayName(), "routes": routes, "code": code, "pub": c.cfg.PublicKey()}
 }
 
 // tailscaleCmd: `tailscale serve` HTTPS on the tailnet → this server. Refuses to
@@ -151,6 +164,9 @@ func (c *CLI) Service(args []string) error {
 	if len(args) == 0 || (args[0] != "install" && args[0] != "uninstall") {
 		return fmt.Errorf("usage: luther service install|uninstall")
 	}
+	if goruntime.GOOS == "linux" {
+		return c.systemd(args[0])
+	}
 	domain := "gui/" + strconv.Itoa(os.Getuid())
 	agents := filepath.Join(paths.Home, "Library", "LaunchAgents")
 	if args[0] == "uninstall" {
@@ -161,13 +177,10 @@ func (c *CLI) Service(args []string) error {
 		fmt.Println("✓ removed LaunchAgents dev.luther.server and dev.luther.tunnel")
 		return nil
 	}
-	bin, err := exec.LookPath("luther") // a stable path survives rebuilds
+	bin, err := selfPath()
 	if err != nil {
-		if bin, err = os.Executable(); err != nil {
-			return err
-		}
+		return err
 	}
-	bin, _ = filepath.Abs(bin)
 	if err := launchAgent("dev.luther.server", []string{bin, "serve"}, filepath.Join(config.Dir(), "serve.log")); err != nil {
 		return err
 	}
@@ -179,6 +192,10 @@ func (c *CLI) Service(args []string) error {
 		}
 		fmt.Println("✓ tunnel: LaunchAgent dev.luther.tunnel")
 	}
+	return c.waitUp()
+}
+
+func (c *CLI) waitUp() error {
 	for i := 0; i < 40; i++ {
 		if res, err := http.Get(c.localURL() + "/healthz"); err == nil && res.StatusCode == 200 {
 			fmt.Println("✓ server answering on", c.localURL())
@@ -187,6 +204,61 @@ func (c *CLI) Service(args []string) error {
 		time.Sleep(250 * time.Millisecond)
 	}
 	return fmt.Errorf("server didn't come up; see ~/.luther/serve.log")
+}
+
+// selfPath: `luther` on PATH (a stable path survives rebuilds), else this binary.
+func selfPath() (string, error) {
+	bin, err := exec.LookPath("luther")
+	if err != nil {
+		if bin, err = os.Executable(); err != nil {
+			return "", err
+		}
+	}
+	return filepath.Abs(bin)
+}
+
+// systemd: the Linux service, a systemd user unit (luther.service). On a server
+// it needs lingering to run while you're logged out.
+func (c *CLI) systemd(action string) error {
+	dir := filepath.Join(paths.Home, ".config", "systemd", "user")
+	unit := filepath.Join(dir, "luther.service")
+	sc := func(a ...string) error {
+		out, err := exec.Command("systemctl", append([]string{"--user"}, a...)...).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("systemctl --user %s: %v: %s", strings.Join(a, " "), err, strings.TrimSpace(string(out)))
+		}
+		return nil
+	}
+	if action == "uninstall" {
+		sc("disable", "--now", "luther.service")
+		os.Remove(unit)
+		sc("daemon-reload")
+		fmt.Println("✓ removed luther.service")
+		return nil
+	}
+	bin, err := selfPath()
+	if err != nil {
+		return err
+	}
+	os.MkdirAll(dir, 0o755)
+	os.MkdirAll(config.Dir(), 0o700)
+	log := filepath.Join(config.Dir(), "serve.log")
+	body := fmt.Sprintf("[Unit]\nDescription=Luther server\nAfter=network-online.target\n\n[Service]\nExecStart=%s serve\nRestart=always\nRestartSec=10\nStandardOutput=append:%s\nStandardError=append:%s\n\n[Install]\nWantedBy=default.target\n", bin, log, log)
+	if err := os.WriteFile(unit, []byte(body), 0o644); err != nil {
+		return err
+	}
+	if err := sc("daemon-reload"); err != nil {
+		return err
+	}
+	if err := sc("enable", "--now", "luther.service"); err != nil {
+		return err
+	}
+	sc("restart", "luther.service")
+	fmt.Println("✓ server: systemd user unit luther.service; log ~/.luther/serve.log")
+	if out, _ := exec.Command("loginctl", "show-user", os.Getenv("USER"), "-p", "Linger").Output(); !strings.Contains(string(out), "yes") {
+		fmt.Println("! to keep it running while you're logged out: sudo loginctl enable-linger $USER")
+	}
+	return c.waitUp()
 }
 
 func launchAgent(label string, args []string, logPath string) error {

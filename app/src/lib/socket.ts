@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import { currentHost, headers, resolve } from '@/lib/hosts';
+import { cfHeaders, currentHost, headers, keyFor, resolve, type Host } from '@/lib/hosts';
+import { box, nonceId, open, text, toB64, utf8 } from '@/lib/e2e';
 import type { Answer, ClientFrame, Frame, Mode, Msg, Prompt, State } from '@/lib/protocol';
 
 export type Status = 'connecting' | 'open' | 'closed' | 'ended';
@@ -25,8 +26,7 @@ export function useSocket(path: string, onFrame: (f: any) => void, onOpen?: (ws:
       const h = await currentHost();
       if (!h) throw new Error('No Mac paired');
       const base = await resolve(h, ws.current !== null); // re-pick the route after a drop
-      // React Native's WebSocket takes headers (token + Cloudflare Access).
-      const sock = new (WebSocket as any)(base.replace(/^http/, 'ws') + path, undefined, { headers: headers(h) }) as WebSocket;
+      const sock = openSocket(h, base, path);
       ws.current = sock;
       sock.onopen = () => {
         setStatus('open');
@@ -149,3 +149,49 @@ export function useTerm(name: string) {
 }
 
 export const toHex = (s: string) => Array.from(new TextEncoder().encode(s), (b) => b.toString(16).padStart(2, '0')).join('');
+
+/** A socket to path on h: plain (React Native's WebSocket takes the token and
+ *  Cloudflare Access headers), or end-to-end encrypted through /e/ws — the same
+ *  surface either way, text frames in and out. */
+function openSocket(h: Host, base: string, path: string): WebSocket {
+  const ws = base.replace(/^http/, 'ws');
+  const key = keyFor(h);
+  if (!key) return new (WebSocket as any)(ws + path, undefined, { headers: headers(h) }) as WebSocket;
+  const n = nonceId();
+  const opener = toB64(box(key, 'ws-open', utf8(JSON.stringify({ p: path, t: Date.now(), n }))), true);
+  const raw = new (WebSocket as any)(`${ws}/e/ws?d=${encodeURIComponent(h.id)}&b=${opener}`, undefined, { headers: cfHeaders(h) }) as WebSocket;
+  raw.binaryType = 'arraybuffer';
+  let out = 0;
+  let inn = 0;
+  const wrapped = {
+    get readyState() {
+      return raw.readyState;
+    },
+    send(data: string) {
+      raw.send(box(key, `ws>:${n}:${out++}`, utf8(data)));
+    },
+    close: () => raw.close(),
+    set onopen(fn: any) {
+      raw.onopen = fn;
+    },
+    set onclose(fn: any) {
+      raw.onclose = fn;
+    },
+    set onerror(fn: any) {
+      raw.onerror = fn;
+    },
+    set onmessage(fn: any) {
+      raw.onmessage = (e) => {
+        let data: string;
+        try {
+          data = text(open(key, `ws<:${n}:${inn++}`, new Uint8Array(e.data as ArrayBuffer)));
+        } catch {
+          raw.close(); // out of step or tampered: reconnect fresh
+          return;
+        }
+        fn({ data });
+      };
+    },
+  };
+  return wrapped as unknown as WebSocket;
+}

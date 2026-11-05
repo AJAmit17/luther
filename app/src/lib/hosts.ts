@@ -1,4 +1,10 @@
 import * as SecureStore from 'expo-secure-store';
+import { getRandomBytes } from 'expo-crypto';
+import { fetch as xfetch } from 'expo/fetch';
+import { File } from 'expo-file-system';
+import { box, concat, newKey, nonceId, open, setRandom, sharedKey, text, toB64, fromB64, utf8 } from '@/lib/e2e';
+
+setRandom(getRandomBytes);
 
 // Paired Macs. Each has ordered routes (tailnet, Cloudflare tunnel); requests use
 // the first route that answers and fall back when it stops answering.
@@ -9,7 +15,18 @@ export type Host = {
   token: string;
   cfId?: string; // Cloudflare Access service token (tunnel only)
   cfSecret?: string;
+  pub?: string; // the machine's X25519 key (from the QR)
+  secret?: string; // this phone's X25519 key for it: set ⇒ everything is end-to-end encrypted
 };
+
+const keys = new Map<string, Uint8Array>();
+/** The end-to-end key with h, or null for a host paired before encryption. */
+export function keyFor(h: Host): Uint8Array | null {
+  if (!h.secret || !h.pub) return null;
+  let k = keys.get(h.id);
+  if (!k) keys.set(h.id, (k = sharedKey(h.secret, h.pub)));
+  return k;
+}
 
 type Store = { hosts: Host[]; current: string | null };
 
@@ -72,6 +89,11 @@ export async function removeHost(id: string) {
   await save();
 }
 
+/** Cloudflare Access headers only (what an encrypted request shows a relay). */
+export function cfHeaders(h: Host): Record<string, string> {
+  return h.cfId && h.cfSecret ? { 'CF-Access-Client-Id': h.cfId, 'CF-Access-Client-Secret': h.cfSecret } : {};
+}
+
 export function headers(h: Host): Record<string, string> {
   const x: Record<string, string> = { Authorization: `Bearer ${h.token}` };
   if (h.cfId && h.cfSecret) {
@@ -118,21 +140,46 @@ export class HttpError extends Error {
   }
 }
 
+type Init = { method?: string; body?: string | Uint8Array; headers?: Record<string, string> };
+type Answer = { status: number; type: string; body: string };
+
 // api: JSON request to the current Mac. A network failure re-picks the route once.
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function api<T>(path: string, init: Init = {}): Promise<T> {
   const h = await currentHost();
   if (!h) throw new Error('No Mac paired');
-  const go = async (b: string) => fetch(b + path, { ...init, headers: { 'Content-Type': 'application/json', ...headers(h), ...(init.headers as Record<string, string>) } });
-  let res: Response;
+  const go = (b: string) => (keyFor(h) ? sealed(h, b, path, init) : plain(h, b, path, init));
+  let res: Answer;
   try {
     res = await go(await resolve(h));
-  } catch {
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
     res = await go(await resolve(h, true));
   }
-  const text = await res.text();
-  if (!res.ok) throw new HttpError(text.trim() || `HTTP ${res.status}`, res.status);
-  const type = res.headers.get('Content-Type') ?? '';
-  return (type.includes('application/json') && text ? JSON.parse(text) : text) as T;
+  if (res.status < 200 || res.status >= 300) throw new HttpError(res.body.trim() || `HTTP ${res.status}`, res.status);
+  return (res.type.includes('application/json') && res.body ? JSON.parse(res.body) : res.body) as T;
+}
+
+async function plain(h: Host, b: string, path: string, init: Init): Promise<Answer> {
+  const res = await xfetch(b + path, { method: init.method, body: init.body as any, headers: { 'Content-Type': 'application/json', ...headers(h), ...init.headers } });
+  return { status: res.status, type: res.headers.get('Content-Type') ?? '', body: await res.text() };
+}
+
+// sealed: the request inside a box to POST /e; only the device id shows.
+async function sealed(h: Host, b: string, path: string, init: Init): Promise<Answer> {
+  const key = keyFor(h)!;
+  const n = nonceId();
+  const head = { m: init.method ?? 'GET', p: path, t: Date.now(), n, h: { 'Content-Type': 'application/json', ...init.headers } };
+  const body = typeof init.body === 'string' ? utf8(init.body) : init.body ?? new Uint8Array();
+  const res = await xfetch(b + '/e', {
+    method: 'POST',
+    headers: { 'X-Luther-Device': h.id, 'Content-Type': 'application/octet-stream', ...cfHeaders(h) },
+    body: box(key, 'req', concat(utf8(JSON.stringify(head) + '\n'), body)),
+  });
+  if (!res.ok) throw new HttpError((await res.text()).trim() || `HTTP ${res.status}`, res.status);
+  const out = open(key, 'res:' + n, new Uint8Array(await res.arrayBuffer()));
+  const nl = out.indexOf(10);
+  const rh = JSON.parse(text(out.subarray(0, nl))) as { s: number; h?: Record<string, string> };
+  return { status: rh.s, type: rh.h?.['Content-Type'] ?? '', body: text(out.subarray(nl + 1)) };
 }
 
 export const post = <T>(path: string, body: unknown) => api<T>(path, { method: 'POST', body: JSON.stringify(body) });
@@ -140,28 +187,34 @@ export const del = (path: string) => api<string>(path, { method: 'DELETE' });
 
 /** upload: a local file (photo, document) to the Mac; returns its path there, for a send's files. */
 export async function upload(uri: string, name: string): Promise<string> {
-  const body = await (await fetch(uri)).blob();
+  const body = await new File(uri).bytes();
   const r = await api<{ path: string }>('/uploads?name=' + encodeURIComponent(name), { method: 'POST', body, headers: { 'Content-Type': 'application/octet-stream' } });
   return r.path;
 }
 
-// Pairing payload from `luther pair`: {v, name, routes, code}.
-export async function pair(text: string, deviceName: string) {
-  let p: { name?: string; routes?: string[]; code?: string };
+// Pairing payload from `luther pair`: {v, name, routes, code, pub}. The code goes
+// sealed to pub (which came in the QR, never over the network), so a relay sees
+// neither it nor the token that comes back.
+export async function pair(payload: string, deviceName: string) {
+  let p: { name?: string; routes?: string[]; code?: string; pub?: string };
   try {
-    p = JSON.parse(text.trim());
+    p = JSON.parse(payload.trim());
   } catch {
     throw new Error('Not a Luther pairing code');
   }
   if (!p.code || !p.routes?.length) throw new Error('Not a Luther pairing code (no code or routes). Run `luther pair` on your Mac.');
+  if (!p.pub) throw new Error('Update luther on your Mac: this code has no encryption key.');
+  const me = newKey();
+  const key = sharedKey(me.priv, p.pub);
+  const req = JSON.stringify({ pub: me.pub, box: toB64(box(key, 'pair', utf8(JSON.stringify({ code: p.code, name: deviceName, t: Date.now() })))) });
   let last = 'unreachable';
   for (const u of p.routes) {
     try {
-      const res = await fetch(u + '/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: p.code, name: deviceName }) });
+      const res = await fetch(u + '/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: req });
       const body = await res.text();
       if (!res.ok) throw new Error(body.trim() || `HTTP ${res.status}`);
-      const { deviceId, token } = JSON.parse(body);
-      const h: Host = { id: deviceId, name: p.name || 'Mac', routes: p.routes, token };
+      const { deviceId, token } = JSON.parse(text(open(key, 'pair-res', fromB64(JSON.parse(body).box))));
+      const h: Host = { id: deviceId, name: p.name || 'Mac', routes: p.routes, token, pub: p.pub, secret: me.priv };
       await upsertHost(h);
       return h;
     } catch (e: any) {

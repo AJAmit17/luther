@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"github.com/AJAmit17/luther/server/internal/claude"
 	"github.com/AJAmit17/luther/server/internal/codex"
 	"github.com/AJAmit17/luther/server/internal/config"
+	"github.com/AJAmit17/luther/server/internal/e2e"
 	"github.com/AJAmit17/luther/server/internal/env"
 	"github.com/AJAmit17/luther/server/internal/httpx"
 	"github.com/AJAmit17/luther/server/internal/hub"
@@ -57,6 +59,7 @@ func Handler(cfg *config.Config) http.Handler {
 	mux.HandleFunc("GET /commands", wrap(commands))
 	mux.HandleFunc("GET /dirs", wrap(dirs))
 	mux.HandleFunc("GET /usage", wrap(limits))
+	e2e.Routes(mux, a, mux, cfg.Port)
 	preview.Routes(mux, wrap, cfg.Port) // last: it owns "/"
 	return mux
 }
@@ -65,8 +68,9 @@ func Handler(cfg *config.Config) http.Handler {
 func Serve(cfg *config.Config) {
 	env.LoginPath()
 	env.CleanEnv()
-	// Keep the Mac awake (on AC) while Luther runs.
-	exec.Command("caffeinate", "-is", "-w", strconv.Itoa(os.Getpid())).Start()
+	if goruntime.GOOS == "darwin" { // keep the Mac awake (on AC) while Luther runs
+		exec.Command("caffeinate", "-is", "-w", strconv.Itoa(os.Getpid())).Start()
+	}
 	go hub.ReapIdle()
 	go claude.WatchDups()
 	addr := fmt.Sprintf("127.0.0.1:%d", cfg.Port)

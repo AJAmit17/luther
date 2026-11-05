@@ -62,6 +62,12 @@ export default function Settings() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: c.bg as any }} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled">
       <Text style={{ color: c.text, fontSize: 22, fontWeight: '700', paddingHorizontal: 16, paddingTop: 12 }}>{h.name}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingTop: 4 }}>
+        <Icon name={h.secret ? 'lock.fill' : 'lock.open'} size={13} color={h.secret ? c.green : c.accent} />
+        <Text style={{ color: c.dim, fontSize: 13, flex: 1 }}>
+          {h.secret ? 'End-to-end encrypted: the tunnel only relays ciphertext.' : 'Not end-to-end encrypted (paired with an older version). Pair again to encrypt; the tunnel refuses nothing until then.'}
+        </Text>
+      </View>
 
       <UsageSection />
 
@@ -95,7 +101,7 @@ export default function Settings() {
       {devices.map((d) => (
         <Row
           key={d.id}
-          icon={<Icon name="iphone" color={c.dim} />}
+          icon={<Icon name={d.encrypted ? 'lock.iphone' : 'iphone'} color={d.encrypted ? c.green : c.dim} />}
           title={d.name + (d.id === h.id ? ' (this phone)' : '')}
           sub={`paired ${ago(d.created)} ago · seen ${ago(d.lastSeen)} ago`}
           right={<Text style={{ color: c.red }}>Revoke</Text>}

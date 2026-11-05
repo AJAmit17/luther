@@ -43,7 +43,7 @@ func main() {
 	case "serve":
 		api.Serve(cfg)
 	case "pair":
-		err = c.Pair()
+		err = c.Pair(args)
 	case "tailscale":
 		err = c.Tailscale(args)
 	case "tunnel":
