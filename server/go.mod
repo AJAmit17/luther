@@ -4,7 +4,6 @@ go 1.26.7
 
 require (
 	github.com/coder/websocket v1.8.15
-	github.com/creack/pty v1.1.24
 	github.com/mdp/qrterminal/v3 v3.2.1
 )
 

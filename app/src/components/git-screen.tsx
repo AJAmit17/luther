@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Alert, FlatList, Linking, RefreshControl, TextInput, View } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { api, del, post } from '@/lib/hosts';
 import type { GitStatus } from '@/lib/protocol';
 import { Button, Icon, Note, Row, c, mono, useLoad, listStyle } from '@/components/ui';
@@ -12,7 +14,8 @@ const label: Record<string, string> = { M: 'modified', A: 'added', D: 'deleted',
 export default function Git() {
   const { cwd } = useLocalSearchParams<{ cwd: string }>();
   const insets = useSafeAreaInsets();
-  const { data, error, loading, load } = useLoad(() => api<GitStatus>('/git/status?cwd=' + encodeURIComponent(cwd)), [cwd]);
+  const headerHeight = useHeaderHeight();
+  const { data, error, load, pull } = useLoad(() => api<GitStatus>('/git/status?cwd=' + encodeURIComponent(cwd)), [cwd]);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -48,7 +51,7 @@ export default function Git() {
   const sync = data && (data.upstream ? (data.ahead ? `${data.ahead} commit${data.ahead === 1 ? '' : 's'} ahead of ${data.upstream}` : `Up to date with ${data.upstream}`) : data.branch ? 'Not pushed yet' : '');
 
   return (
-    <>
+    <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={headerHeight} style={{ flex: 1, backgroundColor: c.bg as any }}>
       <Stack.Screen options={{ title: data?.branch ? `Changes · ${data.branch}` : 'Changes' }} />
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Menu icon="ellipsis.circle">
@@ -66,7 +69,7 @@ export default function Git() {
         contentInsetAdjustmentBehavior="automatic"
         data={data?.files ?? []}
         keyExtractor={(f) => f.path}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        refreshControl={<RefreshControl {...pull} />}
         ListHeaderComponent={error ? <Note error>{error}</Note> : sync ? <Note>{sync}{data?.worktree ? ' · Luther worktree' : ''}</Note> : undefined}
         ListEmptyComponent={data ? <Note>Nothing to commit. Working tree clean.</Note> : undefined}
         renderItem={({ item: f }) => {
@@ -93,7 +96,7 @@ export default function Git() {
           <Button kind="accent" label="Commit all" disabled={!msg.trim() || busy} onPress={commit} />
         </View>
       )}
-    </>
+    </KeyboardAvoidingView>
   );
 }
 

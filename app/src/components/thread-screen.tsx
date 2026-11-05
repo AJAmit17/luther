@@ -16,7 +16,7 @@ import type { Command, Prompt } from '@/lib/protocol';
 import { setWatching } from '@/lib/feed';
 import { useThread } from '@/lib/socket';
 import { useVoice } from '@/lib/voice';
-import { Banner, Empty, Icon, PulsingDot, c, card, mono, providerName, type } from '@/components/ui';
+import { Banner, Empty, Icon, PulsingDot, c, card, mono, providerName, type, useHex } from '@/components/ui';
 
 function useKeyboardShown() {
   const [shown, setShown] = useState(false);
@@ -64,6 +64,7 @@ export default function ThreadScreen() {
   const ev = useThread(id);
   const att = useAttachments();
   const headerHeight = useHeaderHeight();
+  const hx = useHex();
   const inset = useSafeAreaInsets().bottom;
   const keyboard = useKeyboardShown();
   const list = useRef<FlatList<Block>>(null);
@@ -160,21 +161,27 @@ export default function ThreadScreen() {
   const fmt = (n: number) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(n));
   const conn = ev.status === 'connecting' ? 'Connecting…' : ev.status === 'closed' ? 'Reconnecting…' : '';
 
+  // Memoized: a new headerTitle each render would redraw the native header on every streamed token.
+  const headerTitle = useCallback(
+    () => (
+      <View style={{ alignItems: 'center' }}>
+        <Text style={[type.headline, { color: hx.text }]} numberOfLines={1}>{dir}</Text>
+        {!!provider && (
+          <Text style={[type.caption2, { color: hx.dim }]} numberOfLines={1}>
+            {providerName(provider)}{model ? ` · ${model}` : ''}
+          </Text>
+        )}
+      </View>
+    ),
+    [dir, provider, model, hx.text, hx.dim],
+  );
+
   return (
     <>
       <Stack.Screen
         options={{
           title: dir,
-          headerTitle: () => (
-            <View style={{ alignItems: 'center' }}>
-              <Text style={type.headline} numberOfLines={1}>{dir}</Text>
-              {!!provider && (
-                <Text style={type.caption2} numberOfLines={1}>
-                  {providerName(provider)}{model ? ` · ${model}` : ''}
-                </Text>
-              )}
-            </View>
-          ),
+          headerTitle,
         }}
       />
       <Stack.Toolbar placement="right">

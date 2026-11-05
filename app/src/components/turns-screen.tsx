@@ -8,7 +8,7 @@ import { Icon, Note, Row, ago, c, useLoad, listStyle } from '@/components/ui';
 // one for its diff and to roll the project back to before it.
 export default function Turns() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data, error, loading, load } = useLoad(() => api<Turn[]>(`/threads/${encodeURIComponent(id)}/turns`), [id]);
+  const { data, error, pull } = useLoad(() => api<Turn[]>(`/threads/${encodeURIComponent(id)}/turns`), [id]);
   return (
     <>
       <Stack.Screen options={{ title: 'Turns' }} />
@@ -18,7 +18,7 @@ export default function Turns() {
         contentInsetAdjustmentBehavior="automatic"
         data={data ?? []}
         keyExtractor={(t) => String(t.n)}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        refreshControl={<RefreshControl {...pull} />}
         ListHeaderComponent={error ? <Note error>{error}</Note> : undefined}
         ListEmptyComponent={data ? <Note>No turns yet. Each message you send starts one; its changes show up here.</Note> : undefined}
         renderItem={({ item: t }) => (

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Animated, DynamicColorIOS, Pressable, StyleSheet, Text, View, useColorScheme, type ColorValue, type TextStyle, type ViewStyle } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
@@ -318,17 +318,46 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[] = [], cache?: s
   const [data, setData] = useState<T | null>(() => (ck ? peek<T>(ck) ?? null : null));
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pulling, setPulling] = useState(false);
+  const seq = useRef(0); // only the latest request's answer lands
+  const shownKey = useRef(key);
   const load = useCallback(() => {
-    if (ck) {
-      const kept = peek<T>(ck);
-      if (kept !== undefined) setData(kept);
-    }
+    const kept = ck ? peek<T>(ck) : undefined;
+    if (kept !== undefined) setData(kept);
+    else if (shownKey.current !== key) setData(null); // never show another key's answer
+    shownKey.current = key;
+    const my = ++seq.current;
     setLoading(true);
-    fn().then((d) => { setData(d); setError(''); if (ck) keep(ck, d); }, (e) => setError(String(e.message ?? e))).finally(() => setLoading(false));
+    fn()
+      .then(
+        (d) => {
+          if (my !== seq.current) return;
+          setData(d);
+          setError('');
+          if (ck) keep(ck, d);
+        },
+        (e) => {
+          if (my === seq.current) setError(String(e.message ?? e));
+        },
+      )
+      .finally(() => {
+        if (my !== seq.current) return;
+        setLoading(false);
+        setPulling(false);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, ck]);
   useFocusEffect(load);
-  return { data, error, loading, load };
+  // For <RefreshControl {...pull} />: the spinner shows only for a pull, never for
+  // a focus reload (a spinner switched on at mount shifts iOS's list insets).
+  const pull = {
+    refreshing: pulling,
+    onRefresh: () => {
+      setPulling(true);
+      load();
+    },
+  };
+  return { data, error, loading, load, pull };
 }
 
 export const MODES: { id: Mode; label: string; desc: string; icon: string }[] = [

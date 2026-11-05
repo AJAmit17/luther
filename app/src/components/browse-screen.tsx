@@ -6,7 +6,7 @@ import { Button, Icon, Note, Row, c, useLoad, listStyle } from '@/components/ui'
 // Walk folders under the Mac's home folder to start an agent where none has run yet.
 export default function Browse() {
   const { path } = useLocalSearchParams<{ path?: string }>();
-  const { data, error, loading, load } = useLoad(() => api<string[]>('/dirs' + (path ? '?path=' + encodeURIComponent(path) : '')), [path]);
+  const { data, error, pull } = useLoad(() => api<string[]>('/dirs' + (path ? '?path=' + encodeURIComponent(path) : '')), [path]);
 
   const terminal = () =>
     path && post<{ name: string }>('/terms', { cwd: path }).then((r) => router.push({ pathname: '/term/[name]', params: { name: r.name, cwd: path } }), (e) => Alert.alert('Could not open a terminal', e.message));
@@ -20,7 +20,7 @@ export default function Browse() {
         contentInsetAdjustmentBehavior="automatic"
         data={data ?? []}
         keyExtractor={(d) => d}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        refreshControl={<RefreshControl {...pull} />}
         ListHeaderComponent={
           <>
             {!!path && (

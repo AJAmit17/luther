@@ -1,82 +1,78 @@
-import { useEffect, useRef, useState } from 'react';
-import { Alert, View } from 'react-native';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useHeaderHeight } from 'expo-router/react-navigation';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
-import * as SecureStore from 'expo-secure-store';
-import { TerminalView, type TerminalHandle } from '../../modules/luther-terminal';
-import { del } from '@/lib/hosts';
+import { useRef, useState } from 'react';
+import { KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AnsiText } from '@/components/ansi';
 import { useTerm } from '@/lib/socket';
-import { Banner, useHex } from '@/components/ui';
+import { Banner, mono } from '@/components/ui';
 
-const FONT_KEY = 'luther.termFont';
-const savedFont = () => {
-  const n = Number(SecureStore.getItem(FONT_KEY));
-  return n >= 8 && n <= 24 ? n : 12;
-};
+const FS = 11;
+const KEYS: [string, string][] = [
+  ['esc', '\x1b'], ['tab', '\t'], ['⇧tab', '\x1b[Z'], ['↑', '\x1b[A'], ['↓', '\x1b[B'], ['←', '\x1b[D'], ['→', '\x1b[C'], ['⏎', '\r'], ['^C', '\x03'], ['^D', '\x04'],
+];
 
-// A shell in the project folder, as a real terminal: SwiftTerm renders the Mac's
-// pty and owns the keyboard (its key bar has esc, ctrl, tab and arrows). On the
-// Mac, `tmux -L luther attach -t <name>` shows the same shell.
+// A shell in the project folder (on the Mac: `tmux -L luther attach -t <name>`).
+// Not an emulator: the pane's rendered ANSI, a key bar with sticky Ctrl, a line input.
 export default function Terminal() {
   const { name, cwd } = useLocalSearchParams<{ name: string; cwd?: string }>();
-  const view = useRef<TerminalHandle>(null);
-  const queue = useRef<string[]>([]); // output that arrived before the view was ready
-  const headerHeight = useHeaderHeight();
-  const h = useHex();
-  const [font, setFont] = useState(savedFont);
-  const term = useTerm(name, (b64) => {
-    if (view.current) void view.current.feed(b64);
-    else queue.current.push(b64);
-  });
+  const term = useTerm(name);
+  const insets = useSafeAreaInsets();
+  const [draft, setDraft] = useState('');
+  const [ctrl, setCtrl] = useState(false);
+  const scroll = useRef<ScrollViewInstance>(null);
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      queue.current.splice(0).forEach((b) => void view.current?.feed(b));
-      void view.current?.focus(); // keyboard up on arrival
-    }, 250);
-    return () => clearTimeout(t);
-  }, []);
-
-  const zoom = (d: number) =>
-    setFont((f) => {
-      const n = Math.max(8, Math.min(24, f + d));
-      SecureStore.setItem(FONT_KEY, String(n));
-      return n;
-    });
-  const kill = () =>
-    Alert.alert('Close this terminal?', 'The shell and anything running in it stop.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Close', style: 'destructive', onPress: () => del('/terms/' + encodeURIComponent(name)).then(() => router.back(), (e) => Alert.alert('Error', e.message)) },
-    ]);
+  const submit = () => {
+    if (ctrl && draft.length === 1) term.input(String.fromCharCode(draft.toUpperCase().charCodeAt(0) & 0x1f)); // Ctrl+letter
+    else term.input(draft + '\r');
+    setCtrl(false);
+    setDraft('');
+  };
 
   return (
-    <>
-      <Stack.Screen options={{ title: cwd?.split('/').pop() || 'Terminal', headerStyle: { backgroundColor: h.bg } }} />
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button icon="keyboard" onPress={() => void view.current?.focus()} />
-        <Stack.Toolbar.Menu icon="ellipsis">
-          <Stack.Toolbar.MenuAction icon="textformat.size.larger" onPress={() => zoom(1)}>Larger text</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="textformat.size.smaller" onPress={() => zoom(-1)}>Smaller text</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="keyboard.chevron.compact.down" onPress={() => void view.current?.blur()}>Hide keyboard</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="xmark.circle" destructive onPress={kill}>Close terminal</Stack.Toolbar.MenuAction>
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar>
-      <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={headerHeight} style={{ flex: 1, backgroundColor: h.bg }}>
-        {term.status === 'ended' && <Banner icon="stop.circle" text="This terminal has exited." />}
-        {(term.status === 'connecting' || term.status === 'closed') && <Banner icon="arrow.triangle.2.circlepath" text={term.status === 'connecting' ? 'Connecting…' : 'Reconnecting…'} />}
-        {!!term.error && <Banner error text={term.error} onPress={() => term.setError('')} />}
-        <View style={{ flex: 1, paddingHorizontal: 4 }}>
-          <TerminalView
-            ref={view}
-            style={{ flex: 1 }}
-            fontSize={font}
-            dark={h.dark}
-            onInput={(e) => term.input(e.nativeEvent.data)}
-            onResize={(e) => term.resize(e.nativeEvent.cols, e.nativeEvent.rows)}
-          />
-        </View>
-      </KeyboardAvoidingView>
-    </>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#000' }} behavior="padding" keyboardVerticalOffset={insets.top + 44}>
+      <Stack.Screen options={{ title: `Terminal · ${cwd?.split('/').pop() || name}` }} />
+      {term.status === 'ended' && <Banner text="This terminal has exited." />}
+      {(term.status === 'connecting' || term.status === 'closed') && <Banner text={term.status === 'connecting' ? 'Connecting…' : 'Reconnecting…'} />}
+      {!!term.error && <Banner error text={term.error} onPress={() => term.setError('')} />}
+      <ScrollView
+        ref={scroll}
+        style={{ flex: 1 }}
+        onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          term.resize(Math.floor((width - 8) / (FS * 0.6)), Math.floor(height / (FS * 1.3)));
+        }}
+      >
+        <ScrollView horizontal contentContainerStyle={{ padding: 4 }}>
+          <AnsiText text={term.screen} fontSize={FS} />
+        </ScrollView>
+      </ScrollView>
+      <ScrollView horizontal keyboardShouldPersistTaps="always" showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 6, padding: 6 }}>
+        <Pressable onPress={() => setCtrl(!ctrl)} style={[key, { backgroundColor: ctrl ? '#d97757' : '#222' }]}>
+          <Text style={{ color: '#eee', fontFamily: mono }}>ctrl</Text>
+        </Pressable>
+        {KEYS.map(([label, seq]) => (
+          <Pressable key={label} onPress={() => term.input(seq)} style={({ pressed }) => [key, { backgroundColor: pressed ? '#444' : '#222' }]}>
+            <Text style={{ color: '#eee', fontFamily: mono }}>{label}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+      <View style={{ paddingHorizontal: 8, paddingTop: 4, paddingBottom: Math.max(insets.bottom, 8) }}>
+        <TextInput
+          style={{ color: '#eee', backgroundColor: '#1a1a1a', borderRadius: 10, padding: 11, fontFamily: mono, fontSize: 14 }}
+          value={draft}
+          onChangeText={setDraft}
+          onSubmitEditing={submit}
+          placeholder={ctrl ? 'ctrl + letter…' : 'command (⏎ sends)'}
+          placeholderTextColor="#777"
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="send"
+          submitBehavior="submit"
+        />
+      </View>
+    </KeyboardAvoidingView>
   );
 }
+
+const key = { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderCurve: 'continuous' } as const;

@@ -70,7 +70,7 @@ export default function Layout() {
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="thread/[id]" options={{ headerStyle: { backgroundColor: h.surface }, contentStyle: { backgroundColor: h.surface } }} />
-          <Stack.Screen name="project" options={{ headerLargeTitle: true, headerTransparent: process.env.EXPO_OS === 'ios', headerLargeTitleShadowVisible: false }} />
+          <Stack.Screen name="project" />
           <Stack.Screen name="pair" options={{ title: 'Pair a Mac', presentation: 'modal' }} />
           <Stack.Screen name="new" options={{ ...sheet, sheetAllowedDetents: [0.75, 1] }} />
           <Stack.Screen name="send" options={{ title: 'Send to Luther', presentation: 'modal' }} />

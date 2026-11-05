@@ -28,7 +28,7 @@ const TEMPLATE = `# Project instructions
 
 export default function Instructions() {
   const { cwd } = useLocalSearchParams<{ cwd: string }>();
-  const { data, error, loading, load } = useLoad(
+  const { data, error, pull } = useLoad(
     () =>
       Promise.all(
         FILES.map((f) =>
@@ -41,7 +41,7 @@ export default function Instructions() {
     [cwd],
   );
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.bg }} contentContainerStyle={listStyle} contentInsetAdjustmentBehavior="automatic" refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
+    <ScrollView style={{ flex: 1, backgroundColor: c.bg }} contentContainerStyle={listStyle} contentInsetAdjustmentBehavior="automatic" refreshControl={<RefreshControl {...pull} />}>
       <Stack.Screen options={{ title: 'Instructions' }} />
       {!!error && <Note error>{error}</Note>}
       <SectionTitle>{cwd.split('/').pop() ?? 'Project'}</SectionTitle>

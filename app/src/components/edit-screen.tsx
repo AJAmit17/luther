@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, TextInput } from 'react-native';
+import { ActivityIndicator, Alert, TextInput } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { Stack, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HttpError, api } from '@/lib/hosts';
@@ -12,6 +14,7 @@ import { Banner, Note, c, mono } from '@/components/ui';
 export default function Edit() {
   const { cwd, path, template } = useLocalSearchParams<{ cwd: string; path: string; template?: string }>();
   const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const [text, setText] = useState('');
   const [saved, setSaved] = useState<string | null>(null); // null: not loaded
   const [base, setBase] = useState('');
@@ -79,7 +82,7 @@ export default function Edit() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg as any }} behavior="padding" keyboardVerticalOffset={insets.top + 44}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg as any }} behavior="padding" keyboardVerticalOffset={headerHeight}>
       <Stack.Screen options={{ title: path.split('/').pop() }} />
       <Stack.Toolbar placement="right">
         {busy ? (

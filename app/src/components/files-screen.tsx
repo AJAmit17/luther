@@ -9,7 +9,7 @@ const size = (n: number) => (n >= 1 << 20 ? (n / (1 << 20)).toFixed(1) + ' MB' :
 // Project files: a folder lists its entries, a file shows (and text files open in the editor).
 export default function Files() {
   const { cwd, path = '' } = useLocalSearchParams<{ cwd: string; path?: string }>();
-  const { data, error, loading, load } = useLoad(
+  const { data, error, pull } = useLoad(
     () => api<FileEntry[] | FileContent>(`/files?cwd=${encodeURIComponent(cwd)}&path=${encodeURIComponent(path)}`),
     [cwd, path],
   );
@@ -46,7 +46,7 @@ export default function Files() {
         contentInsetAdjustmentBehavior="automatic"
         data={(data as FileEntry[] | null) ?? []}
         keyExtractor={(e) => e.name}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        refreshControl={<RefreshControl {...pull} />}
         ListHeaderComponent={error ? <Note error>{error}</Note> : undefined}
         ListEmptyComponent={data ? <Note>Empty folder.</Note> : undefined}
         renderItem={({ item: e }) => (

@@ -9,7 +9,7 @@ import { Note, ProviderIcon, Row, ago, c, until, useLoad, listStyle } from '@/co
 // runs them (while it's awake); the phone hears about them like any run.
 export default function Schedules() {
   const { cwd } = useLocalSearchParams<{ cwd?: string }>();
-  const { data, error, loading, load } = useLoad(() => api<Job[]>('/schedules'), [], 'schedules');
+  const { data, error, load, pull } = useLoad(() => api<Job[]>('/schedules'), [], 'schedules');
   const jobs = (data ?? []).filter((j) => !cwd || j.cwd === cwd);
 
   const save = (j: Job) => post('/schedules', j).then(load, (e) => Alert.alert('Could not save', e.message));
@@ -40,7 +40,7 @@ export default function Schedules() {
         contentInsetAdjustmentBehavior="automatic"
         data={jobs}
         keyExtractor={(j) => j.id}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        refreshControl={<RefreshControl {...pull} />}
         ListHeaderComponent={error ? <Note error>{error}</Note> : undefined}
         ListEmptyComponent={data ? <Note>No schedules yet. Add one to have an agent run on its own: a nightly test run, a morning summary of open PRs…</Note> : undefined}
         renderItem={({ item: j }) => {

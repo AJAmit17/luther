@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, FlatList, RefreshControl, View } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { api, post } from '@/lib/hosts';
@@ -13,11 +13,12 @@ export default function ProjectScreen() {
   const { cwd, name } = useLocalSearchParams<{ cwd: string; name: string }>();
   const [archived, setArchived] = useState(false);
   const [q, setQ] = useState('');
-  const { data, error, loading, load } = useLoad(
+  const { data, error, load, pull } = useLoad(
     () => api<Session[]>(`/sessions?cwd=${encodeURIComponent(cwd)}${archived ? '&archived=1' : ''}`),
     [cwd, archived],
     'sessions',
   );
+  const search = useMemo(() => ({ placeholder: 'Search conversations', onChangeText: (e: { nativeEvent: { text: string } }) => setQ(e.nativeEvent.text) }), []);
   const needle = q.trim().toLowerCase();
   const shown = (data ?? []).filter((s) => !needle || `${s.title} ${s.preview} ${s.worktree ?? ''}`.toLowerCase().includes(needle));
   const go = (pathname: '/files' | '/git' | '/preview' | '/instructions' | '/schedule' | '/new') => router.push({ pathname, params: { cwd } });
@@ -30,7 +31,7 @@ export default function ProjectScreen() {
       <Stack.Screen
         options={{
           title: archived ? 'Archived' : name || cwd.split('/').pop(),
-          headerSearchBarOptions: { placeholder: 'Search conversations', onChangeText: (e) => setQ(e.nativeEvent.text), hideWhenScrolling: true },
+          headerSearchBarOptions: search,
         }}
       />
       <Stack.Toolbar placement="right">
@@ -51,7 +52,7 @@ export default function ProjectScreen() {
         contentContainerStyle={listStyle}
         data={shown}
         keyExtractor={(s) => s.provider + s.id}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        refreshControl={<RefreshControl {...pull} />}
         ListHeaderComponent={error ? <Note error>{error}</Note> : undefined}
         ListEmptyComponent={
           data ? (

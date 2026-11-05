@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { Redirect, Stack, router } from 'expo-router';
-import { api, currentHost, del, hosts, keyFor, routeInUse, setCurrent, type Host } from '@/lib/hosts';
+import { api, currentHost, del, hosts, keyFor, onHostsChange, routeInUse, setCurrent, type Host } from '@/lib/hosts';
 import type { Project, Session, Term, ThreadInfo } from '@/lib/protocol';
 import { SessionRow } from '@/components/project-screen';
 import { requestNotificationPermission } from '@/lib/notifier';
@@ -56,13 +56,17 @@ export default function Home() {
   const [host, setHost] = useState<Host | null | undefined>(undefined);
   const [all, setAll] = useState<Host[]>([]);
   useEffect(() => {
-    currentHost().then((h) => {
-      setHost(h);
-      if (h) void requestNotificationPermission();
-    });
-    hosts().then(setAll);
+    const sync = () => {
+      currentHost().then((h) => {
+        setHost(h);
+        if (h) void requestNotificationPermission();
+      });
+      hosts().then(setAll);
+    };
+    sync();
+    return onHostsChange(sync); // pairing or switching Macs elsewhere
   }, []);
-  const { data, error, loading, load } = useLoad(
+  const { data, error, load, pull } = useLoad(
     () => Promise.all([api<ThreadInfo[]>('/threads'), api<Term[]>('/terms'), api<Project[]>('/projects')]),
     [host?.id],
     'home',
@@ -78,6 +82,17 @@ export default function Home() {
   }, [data, host]); // eslint-disable-line react-hooks/exhaustive-deps
   const [q, setQ] = useState('');
   const found = useLoad(() => (q ? api<Session[]>('/sessions?q=' + encodeURIComponent(q)) : Promise.resolve([])), [host?.id, q]);
+  // Header options built once: rebuilding them each render re-applies the native
+  // search bar, and a large title set after first layout overlaps it.
+  const search = useMemo(
+    () => ({
+      placeholder: 'Search all conversations',
+      onSearchButtonPress: (e: { nativeEvent: { text: string } }) => setQ(e.nativeEvent.text.trim()),
+      onChangeText: (e: { nativeEvent: { text: string } }) => !e.nativeEvent.text && setQ(''),
+      onCancelButtonPress: () => setQ(''),
+    }),
+    [],
+  );
 
   const switchTo = async (h: Host) => {
     await setCurrent(h.id);
@@ -90,6 +105,7 @@ export default function Home() {
     ]);
 
   if (host === null) return <Redirect href="/pair" />;
+  if (host === undefined) return null; // first layout only once the title is known
   const route = routeInUse(host ?? null);
   const via = route ? (route.includes('.ts.net') ? 'tailnet' : 'Cloudflare tunnel') : '';
 
@@ -99,18 +115,10 @@ export default function Home() {
       style={{ flex: 1, backgroundColor: c.bg }}
       contentContainerStyle={listStyle}
       keyboardDismissMode="on-drag"
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={q ? found.load : load} />}
+      refreshControl={<RefreshControl {...(q ? found.pull : pull)} />}
     >
       <Stack.Screen
-        options={{
-          title: host?.name ?? 'Luther',
-          headerSearchBarOptions: {
-            placeholder: 'Search all conversations',
-            onSearchButtonPress: (e) => setQ(e.nativeEvent.text.trim()),
-            onChangeText: (e) => !e.nativeEvent.text && setQ(''),
-            onCancelButtonPress: () => setQ(''),
-          },
-        }}
+        options={{ title: host.name, headerSearchBarOptions: search }}
       />
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Menu icon="desktopcomputer">

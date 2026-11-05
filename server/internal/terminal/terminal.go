@@ -2,12 +2,10 @@ package terminal
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -20,13 +18,12 @@ import (
 	"github.com/AJAmit17/luther/server/internal/protocol"
 	"github.com/AJAmit17/luther/server/internal/text"
 	"github.com/coder/websocket"
-	"github.com/creack/pty"
 )
 
 // Package terminal: plain shells in tmux on a private socket (`tmux -L luther`), so
-// they outlive phone disconnects and the user's own tmux is never touched. Each
-// phone attaches as a real tmux client in a pty (a native terminal view renders
-// the raw stream); on the Mac, `tmux -L luther attach -t <name>` opens the same shell.
+// they outlive phone disconnects and the user's own tmux is never touched. The
+// phone gets the rendered pane (capture-pane -e: ANSI colours) and sends raw
+// bytes; on the Mac, `tmux -L luther attach -t <name>` opens the same shell.
 
 var tmuxSock = "luther"
 
@@ -75,7 +72,6 @@ func createTerm(cwd string) (string, error) {
 		";", "set-option", "-g", "history-limit", "50000",
 		";", "set-option", "-g", "mouse", "on",
 		";", "set-option", "-g", "window-size", "latest", // whoever typed last sets the size
-		";", "set-option", "-g", "prefix", "None", // every key reaches the shell (Ctrl-B too)
 	)
 	return name, err
 }
@@ -111,13 +107,8 @@ func killTerm(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// events: WS /terms/{name}/events — the phone as a real terminal client:
-// `tmux attach` in a pty sized to the phone, its raw output streamed out, keys
-// written in. tmux redraws the whole screen on attach and on resize, so a
-// (re)connecting phone always starts from a full screen.
-//
-// Out: {type:"data", b64} (raw bytes), {type:"ended"} (the shell is gone).
-// In: {type:"size", cols, rows} (first one sizes the pty), {type:"input", b64 | hex}.
+// termEvents: WS /terms/{name}/events. In: {type:"size",cols,rows}, {type:"input",hex}.
+// Out: {type:"screen",ansi} whenever the pane changes, {type:"ended"}.
 func events(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if !findTerm(name) {
@@ -129,104 +120,81 @@ func events(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer c.CloseNow()
-	c.SetReadLimit(1 << 20)
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-
-	type frame struct {
-		Type, Hex, B64 string
-		Cols, Rows     int
-	}
-	read := func() (frame, error) {
-		var m frame
-		_, data, err := c.Read(ctx)
-		if err == nil {
-			json.Unmarshal(data, &m)
-		}
-		return m, err
-	}
-	// The phone announces its size first; wait briefly for it.
-	size := &pty.Winsize{Cols: 80, Rows: 24}
-	first := make(chan frame, 1)
+	errs := make(chan []byte, 8)
 	go func() {
-		if m, err := read(); err == nil {
-			first <- m
-		} else {
-			cancel()
-		}
-	}()
-	var pending *frame
-	select {
-	case m := <-first:
-		if m.Type == "size" && m.Cols > 0 && m.Rows > 0 {
-			size = &pty.Winsize{Cols: uint16(min(m.Cols, 500)), Rows: uint16(min(m.Rows, 300))}
-		} else {
-			pending = &m
-		}
-	case <-time.After(2 * time.Second):
-	case <-ctx.Done():
-		return
-	}
-
-	cmd := exec.Command("tmux", "-L", tmuxSock, "attach-session", "-t", "="+name)
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "LANG=en_US.UTF-8")
-	f, err := pty.StartWithSize(cmd, size)
-	if err != nil {
-		b, _ := json.Marshal(map[string]string{"type": "error", "error": "can't attach: " + err.Error()})
-		c.Write(ctx, websocket.MessageText, b)
-		return
-	}
-	defer func() {
-		f.Close()
-		cmd.Process.Kill() // detaches this client; the shell keeps running
-		cmd.Wait()
-	}()
-
-	handle := func(m frame) {
-		switch {
-		case m.Type == "size" && m.Cols > 0 && m.Rows > 0:
-			pty.Setsize(f, &pty.Winsize{Cols: uint16(min(m.Cols, 500)), Rows: uint16(min(m.Rows, 300))})
-		case m.Type == "input":
-			var b []byte
-			if m.B64 != "" {
-				b, _ = base64.StdEncoding.DecodeString(m.B64)
-			} else {
-				b, _ = hex.DecodeString(m.Hex)
-			}
-			if len(b) > 0 && len(b) <= 64<<10 {
-				f.Write(b)
-			}
-		}
-	}
-	if pending != nil {
-		handle(*pending)
-	}
-	go func() { // phone → pty
 		defer cancel()
 		for {
-			m, err := read()
+			_, data, err := c.Read(ctx)
 			if err != nil {
 				return
 			}
-			handle(m)
+			var m struct {
+				Type, Hex  string
+				Cols, Rows int
+			}
+			if json.Unmarshal(data, &m) != nil {
+				continue
+			}
+			switch {
+			case m.Type == "size" && m.Cols > 0 && m.Rows > 0:
+				fitToPhone(name, m.Cols, m.Rows)
+			case m.Type == "input":
+				if err := sendHex(name, m.Hex); err != nil {
+					b, _ := json.Marshal(map[string]string{"type": "error", "error": err.Error()})
+					select {
+					case errs <- b:
+					default:
+					}
+				}
+			}
 		}
 	}()
 
-	buf := make([]byte, 32<<10)
-	for { // pty → phone
-		n, err := f.Read(buf)
-		if n > 0 {
-			b, _ := json.Marshal(map[string]string{"type": "data", "b64": base64.StdEncoding.EncodeToString(buf[:n])})
+	// ponytail: 150ms capture-pane polling; a tmux control-mode client if it ever matters.
+	tick := time.NewTicker(150 * time.Millisecond)
+	defer tick.Stop()
+	last := ""
+	for n := 0; ; n++ {
+		if n%14 == 0 && !findTerm(name) { // ~2s
+			c.Write(ctx, websocket.MessageText, []byte(`{"type":"ended"}`))
+			return
+		}
+		if ansi, err := tmux("capture-pane", "-p", "-e", "-t", "="+name+":"); err == nil && ansi != last {
+			last = ansi
+			b, _ := json.Marshal(map[string]string{"type": "screen", "ansi": ansi})
 			if c.Write(ctx, websocket.MessageText, b) != nil {
 				return
 			}
 		}
-		if err != nil {
-			if !findTerm(name) {
-				c.Write(ctx, websocket.MessageText, []byte(`{"type":"ended"}`))
-			}
-			c.Close(websocket.StatusNormalClosure, "")
+		select {
+		case <-ctx.Done():
 			return
+		case b := <-errs:
+			c.Write(ctx, websocket.MessageText, b)
+		case <-tick.C:
 		}
+	}
+}
+
+func sendHex(name, h string) error {
+	b, err := hex.DecodeString(h)
+	if err != nil || len(b) == 0 || len(b) > 4096 {
+		return fmt.Errorf("bad input")
+	}
+	args := []string{"send-keys", "-H", "-t", "=" + name + ":"}
+	for _, x := range b {
+		args = append(args, fmt.Sprintf("%02x", x))
+	}
+	_, err = tmux(args...)
+	return err
+}
+
+// fitToPhone resizes the window to the phone, unless someone is attached on the
+// Mac (an attached client owns the size).
+func fitToPhone(name string, cols, rows int) {
+	if out, _ := tmux("display-message", "-p", "-t", "="+name+":", "#{session_attached}"); strings.TrimSpace(out) == "0" {
+		tmux("resize-window", "-t", "="+name+":", "-x", strconv.Itoa(cols), "-y", strconv.Itoa(rows))
 	}
 }

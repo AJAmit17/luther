@@ -10,7 +10,7 @@ import { Icon, Note, Row, c, home, useLoad, listStyle } from '@/components/ui';
 // Safari on the phone through Luther's route: tap localhost:3000, see the app.
 export default function Preview() {
   const { cwd } = useLocalSearchParams<{ cwd?: string }>();
-  const { data, error, loading, load } = useLoad(() => api<Port[]>('/ports'), []);
+  const { data, error, pull } = useLoad(() => api<Port[]>('/ports'), []);
   const [opening, setOpening] = useState<number | null>(null);
   // This project's servers first.
   const ports = [...(data ?? [])].sort((a, b) => Number(!!cwd && b.cwd?.startsWith(cwd)) - Number(!!cwd && a.cwd?.startsWith(cwd)));
@@ -38,7 +38,7 @@ export default function Preview() {
         contentInsetAdjustmentBehavior="automatic"
         data={ports}
         keyExtractor={(p) => String(p.port)}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        refreshControl={<RefreshControl {...pull} />}
         ListHeaderComponent={
           error ? <Note error>{error}</Note> : <Note>Pick your dev server. It opens through Luther; paths Luther uses itself (/files, /events…) won&apos;t reach the app.</Note>
         }
