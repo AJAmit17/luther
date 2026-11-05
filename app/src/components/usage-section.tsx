@@ -3,14 +3,14 @@ import { api } from '@/lib/hosts';
 import type { Limits } from '@/lib/protocol';
 import { Group, ProviderIcon, ago, c, providerName, type, until, useLoad } from '@/components/ui';
 
-// Each agent's plan usage on the Mac: how much of each window is used and when it
-// resets. Claude reports it during turns (so it can be a while old); Codex is
-// asked fresh.
+// Each agent's plan usage on the Mac: how much of each window is used and when
+// it resets. Both are asked fresh (Claude at Anthropic's usage endpoint, as its
+// own /usage does; Codex over its app-server).
 export function UsageSection() {
   const { data, error } = useLoad(() => api<Limits[]>('/usage'), [], 'usage');
   if (!data?.length && !error) return null;
   return (
-    <Group title="Usage" footer={error || 'Claude reports its limits during a turn; Codex is asked each time you open this.'}>
+    <Group title="Usage" footer={error || 'Asked fresh each time you open this: Claude from Anthropic, Codex from its own server.'}>
       {data?.map((l, i) => (
         <View key={l.provider} style={{ padding: 16, gap: 10, borderTopWidth: i ? 1 : 0, borderTopColor: c.line }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

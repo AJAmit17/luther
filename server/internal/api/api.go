@@ -222,11 +222,14 @@ func dirs(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, out)
 }
 
-// limits: GET /usage. Codex is asked fresh (if it's installed); Claude's is
-// what its last turn reported.
+// limits: GET /usage. Both are asked fresh: Codex over its app-server,
+// Claude at Anthropic's usage endpoint (its turns report too).
 func limits(w http.ResponseWriter, r *http.Request) {
 	if _, err := exec.LookPath(codex.Bin); err == nil {
 		codex.ReadLimits()
+	}
+	if err := claude.ReadLimits(); err != nil {
+		log.Print(err) // the last reported numbers still show
 	}
 	httpx.WriteJSON(w, usage.All())
 }
