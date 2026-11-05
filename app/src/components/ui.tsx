@@ -22,7 +22,7 @@ export const c = {
 
 export const mono = 'Menlo';
 
-export const home = (p: string) => p.replace(/^\/Users\/[^/]+/, '~');
+export const home = (p: string) => p.replace(/^\/(Users|home)\/[^/]+/, '~').replace(/^\/root(?=\/|$)/, '~');
 
 /** "in 3h" until a future time (ms). */
 export function until(t: number) {

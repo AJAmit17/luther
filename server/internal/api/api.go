@@ -28,6 +28,7 @@ import (
 	"github.com/AJAmit17/luther/server/internal/paths"
 	"github.com/AJAmit17/luther/server/internal/preview"
 	"github.com/AJAmit17/luther/server/internal/protocol"
+	"github.com/AJAmit17/luther/server/internal/remote"
 	"github.com/AJAmit17/luther/server/internal/schedule"
 	"github.com/AJAmit17/luther/server/internal/sessions"
 	"github.com/AJAmit17/luther/server/internal/terminal"
@@ -61,6 +62,7 @@ func Handler(cfg *config.Config) http.Handler {
 	mux.HandleFunc("GET /dirs", wrap(dirs))
 	mux.HandleFunc("GET /usage", wrap(limits))
 	schedule.Start(mux, wrap, open)
+	remote.Start(mux, wrap, func(r *http.Request) bool { return auth.DeviceID(r) == auth.Admin })
 	e2e.Routes(mux, a, mux, cfg.Port)
 	preview.Routes(mux, wrap, cfg.Port) // last: it owns "/"
 	return mux

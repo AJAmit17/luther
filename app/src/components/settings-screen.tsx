@@ -77,7 +77,7 @@ export default function Settings() {
           key={u}
           icon={<Icon name={u.includes('.ts.net') ? 'network' : 'cloud'} color={c.blue} />}
           title={u.replace(/^https:\/\//, '')}
-          sub={u.includes('.ts.net') ? 'Tailnet' : 'Cloudflare tunnel'}
+          sub={`${u.includes('.ts.net') ? 'Tailnet' : 'Cloudflare tunnel'}${u.includes('/r/') ? ' · relayed over ssh by another machine' : ''}`}
           right={u === using ? <Badge label="in use" color={c.green} /> : i > 0 ? <Text style={{ color: c.accent }}>Prefer</Text> : undefined}
           onPress={() => i > 0 && save({ ...h, routes: [u, ...h.routes.filter((x) => x !== u)] })}
         />

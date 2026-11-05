@@ -18,7 +18,8 @@ const usage = `usage:
   luther pair                            QR + one-time code for the phone app
   luther tailscale [--https 443]         publish on your tailnet (tailscale serve)
   luther tunnel [--url URL --id UUID]    Cloudflare tunnel route (run without flags for steps)
-  luther service install|uninstall       run at login (launchd)
+  luther service install|uninstall       run at login (launchd; systemd on Linux)
+  luther remote add|pair|list|remove     agents on other machines, over ssh
   luther doctor                          check CLIs, server, routes
   luther version
 `
@@ -50,6 +51,8 @@ func main() {
 		err = c.Tunnel(args)
 	case "service":
 		err = c.Service(args)
+	case "remote":
+		err = c.Remote(args)
 	case "doctor":
 		c.Doctor()
 	default:
