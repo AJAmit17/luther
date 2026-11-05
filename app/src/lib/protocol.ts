@@ -115,6 +115,6 @@ export type Job = {
 export type Device = { id: string; name: string; created: string; lastSeen: string; encrypted?: boolean };
 export type Term = { name: string; cwd: string; attached: boolean; created: number };
 export type FileEntry = { name: string; dir: boolean; size: number };
-export type FileContent = { path: string; text: string; binary?: boolean; truncated?: boolean };
+export type FileContent = { path: string; text: string; binary?: boolean; truncated?: boolean; hash?: string };
 export type GitChange = { path: string; status: string };
 export type GitStatus = { branch: string; upstream?: string; ahead: number; worktree?: boolean; files: GitChange[] };

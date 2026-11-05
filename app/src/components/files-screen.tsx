@@ -6,7 +6,7 @@ import { Icon, Note, Row, c, mono, useLoad } from '@/components/ui';
 
 const size = (n: number) => (n >= 1 << 20 ? (n / (1 << 20)).toFixed(1) + ' MB' : n >= 1024 ? Math.round(n / 1024) + ' KB' : n + ' B');
 
-// Project files: a folder lists its entries, a file shows read-only.
+// Project files: a folder lists its entries, a file shows (and text files open in the editor).
 export default function Files() {
   const { cwd, path = '' } = useLocalSearchParams<{ cwd: string; path?: string }>();
   const { data, error, loading, load } = useLoad(
@@ -19,6 +19,11 @@ export default function Files() {
     return (
       <>
         <Stack.Screen options={{ title }} />
+        {!!data.hash && (
+          <Stack.Toolbar placement="right">
+            <Stack.Toolbar.Button icon="square.and.pencil" onPress={() => router.push({ pathname: '/edit', params: { cwd, path } })} />
+          </Stack.Toolbar>
+        )}
         <ScrollView style={{ flex: 1, backgroundColor: c.bg as any }} contentInsetAdjustmentBehavior="automatic">
           {data.binary ? (
             <Note>Binary file; not shown.</Note>

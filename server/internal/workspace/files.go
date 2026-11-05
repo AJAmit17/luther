@@ -2,6 +2,8 @@ package workspace
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"os"
 	"os/exec"
@@ -9,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/AJAmit17/luther/server/internal/httpx"
 	"github.com/AJAmit17/luther/server/internal/paths"
@@ -25,6 +28,7 @@ const maxFile = 512 << 10
 // Routes: files, git status/diff/commit/push/pr, worktree removal.
 func Routes(mux *http.ServeMux, wrap httpx.Wrap) {
 	mux.HandleFunc("GET /files", wrap(files))
+	mux.HandleFunc("PUT /files", wrap(writeFile))
 	mux.HandleFunc("GET /git/status", wrap(gitStatus))
 	mux.HandleFunc("GET /git/diff", wrap(gitDiff))
 	mux.HandleFunc("POST /git/commit", wrap(gitCommit))
@@ -100,8 +104,78 @@ func files(w http.ResponseWriter, r *http.Request) {
 		fc.Binary = true
 	} else {
 		fc.Text = strings.ToValidUTF8(string(b), "\uFFFD") // a cut can split a multi-byte rune
+		if !fc.Trunc && utf8.Valid(b) {
+			fc.Hash = hash(b)
+		}
 	}
 	httpx.WriteJSON(w, fc)
+}
+
+func hash(b []byte) string { s := sha256.Sum256(b); return hex.EncodeToString(s[:]) }
+
+// writeFile: PUT /files {cwd, path, text, base}. base is the hash of the version
+// the phone edited ("" to create a new file): if the file changed since, nothing
+// is written (409) so an agent's or your own edit on the Mac isn't lost. Writes
+// are atomic and stay inside the project (never .git).
+func writeFile(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Cwd, Path, Text, Base string }
+	if !httpx.ReadJSON(w, r, &req) {
+		return
+	}
+	if !paths.ProjectDir(req.Cwd) {
+		http.Error(w, "cwd must be an existing folder inside your home folder", http.StatusBadRequest)
+		return
+	}
+	rel := filepath.Clean("/" + req.Path)
+	if rel == "/" || strings.HasPrefix(rel, "/.git/") || rel == "/.git" || len(req.Text) > maxFile {
+		http.Error(w, "can't write that path (or it's over 512 KB)", http.StatusBadRequest)
+		return
+	}
+	p, ok := paths.Within(req.Cwd, rel)
+	// A new file's folders may not exist yet: the nearest one that does must
+	// resolve inside the project too (a symlinked folder could point out).
+	anc := filepath.Dir(p)
+	for !paths.IsDir(anc) && anc != req.Cwd {
+		anc = filepath.Dir(anc)
+	}
+	if _, inside := paths.Within(req.Cwd, strings.TrimPrefix(anc, req.Cwd)); !ok || !inside {
+		http.Error(w, "path escapes the project", http.StatusBadRequest)
+		return
+	}
+	mode := os.FileMode(0o644)
+	cur, err := os.ReadFile(p)
+	switch {
+	case err == nil && req.Base == "":
+		http.Error(w, "that file already exists; open it to edit", http.StatusConflict)
+		return
+	case err == nil && hash(cur) != req.Base:
+		http.Error(w, "the file changed on the Mac since you opened it; reopen it to see the new version", http.StatusConflict)
+		return
+	case err != nil && !os.IsNotExist(err):
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	case os.IsNotExist(err) && req.Base != "":
+		http.Error(w, "the file was deleted on the Mac since you opened it", http.StatusConflict)
+		return
+	}
+	if fi, err := os.Stat(p); err == nil {
+		mode = fi.Mode().Perm()
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	tmp := p + ".luther-tmp"
+	if err := os.WriteFile(tmp, []byte(req.Text), mode); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	if err := os.Rename(tmp, p); err != nil {
+		os.Remove(tmp)
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	httpx.WriteJSON(w, protocol.FileContent{Path: strings.TrimPrefix(rel, "/"), Text: req.Text, Hash: hash([]byte(req.Text))})
 }
 
 func git(cwd string, args ...string) (string, error) {

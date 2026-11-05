@@ -38,6 +38,7 @@ export default function ProjectScreen() {
           <Stack.Toolbar.MenuAction icon="folder" onPress={() => router.push({ pathname: '/files', params: { cwd } })}>Files</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon="arrow.triangle.branch" onPress={() => router.push({ pathname: '/git', params: { cwd } })}>Changes</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon="globe" onPress={() => router.push({ pathname: '/preview', params: { cwd } })}>Preview</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon="text.book.closed" onPress={() => router.push({ pathname: '/instructions', params: { cwd } })}>Instructions</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon="calendar.badge.clock" onPress={() => router.push({ pathname: '/schedules', params: { cwd } })}>Schedules</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon="archivebox" isOn={archived} onPress={() => setArchived((a) => !a)}>Show archived</Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>

@@ -33,6 +33,7 @@ import "time"
 //   GET  /terms · POST /terms {cwd} → {name} · DELETE /terms/{name}
 //   GET  /terms/{name}/events  (WS)       → {type:"screen",ansi} | {type:"ended"}; in: {type:"size",cols,rows} | {type:"input",hex}
 //   GET  /files?cwd=&path=                → FileEntry list (dir) or FileContent (file)
+//   PUT  /files {cwd, path, text, base}   → FileContent (base: the hash you edited; "" creates; 409 if it changed)
 //   GET  /git/status?cwd= · GET /git/diff?cwd=&path= · POST /git/commit {cwd, message}
 //   POST /git/push {cwd} · POST /git/pr {cwd, title, body} → {url} · DELETE /git/worktree?cwd=
 //   GET  /schedules → [Job] · POST /schedules Job (create, or update by id) → Job · DELETE /schedules/{id} · POST /schedules/{id}/run → {thread}
@@ -269,6 +270,7 @@ type FileContent struct {
 	Text   string `json:"text"`
 	Binary bool   `json:"binary,omitempty"`
 	Trunc  bool   `json:"truncated,omitempty"`
+	Hash   string `json:"hash,omitempty"` // sha256 of the whole file (editable text only): PUT /files' base
 }
 
 type GitStatus struct {
