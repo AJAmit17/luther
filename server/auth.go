@@ -128,7 +128,6 @@ func (s *server) listDevices(w http.ResponseWriter, r *http.Request) {
 	cfgMu.Lock()
 	out := []Device{}
 	for _, d := range cfg.Devices {
-		d.Push = d.PushToken != ""
 		out = append(out, d.Device)
 	}
 	cfgMu.Unlock()

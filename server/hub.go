@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"sort"
 	"sync"
 	"time"
@@ -32,7 +33,6 @@ type Runtime interface {
 const (
 	keepMsgs = 300
 	idleStop = 30 * time.Minute
-	longTurn = 20 * time.Second // ponytail: fixed threshold for "finished" pushes
 )
 
 type Thread struct {
@@ -48,7 +48,9 @@ type Thread struct {
 	subs     map[*sub]bool
 	touched  time.Time
 	since    time.Time // current turn start
-	lastText string    // last assistant text, body of the "finished" push
+	lastText string    // last assistant text: the "finished" detail
+	failed   string    // error of the current turn, if any
+	run      Run       // last published summary
 	ended    bool
 }
 
@@ -152,15 +154,13 @@ func (t *Thread) resetDraft() {
 func (t *Thread) turnStart() {
 	if !t.st.Busy {
 		t.since = time.Now()
+		t.failed = ""
 	}
 	t.st.Busy = true
 	t.st.Activity = orDefault(t.st.Activity, "Working…")
 }
 
 func (t *Thread) turnEnd() {
-	if t.st.Busy && time.Since(t.since) >= longTurn {
-		notify(t.pushTitle(), "Done: "+orDefault(t.lastText, "turn finished"), t.pushData())
-	}
 	t.st.Busy, t.st.Activity, t.draft = false, "", ""
 	for len(t.prompts) > 0 {
 		t.closePrompt(t.prompts[0].ID)
@@ -171,7 +171,6 @@ func (t *Thread) addPrompt(p *Prompt) {
 	t.prompts = append(t.prompts, p)
 	t.st.Activity = "Waiting for you"
 	t.broadcast(map[string]any{"type": "prompt", "prompt": p})
-	notify(t.pushTitle(), p.Title+" "+p.Body, t.pushData())
 }
 
 func (t *Thread) closePrompt(id string) *Prompt {
@@ -186,6 +185,7 @@ func (t *Thread) closePrompt(id string) *Prompt {
 }
 
 func (t *Thread) fail(err string) {
+	t.failed = err
 	t.add(Msg{ID: "err-" + randHex(4), Role: "system", Text: err})
 }
 
@@ -215,6 +215,36 @@ func (t *Thread) syncState() {
 		t.lastSt = string(b)
 		t.broadcast(map[string]any{"type": "state", "state": t.st})
 	}
+	if r := t.runNow(); r != t.run {
+		t.run = r
+		publishRun(r)
+	}
+}
+
+// runNow: the thread's summary for notifications and Live Activities. A turn
+// that ends turns working/waiting into finished or failed; idle threads that
+// never ran have no phase.
+func (t *Thread) runNow() Run {
+	r := Run{Thread: t.ID, Session: t.st.Session, Provider: t.st.Provider, Cwd: t.st.Cwd,
+		Title: fmt.Sprintf("%s · %s", providerName(t.st.Provider), baseName(t.st.Cwd)), StartedAt: t.since.UnixMilli()}
+	switch {
+	case len(t.prompts) > 0:
+		p := t.prompts[0]
+		r.Phase, r.Detail = "waiting", oneLine(p.Title+" "+p.Body)
+	case t.st.Busy:
+		// The token count changes every few ms; Live Activities need a steadier line.
+		r.Phase, r.Detail = "working", tokenCountRe.ReplaceAllString(orDefault(t.st.Activity, "Working…"), "")
+	case t.run.Phase == "working" || t.run.Phase == "waiting":
+		r.EndedAt = time.Now().UnixMilli()
+		if t.failed != "" {
+			r.Phase, r.Detail = "failed", oneLine(t.failed)
+		} else {
+			r.Phase, r.Detail = "finished", oneLine(orDefault(t.lastText, "Finished"))
+		}
+	default:
+		r = t.run // unchanged (finished stays finished; never-run stays empty)
+	}
+	return r
 }
 
 // broadcast: callers hold t.mu. A client whose buffer is full is dropped; it
@@ -229,14 +259,6 @@ func (t *Thread) broadcast(v any) {
 			delete(t.subs, s)
 		}
 	}
-}
-
-func (t *Thread) pushTitle() string {
-	return fmt.Sprintf("%s · %s", providerName(t.st.Provider), baseName(t.st.Cwd))
-}
-
-func (t *Thread) pushData() map[string]string {
-	return map[string]string{"thread": t.ID, "session": t.st.Session, "provider": string(t.st.Provider), "cwd": t.st.Cwd}
 }
 
 // ---- clients → hub ----
@@ -311,6 +333,8 @@ func reapIdle() {
 		}
 	}
 }
+
+var tokenCountRe = regexp.MustCompile(` \(\d+ tokens\)`)
 
 func validMode(m string) bool {
 	return m == ModeAsk || m == ModeEdits || m == ModePlan || m == ModeFull

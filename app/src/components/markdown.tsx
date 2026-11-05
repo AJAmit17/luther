@@ -1,5 +1,5 @@
 import { Text, View } from 'react-native';
-import { c, mono } from '@/lib/ui';
+import { c, mono } from '@/components/ui';
 
 // ponytail: tiny markdown subset (fences, headings, lists, quotes, `code`, **bold**) —
 // enough for agent replies. Swap for a full renderer if tables/links matter.

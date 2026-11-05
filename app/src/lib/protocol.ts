@@ -69,8 +69,20 @@ export type ClientFrame =
   | { type: 'mode'; mode: Mode }
   | { type: 'model'; model: string };
 
+export type Run = {
+  thread: string;
+  session: string;
+  provider: Provider;
+  cwd: string;
+  title: string;
+  phase: 'working' | 'waiting' | 'finished' | 'failed';
+  detail: string;
+  startedAt: number;
+  endedAt?: number;
+};
+
 export type Command = { name: string; desc: string };
-export type Device = { id: string; name: string; created: string; lastSeen: string; push: boolean };
+export type Device = { id: string; name: string; created: string; lastSeen: string };
 export type Term = { name: string; cwd: string; attached: boolean; created: number };
 export type FileEntry = { name: string; dir: boolean; size: number };
 export type FileContent = { path: string; text: string; binary?: boolean; truncated?: boolean };

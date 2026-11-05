@@ -9,7 +9,10 @@ import "time"
 //   GET  /healthz                         → {ok, name, version}
 //   POST /pair {code, name}               → {deviceId, token}       (one-time code from `luther pair`)
 //   POST /pair/code                       → {code, expires}        (admin token only: the CLI)
-//   GET  /devices · DELETE /devices/{id}  · POST /devices/push {token}
+//   GET  /devices · DELETE /devices/{id}
+//   GET  /events  (WS)                    → {type:"run", run: Run} for every thread, on every change
+//   GET  /runs                            → [Run] (open threads; for background refresh)
+//   POST /threads/{id}/interrupt          (the Live Activity's Stop)
 //   GET  /providers                       → [ProviderInfo]
 //   GET  /models?provider=                → [string]
 //   GET  /projects                        → [Project]
@@ -165,6 +168,19 @@ type ClientFrame struct {
 	Answer
 }
 
+// Run: one thread's live summary, for notifications and Live Activities.
+type Run struct {
+	Thread    string   `json:"thread"`
+	Session   string   `json:"session"`
+	Provider  Provider `json:"provider"`
+	Cwd       string   `json:"cwd"`
+	Title     string   `json:"title"`
+	Phase     string   `json:"phase"` // working | waiting | finished | failed
+	Detail    string   `json:"detail"`
+	StartedAt int64    `json:"startedAt"` // ms, current or last turn
+	EndedAt   int64    `json:"endedAt,omitempty"`
+}
+
 type Command struct {
 	Name string `json:"name"`
 	Desc string `json:"desc"`
@@ -175,7 +191,6 @@ type Device struct {
 	Name     string    `json:"name"`
 	Created  time.Time `json:"created"`
 	LastSeen time.Time `json:"lastSeen"`
-	Push     bool      `json:"push"`
 }
 
 type Term struct {

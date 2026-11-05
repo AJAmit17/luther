@@ -17,7 +17,7 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
   │    └─ codex adapter:  `codex app-server` JSON-RPC over stdio
   ├─ importer: ~/.claude/projects/*.jsonl, ~/.codex/sessions (read-only)
   ├─ workbench: PTY terminals, file tree, git status/diff
-  └─ push: Expo push service → phones
+  └─ feed: WS /events — a Run summary per thread on every change → the app's local notifications + Live Activities
 ```
 
 ## Decisions
@@ -28,7 +28,8 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 | Drive the agents' own headless protocols, never screen-scrape | `claude -p --input-format stream-json …` and `codex app-server` are what the vendors' SDKs use: real streaming, structured approvals, interrupt, resume. |
 | Agents run with the user's own CLI logins | Luther never handles provider credentials or API keys. |
 | Bind 127.0.0.1 only; tailnet and Cloudflare are reverse proxies; bearer token on every route | One listener, one auth path. Both proxies arrive from localhost, so the server can't tell routes apart. |
-| No hosted relay in v1 | Phones talk to the Mac directly over the tailnet or tunnel. Luther pushes from the Mac via Expo; a small hosted relay for discovery and offline push is optional later. |
+| No hosted relay, no push service (for now) | Phones talk to the Mac directly over the tailnet or tunnel. Notifications are **local**: the Mac streams run events (WS `/events`), the app posts notifications and drives Live Activities; a background task replays `GET /runs` when iOS wakes the app (~15 min). Limit: a closed or long-suspended app hears late; instant delivery needs APNs (paid Apple account) — the Mac would send it directly, no third party. Free Apple team works: `withoutPush` drops the push entitlement. |
+| App layout: routes in `src/app` are one-line re-exports; screens and UI in `src/components`; logic in `src/lib` (pure parts with `node --test`); iOS-only pieces as `.ios.ts` | Small, findable files; logic testable without a simulator. |
 | iOS first: native stack toolbars/menus, SF Symbols, system colors | The user's phone is an iPhone. Android builds, but header actions (toolbars) are iOS-only for now. |
 | No database: config + devices in a JSON file; projects and threads come from the CLIs' own session stores | Luther owns almost no state; duplicating history would drift from the CLIs. |
 | Go structs are the wire-protocol source of truth; `app/src/lib/protocol.ts` mirrors them | Two languages, one small protocol. Keep both in the same change. |
@@ -74,8 +75,9 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [x] `luther tailscale [--https N]`: `tailscale serve` to the local port; refuses a port already proxied elsewhere unless `--force`
 - [x] `luther tunnel`: prints the Cloudflare steps; with `--url --id` records the route and writes `~/.cloudflared/luther.yml` (Access service token headers are sent by the app)
 - [x] App: several Macs, each with ordered routes; first route that answers wins; a failed request or dropped socket re-picks; "Prefer" reorders
-- [x] Server: push via Expo on every prompt and on turns ≥ 20 s; per-device Expo token; dead tokens dropped
-- [x] App: push registration on launch; a tap switches to the Mac that sent it and opens (or resumes) the thread
+- [x] Server: a `Run` per thread (working / waiting / finished / failed, detail, timings) published on WS `/events`; `GET /runs` for background refresh; `POST /threads/{id}/interrupt`
+- [x] App: local notifications for asks and for failed or ≥ 20 s turns (`runs.ts` decides, tested); Live Activity per running thread with Stop (`expo-widgets`); background refresh (`expo-background-task`); a tap switches to the Mac that sent it and opens (or resumes) the thread
+- [x] Build: `withoutPush` (free team can sign), `withSceneLifecycle` (iOS 27 launch), `NSSupportsLiveActivities`
 
 ### Phase 7: App
 - [x] Pair (QR / paste), Mac switcher, settings: routes, Cloudflare Access token, devices + revoke, forget

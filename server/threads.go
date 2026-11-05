@@ -81,6 +81,17 @@ func (s *server) stopThread(w http.ResponseWriter, r *http.Request) {
 	t.rt.Stop()
 }
 
+func (s *server) interruptThread(w http.ResponseWriter, r *http.Request) {
+	t := findThread(r.PathValue("id"))
+	if t == nil {
+		http.Error(w, "no such open thread", http.StatusNotFound)
+		return
+	}
+	if err := t.rt.Interrupt(); err != nil {
+		http.Error(w, err.Error(), http.StatusConflict)
+	}
+}
+
 func (s *server) providers(w http.ResponseWriter, r *http.Request) {
 	ver := func(bin string) (string, bool) {
 		out, err := exec.Command(bin, "--version").Output()

@@ -23,7 +23,6 @@ type Config struct {
 type deviceRec struct {
 	Device
 	TokenHash string `json:"tokenHash"`
-	PushToken string `json:"pushToken,omitempty"`
 }
 
 const defaultPort = 47900

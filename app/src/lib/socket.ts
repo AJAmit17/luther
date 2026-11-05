@@ -7,7 +7,7 @@ export type Status = 'connecting' | 'open' | 'closed' | 'ended';
 
 // One WebSocket per open screen. Reconnects when the link drops or the app comes
 // back to the foreground; each connect starts with a fresh snapshot.
-function useSocket(path: string, onFrame: (f: any) => void, onOpen?: (ws: WebSocket) => void) {
+export function useSocket(path: string, onFrame: (f: any) => void, onOpen?: (ws: WebSocket) => void) {
   const [status, setStatus] = useState<Status>('connecting');
   const [error, setError] = useState('');
   const ws = useRef<WebSocket | null>(null);

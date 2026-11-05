@@ -25,8 +25,16 @@ async function load(): Promise<Store> {
   return store!;
 }
 
+const listeners = new Set<() => void>();
+/** Called after the current Mac (or the list) changes. */
+export function onHostsChange(fn: () => void) {
+  listeners.add(fn);
+  return () => void listeners.delete(fn);
+}
+
 async function save() {
   await SecureStore.setItemAsync(KEY, JSON.stringify(store));
+  listeners.forEach((fn) => fn());
 }
 
 export async function hosts() {
