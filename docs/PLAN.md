@@ -70,10 +70,11 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [x] Git: status, working-tree diff vs HEAD (untracked files included), commit all
 
 ### Phase 6: Networking & push
-- [ ] `luther tailscale`: set up `tailscale serve` to the local port
-- [ ] Cloudflare: `cloudflared` config template + optional Access service token headers
+- [x] `luther tailscale [--https N]`: `tailscale serve` to the local port; refuses a port already proxied elsewhere unless `--force`
+- [x] `luther tunnel`: prints the Cloudflare steps; with `--url --id` records the route and writes `~/.cloudflared/luther.yml` (Access service token headers are sent by the app)
 - [ ] App: multiple routes per Mac, try in order, fall back, re-check earlier routes on network change
-- [ ] Push via Expo on approval needed / long turn done; tap opens the thread
+- [x] Server: push via Expo on every prompt and on turns ≥ 20 s; per-device Expo token; dead tokens dropped
+- [ ] App: push registration; tap opens the thread
 
 ### Phase 7: App
 - [ ] Pair (QR / paste), Macs list, route settings
@@ -83,7 +84,7 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [ ] Devices & revoke; push registration and deep links
 
 ### Phase 8: `luther` CLI
-- [ ] `serve`, `pair`, `service install|uninstall` (launchd LaunchAgent), `doctor` (finds claude/codex, checks logins, routes), logs in `~/.luther`
+- [x] `serve`, `pair` (QR: name, routes, one-time code), `tailscale`, `tunnel`, `service install|uninstall` (LaunchAgents `dev.luther.server` and `dev.luther.tunnel`), `doctor` (CLIs, server, each route, devices); logs in `~/.luther`
 
 ### Phase 9: End-to-end tests
 - [ ] Pair over tailnet and over Cloudflare
