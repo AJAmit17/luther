@@ -117,7 +117,7 @@ export class HttpError extends Error {
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const h = await currentHost();
   if (!h) throw new Error('No Mac paired');
-  const go = async (b: string) => fetch(b + path, { ...init, headers: { ...headers(h), 'Content-Type': 'application/json' } });
+  const go = async (b: string) => fetch(b + path, { ...init, headers: { 'Content-Type': 'application/json', ...headers(h), ...(init.headers as Record<string, string>) } });
   let res: Response;
   try {
     res = await go(await resolve(h));
@@ -132,6 +132,13 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const post = <T>(path: string, body: unknown) => api<T>(path, { method: 'POST', body: JSON.stringify(body) });
 export const del = (path: string) => api<string>(path, { method: 'DELETE' });
+
+/** upload: a local file (photo, document) to the Mac; returns its path there, for a send's files. */
+export async function upload(uri: string, name: string): Promise<string> {
+  const body = await (await fetch(uri)).blob();
+  const r = await api<{ path: string }>('/uploads?name=' + encodeURIComponent(name), { method: 'POST', body, headers: { 'Content-Type': 'application/octet-stream' } });
+  return r.path;
+}
 
 // Pairing payload from `luther pair`: {v, name, routes, code}.
 export async function pair(text: string, deviceName: string) {

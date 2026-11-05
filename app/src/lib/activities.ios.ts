@@ -26,7 +26,7 @@ function find(thread: string): LiveActivity<RunActivityProps> | undefined {
   return id ? RunActivity.getInstances().find((a) => a.getId() === id) : undefined;
 }
 
-const props = (r: Run): RunActivityProps => ({ thread: r.thread, title: r.title, phase: r.phase as RunActivityProps['phase'], detail: r.detail, startedAt: r.startedAt });
+const props = (r: Run): RunActivityProps => ({ thread: r.thread, title: r.title, phase: r.phase as RunActivityProps['phase'], detail: r.total ? `${r.done ?? 0}/${r.total} · ${r.detail}` : r.detail, startedAt: r.startedAt });
 
 export function showActivity(r: Run) {
   // Dimmed when the app has been away too long to vouch for it.

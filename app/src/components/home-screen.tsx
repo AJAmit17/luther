@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Alert, RefreshControl, SectionList } from 'react-native';
+import { Alert, FlatList, RefreshControl, SectionList } from 'react-native';
 import { Redirect, Stack, router } from 'expo-router';
 import { api, currentHost, del, hosts, routeInUse, setCurrent, type Host } from '@/lib/hosts';
-import type { Project, Term, ThreadInfo } from '@/lib/protocol';
+import type { Project, Session, Term, ThreadInfo } from '@/lib/protocol';
+import { SessionRow } from '@/components/project-screen';
 import { requestNotificationPermission } from '@/lib/notifier';
 import { Badge, Icon, Note, ProviderIcon, Row, Section, ago, c, home, providerName, useLoad } from '@/components/ui';
 
@@ -24,6 +25,8 @@ export default function Home() {
     [host?.id],
   );
   const [open, terms, projects] = data ?? [[], [], []];
+  const [q, setQ] = useState('');
+  const found = useLoad(() => (q ? api<Session[]>('/sessions?q=' + encodeURIComponent(q)) : Promise.resolve([])), [host?.id, q]);
 
   const switchTo = async (h: Host) => {
     await setCurrent(h.id);
@@ -40,7 +43,17 @@ export default function Home() {
   const route = routeInUse(host ?? null);
   return (
     <>
-      <Stack.Screen options={{ title: host?.name ?? 'Luther' }} />
+      <Stack.Screen
+        options={{
+          title: host?.name ?? 'Luther',
+          headerSearchBarOptions: {
+            placeholder: 'Search all conversations',
+            onSearchButtonPress: (e) => setQ(e.nativeEvent.text.trim()),
+            onChangeText: (e) => !e.nativeEvent.text && setQ(''),
+            onCancelButtonPress: () => setQ(''),
+          },
+        }}
+      />
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Menu icon="desktopcomputer">
           <Stack.Toolbar.Menu inline title="Macs">
@@ -53,6 +66,17 @@ export default function Home() {
         <Stack.Toolbar.Button icon="folder.badge.plus" onPress={() => router.push('/browse')} />
         <Stack.Toolbar.Button icon="gearshape" onPress={() => router.push('/settings')} />
       </Stack.Toolbar>
+      {q ? (
+        <FlatList
+          style={{ flex: 1, backgroundColor: c.bg as any }}
+          contentInsetAdjustmentBehavior="automatic"
+          data={found.data ?? []}
+          keyExtractor={(s) => s.provider + s.id}
+          ListHeaderComponent={found.error ? <Note error>{found.error}</Note> : undefined}
+          ListEmptyComponent={found.data && !found.loading ? <Note>No conversation mentions “{q}”.</Note> : undefined}
+          renderItem={({ item }) => <SessionRow s={item} onChange={found.load} showDir />}
+        />
+      ) : (
       <SectionList<Item>
         style={{ flex: 1, backgroundColor: c.bg as any }}
         contentInsetAdjustmentBehavior="automatic"
@@ -104,6 +128,7 @@ export default function Home() {
           );
         }}
       />
+      )}
     </>
   );
 }

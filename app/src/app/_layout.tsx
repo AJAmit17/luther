@@ -6,7 +6,7 @@ import { onActivityStop } from '@/lib/activities';
 import { scheduleBackgroundRefresh } from '@/lib/background'; // also defines the task at import
 import { useFeed } from '@/lib/feed';
 import { currentHost, onHostsChange, post, setCurrent } from '@/lib/hosts';
-import { onNotificationOpen } from '@/lib/notifier';
+import { onNotificationResponse } from '@/lib/notifier';
 import { openThread } from '@/lib/threads';
 
 export default function Layout() {
@@ -20,10 +20,16 @@ export default function Layout() {
       if (s === 'active') sync();
       if (s === 'background') scheduleBackgroundRefresh();
     });
-    // A tap opens the thread on the Mac that sent it, resuming it if it was stopped.
-    const taps = onNotificationOpen(async (o) => {
-      await setCurrent(o.host);
-      await openThread({ provider: o.provider, cwd: o.cwd, resume: o.session });
+    // A tap opens the thread on the Mac that sent it (resuming it if it stopped);
+    // an action button answers the prompt there without opening anything.
+    const taps = onNotificationResponse(async (r) => {
+      await setCurrent(r.o.host);
+      if (r.kind === 'open') return openThread({ provider: r.o.provider, cwd: r.o.cwd, resume: r.o.session });
+      if (!r.o.prompt) return;
+      await post(`/threads/${encodeURIComponent(r.o.thread)}/answer`, { id: r.o.prompt, choice: r.choice, message: r.message }).catch(() => {
+        // Already answered elsewhere, or the thread stopped: show it.
+        void openThread({ provider: r.o.provider, cwd: r.o.cwd, resume: r.o.session });
+      });
     });
     const stops = onActivityStop((thread) => void post(`/threads/${encodeURIComponent(thread)}/interrupt`, {}).catch(() => {}));
     return () => {

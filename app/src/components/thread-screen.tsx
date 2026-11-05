@@ -6,6 +6,8 @@ import * as Haptics from 'expo-haptics';
 import { api, del, post } from '@/lib/hosts';
 import { Bubble } from '@/components/chat-rows';
 import { PromptCard } from '@/components/prompt-card';
+import { AttachmentChips, useAttachments } from '@/components/attachments';
+import { TaskPanel } from '@/components/task-panel';
 import type { Command, Msg, Prompt } from '@/lib/protocol';
 import { setWatching } from '@/lib/feed';
 import { useThread } from '@/lib/socket';
@@ -18,6 +20,7 @@ export default function ThreadScreen() {
   const ev = useThread(id);
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
+  const att = useAttachments();
   const [cmds, setCmds] = useState<Command[]>([]);
   const [models, setModels] = useState<string[]>([]);
   const [qa, setQa] = useState<{ id?: string; answers: Record<string, string[]> }>({ answers: {} }); // question in progress
@@ -65,12 +68,14 @@ export default function ThreadScreen() {
     else setQa({ id: p.id, answers: next });
   };
 
+  const canSend = top ? !!text.trim() : (!!text.trim() || att.items.length > 0) && !att.uploading;
   const submit = () => {
     const t = text.trim();
-    if (!t) return;
+    if (!canSend) return;
     if (top?.kind === 'question') answerQuestion(top, [t]);
     else if (top) { if (!ev.answer({ id: top.id, message: t })) return; } // "No, do this instead"
-    else if (!ev.sendText(t)) return;
+    else if (!ev.sendText(t, att.paths)) return;
+    else att.clear();
     setText('');
   };
 
@@ -102,6 +107,7 @@ export default function ThreadScreen() {
           </Stack.Toolbar.Menu>
           <Stack.Toolbar.MenuAction icon="folder" onPress={() => st?.cwd && router.push({ pathname: '/files', params: { cwd: st.cwd } })}>Files</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon="arrow.triangle.branch" onPress={() => st?.cwd && router.push({ pathname: '/git', params: { cwd: st.cwd } })}>Changes</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon="clock.arrow.circlepath" onPress={() => router.push({ pathname: '/turns', params: { id } })}>Turns</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon="stop.circle" destructive onPress={stop}>Stop agent</Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
@@ -125,6 +131,7 @@ export default function ThreadScreen() {
         }
       />
 
+      {!top && !!st?.tasks?.length && <TaskPanel tasks={st.tasks} />}
       {top ? (
         <PromptCard
           key={`${top.id}:${Object.keys(answers).length}`}
@@ -163,7 +170,13 @@ export default function ThreadScreen() {
           {MODES.find((m) => m.id === mode)?.label} on
         </Text>
       )}
+      {!top && <AttachmentChips items={att.items} onRemove={att.remove} />}
       <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 10, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8), alignItems: 'flex-end' }}>
+        {!top && (
+          <Pressable onPress={att.pick} hitSlop={6} style={({ pressed }) => ({ paddingBottom: 6, opacity: pressed ? 0.6 : 1 })}>
+            <Icon name="plus.circle.fill" size={30} color={c.dim} />
+          </Pressable>
+        )}
         <TextInput
           style={{ flex: 1, maxHeight: 140, color: c.text, backgroundColor: c.card, borderRadius: 20, borderCurve: 'continuous', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10, fontSize: 16 }}
           value={text}
@@ -174,7 +187,7 @@ export default function ThreadScreen() {
           placeholderTextColor={c.dim}
           multiline
         />
-        <Pressable onPress={submit} disabled={!text.trim()} style={({ pressed }) => ({ opacity: !text.trim() ? 0.35 : pressed ? 0.7 : 1 })}>
+        <Pressable onPress={submit} disabled={!canSend} style={({ pressed }) => ({ opacity: !canSend ? 0.35 : pressed ? 0.7 : 1 })}>
           <Icon name="arrow.up.circle.fill" size={36} color={c.accent} />
         </Pressable>
       </View>

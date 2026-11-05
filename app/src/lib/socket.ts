@@ -120,7 +120,7 @@ export function useThread(id: string) {
     draft,
     state,
     prompts,
-    sendText: (text: string) => send({ type: 'send', text }),
+    sendText: (text: string, files?: string[]) => send({ type: 'send', text, files }),
     answer: (a: Partial<Answer> & { id: string }) => send({ type: 'answer', choice: -1, ...a }),
     interrupt: () => send({ type: 'interrupt' }),
     setMode: (mode: Mode) => send({ type: 'mode', mode }),

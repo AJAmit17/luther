@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { api } from '@/lib/hosts';
 import type { Mode, Provider, ProviderInfo } from '@/lib/protocol';
@@ -22,6 +22,7 @@ export default function NewThread() {
   const [models, setModels] = useState<string[]>([]);
   const [model, setModel] = useState('');
   const [mode, setMode] = useState<Mode>('ask');
+  const [worktree, setWorktree] = useState(false);
   const [busy, setBusy] = useState(false);
   const p = provider ?? installed[0]?.id ?? null;
 
@@ -63,13 +64,21 @@ export default function NewThread() {
           </Pressable>
         ))}
       </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderCurve: 'continuous', backgroundColor: c.card }}>
+        <Icon name="arrow.triangle.branch" color={c.accent} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: c.text, fontWeight: '600' }}>Separate worktree</Text>
+          <Text style={{ color: c.dim, fontSize: 12 }}>Its own branch and checkout, so agents in this project don&apos;t step on each other.</Text>
+        </View>
+        <Switch value={worktree} onValueChange={setWorktree} />
+      </View>
       <Button
         kind="accent"
         label={busy ? 'Starting…' : 'Start'}
         disabled={!p || busy}
         onPress={() => {
           setBusy(true);
-          openThread({ provider: p!, cwd, mode, model: model || undefined }, true).finally(() => setBusy(false));
+          openThread({ provider: p!, cwd, mode, model: model || undefined, worktree: worktree || undefined }, true).finally(() => setBusy(false));
         }}
       />
     </ScrollView>

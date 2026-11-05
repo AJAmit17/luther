@@ -63,6 +63,8 @@ module.exports = {
       'expo-secure-store',
       ['expo-camera', { cameraPermission: 'Luther uses the camera to scan the pairing code from your Mac.', microphonePermission: false, recordAudioAndroid: false }],
       'expo-notifications',
+      ['expo-image-picker', { photosPermission: 'Luther attaches the photos you pick to your message.', cameraPermission: 'Luther attaches the photos you take to your message.' }],
+      'expo-document-picker',
       'expo-widgets',
       'expo-background-task',
     ],

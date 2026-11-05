@@ -91,13 +91,13 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 
 ### Phase 9: P0 product gaps
 - [x] Server packages (see decision) — `go list` shows a clean DAG
-- [ ] Approve / deny / reply from the notification: Run carries the waiting prompt; `POST /threads/{id}/answer`; app notification category with actions (approve needs unlock)
-- [x] Server: attachments — `POST /uploads` → path; Claude gets images as image blocks, Codex as `localImage`; other files as paths · [ ] app picker + upload
-- [x] Server: parallel agents in git worktrees — `OpenReq.worktree` → `~/.luther/worktrees/<repo>-<id>` on `luther/<id>`; sessions fold into their project; `DELETE /git/worktree` · [ ] app toggle + badges
-- [x] Server: per-turn checkpoints — tree before/after each turn via a throwaway index; `GET …/turns`, diff, revert · [ ] app turn list, diff, revert
-- [x] Server: task progress — Claude `TodoWrite`, Codex `turn/plan/updated` → `State.tasks`, Run done/total · [ ] app task list + Live Activity count
-- [x] Server: rename / pin / archive (`PATCH /sessions/…`, Luther-side `sessions.json`), search (`GET /sessions?q=`) · [ ] app
-- [x] Server: push + PR (`POST /git/push`, `POST /git/pr` via `gh`) · [ ] app
+- [x] Approve / deny / reply from the notification: Run carries the waiting prompt; `POST /threads/{id}/answer`; app notification category with actions (approve needs unlock)
+- [x] attachments — `POST /uploads` → path; Claude gets images as image blocks, Codex as `localImage`; other files as paths · [x] app picker + upload
+- [x] parallel agents in git worktrees — `OpenReq.worktree` → `~/.luther/worktrees/<repo>-<id>` on `luther/<id>`; sessions fold into their project; `DELETE /git/worktree` · [x] app toggle + badges
+- [x] per-turn checkpoints — tree before/after each turn via a throwaway index; `GET …/turns`, diff, revert · [x] app turn list, diff, revert
+- [x] task progress — Claude `TodoWrite`, Codex `turn/plan/updated` → `State.tasks`, Run done/total · [x] app task list + Live Activity count
+- [x] rename / pin / archive (`PATCH /sessions/…`, Luther-side `sessions.json`), search (`GET /sessions?q=`) · [x] app
+- [x] push + PR (`POST /git/push`, `POST /git/pr` via `gh`) · [x] app
 
 ### Phase 10: End-to-end tests
 - [ ] Pair over tailnet and over Cloudflare
