@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, Text, TextInput } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Device from 'expo-device';
 import { router } from 'expo-router';
@@ -9,14 +9,12 @@ import { Button, Note, c, mono } from '@/components/ui';
 // Pair: run `luther pair` on the Mac, then scan its QR (or paste the JSON under it).
 export default function Pair() {
   const [perm, requestPerm] = useCameraPermissions();
-  const [scanning, setScanning] = useState(false);
   const [paste, setPaste] = useState('');
   const [name, setName] = useState(Device.deviceName ?? 'iPhone');
   const [busy, setBusy] = useState(false);
 
   const go = async (text: string) => {
     if (busy) return;
-    setScanning(false);
     setBusy(true);
     try {
       await pair(text, name);
@@ -29,21 +27,36 @@ export default function Pair() {
     }
   };
 
-  if (scanning) {
-    return (
-      <View style={{ flex: 1 }}>
-        <CameraView style={{ flex: 1 }} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data }) => scanning && go(data)} />
-        <View style={{ padding: 16 }}><Button label="Cancel" onPress={() => setScanning(false)} /></View>
-      </View>
-    );
-  }
+  // iOS's own scanner (VisionKit), not a camera preview of ours: it handles
+  // focus, guidance and dismissal, and works inside a modal.
+  const scan = async () => {
+    if (!(perm?.granted || (await requestPerm()).granted)) {
+      Alert.alert('Camera access needed', 'Allow camera access in Settings, or paste the code instead.');
+      return;
+    }
+    if (!CameraView.isModernBarcodeScannerAvailable) {
+      Alert.alert("Scanner unavailable", "This iPhone can't scan here; paste the code instead.");
+      return;
+    }
+    const sub = CameraView.onModernBarcodeScanned(({ data }) => {
+      sub.remove();
+      void CameraView.dismissScanner();
+      void go(data);
+    });
+    try {
+      await CameraView.launchScanner({ barcodeTypes: ['qr'], isGuidanceEnabled: true, isHighlightingEnabled: true });
+    } catch (e: any) {
+      sub.remove();
+      Alert.alert("Couldn't open the scanner", e.message);
+    }
+  };
   return (
     <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
       <Text style={{ color: c.text, fontSize: 15, lineHeight: 21 }}>
         On your Mac, run <Text style={{ fontFamily: mono }}>luther pair</Text>. It shows a QR code that works once, for 10 minutes.
       </Text>
       <Button kind="accent" icon="qrcode.viewfinder" label="Scan QR code" disabled={busy}
-        onPress={async () => ((perm?.granted || (await requestPerm()).granted) ? setScanning(true) : Alert.alert('Camera access needed', 'Allow camera access in Settings, or paste the code instead.'))} />
+        onPress={scan} />
       <TextInput
         style={{ color: c.text, backgroundColor: c.card, borderRadius: 12, borderCurve: 'continuous', padding: 12, fontFamily: mono, fontSize: 12, minHeight: 80 }}
         placeholder="…or paste the JSON shown under the QR"
