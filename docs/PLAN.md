@@ -53,21 +53,21 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [x] Login-shell PATH and clean env so `claude` / `codex` are found under launchd
 
 ### Phase 3: Agent orchestration
-- [ ] Adapter interface: start/resume thread, send turn, interrupt, answer approval, set model, set permission mode, event stream, stop
-- [ ] Claude adapter: port Burrow's `engine.go` (stream-json, `--permission-prompt-tool stdio`, approvals/questions/plans, `/clear` follow, fork via `--session-id`)
-- [ ] Codex adapter: `codex app-server` JSON-RPC — initialize, thread start/resume, turn start, streaming items, approval requests, interrupt; Go types generated from its JSON Schema
-- [ ] Orchestrator: one process per open thread, many at once; queue sends while busy; first answer wins across devices; idle stop; fan-out to every client
-- [ ] Normalized events: text deltas, tool calls (start/end, output summary), approvals, questions, plans, turn end with usage/cost, errors
+- [x] `Runtime` interface (`hub.go`): send, interrupt, answer, set mode, set model, stop; the hub keeps state, messages, draft, prompts and fans out to every client
+- [x] Claude runtime (`claude.go`): one `claude -p` stream-json per thread — approvals/questions/plans, `/clear` follow, fork via `--session-id`, one-writer rule (409 + move), dup warning
+- [x] Codex runtime (`codex.go`): one shared `codex app-server` hosting every Codex thread, routed by `threadId`; start/resume/fork, turn start/steer/interrupt, command/file/permission approvals, user-input questions; mode = approval policy + sandbox per turn
+- [x] Orchestration: many threads at once; Claude queues sends while busy, Codex steers the running turn; first answer wins across devices; idle stop after 30 min unwatched
+- [x] Normalized events: text deltas, tool rows, approvals, questions, plans, turn end with usage (and cost for Claude), errors
 
 ### Phase 4: Existing sessions
-- [ ] Index Claude sessions (`~/.claude/projects/*/*.jsonl`, cwd from records) and Codex sessions (`~/.codex/sessions/**`)
-- [ ] Show them per project; open = resume under the original session id
-- [ ] Rescan on request (stat-cached) so terminal-started sessions appear without an import step
+- [x] Claude sessions from `~/.claude/projects/*/*.jsonl` (cwd from records, stat-cached); Codex threads from the app-server's `thread/list` (no file parsing)
+- [x] Projects = folders those sessions ran in; open = resume under the original session id
+- [x] Rescanned on every request, so terminal-started sessions appear without an import step
 
 ### Phase 5: Workbench
-- [ ] Terminals: PTY per project (`creack/pty`), output streamed to the phone, keys back
-- [ ] Files: tree + read-only viewer, path-confined to the project
-- [ ] Git: status, per-turn diff, commit
+- [x] Terminals: shells in tmux on a private socket (`tmux -L luther`) — survive disconnects, attachable on the Mac; rendered pane (ANSI) to the phone, raw bytes back
+- [x] Files: tree + read-only viewer (512 KB cap), confined to the project, symlink escapes refused
+- [x] Git: status, working-tree diff vs HEAD (untracked files included), commit all
 
 ### Phase 6: Networking & push
 - [ ] `luther tailscale`: set up `tailscale serve` to the local port
