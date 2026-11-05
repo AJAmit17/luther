@@ -28,6 +28,7 @@ import (
 	"github.com/AJAmit17/luther/server/internal/paths"
 	"github.com/AJAmit17/luther/server/internal/preview"
 	"github.com/AJAmit17/luther/server/internal/protocol"
+	"github.com/AJAmit17/luther/server/internal/schedule"
 	"github.com/AJAmit17/luther/server/internal/sessions"
 	"github.com/AJAmit17/luther/server/internal/terminal"
 	"github.com/AJAmit17/luther/server/internal/text"
@@ -59,6 +60,7 @@ func Handler(cfg *config.Config) http.Handler {
 	mux.HandleFunc("GET /commands", wrap(commands))
 	mux.HandleFunc("GET /dirs", wrap(dirs))
 	mux.HandleFunc("GET /usage", wrap(limits))
+	schedule.Start(mux, wrap, open)
 	e2e.Routes(mux, a, mux, cfg.Port)
 	preview.Routes(mux, wrap, cfg.Port) // last: it owns "/"
 	return mux
@@ -86,25 +88,32 @@ func openThread(w http.ResponseWriter, r *http.Request) {
 	if !httpx.ReadJSON(w, r, &req) {
 		return
 	}
-	if !paths.ProjectDir(req.Cwd) {
-		http.Error(w, "cwd must be an existing folder inside your home folder", http.StatusBadRequest)
+	t, status, err := open(req)
+	if err != nil {
+		http.Error(w, err.Error(), status)
 		return
 	}
+	httpx.WriteJSON(w, map[string]string{"id": t.ID})
+}
+
+// open: a registered thread for req, or the HTTP status that explains why not.
+// The scheduler opens its runs through here too.
+func open(req protocol.OpenReq) (*hub.Thread, int, error) {
+	if !paths.ProjectDir(req.Cwd) {
+		return nil, http.StatusBadRequest, errors.New("cwd must be an existing folder inside your home folder")
+	}
 	if req.Mode != "" && !protocol.ValidMode(req.Mode) {
-		http.Error(w, "unknown mode", http.StatusBadRequest)
-		return
+		return nil, http.StatusBadRequest, errors.New("unknown mode")
 	}
 	if req.Resume != "" && !req.Fork {
 		if t := hub.Find(req.Resume); t != nil {
-			httpx.WriteJSON(w, map[string]string{"id": t.ID})
-			return
+			return t, 200, nil
 		}
 	}
 	if req.Worktree {
 		dir, err := workspace.NewWorktree(req.Cwd)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+			return nil, http.StatusBadRequest, err
 		}
 		req.Cwd = dir
 	}
@@ -118,24 +127,21 @@ func openThread(w http.ResponseWriter, r *http.Request) {
 	default:
 		a, ok := acp.Find(req.Provider)
 		if !ok {
-			http.Error(w, "unknown provider", http.StatusBadRequest)
-			return
+			return nil, http.StatusBadRequest, errors.New("unknown provider")
 		}
 		t, err = acp.Open(a, req)
 	}
 	switch {
 	case errors.Is(err, claude.ErrHeld):
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
+		return nil, http.StatusConflict, err
 	case err != nil:
-		http.Error(w, err.Error(), http.StatusBadGateway)
-		return
+		return nil, http.StatusBadGateway, err
 	}
 	if got := hub.Register(t); got != t { // lost a race with another open
 		t.Runtime().Stop()
 		t = got
 	}
-	httpx.WriteJSON(w, map[string]string{"id": t.ID})
+	return t, 200, nil
 }
 
 func listOpen(w http.ResponseWriter, r *http.Request) {

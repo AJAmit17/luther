@@ -9,12 +9,12 @@ package auth
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"sync"

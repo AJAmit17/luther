@@ -35,6 +35,7 @@ import "time"
 //   GET  /files?cwd=&path=                → FileEntry list (dir) or FileContent (file)
 //   GET  /git/status?cwd= · GET /git/diff?cwd=&path= · POST /git/commit {cwd, message}
 //   POST /git/push {cwd} · POST /git/pr {cwd, title, body} → {url} · DELETE /git/worktree?cwd=
+//   GET  /schedules → [Job] · POST /schedules Job (create, or update by id) → Job · DELETE /schedules/{id} · POST /schedules/{id}/run → {thread}
 //   GET  /usage                           → [Limits] (plan usage per agent)
 //   GET  /ports                           → [Port] (dev servers listening on this Mac)
 //   POST /previews {port}                 → {path} (open route+path in a browser: no token needed, it is one)
@@ -302,6 +303,26 @@ func (p Provider) Name() string {
 		return "Cursor"
 	}
 	return string(p)
+}
+
+// Job: a scheduled agent run — a new thread in Cwd that gets Prompt, whenever
+// Cron (5 fields, server local time) matches.
+type Job struct {
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Cron     string   `json:"cron"`
+	Enabled  bool     `json:"enabled"`
+	Provider Provider `json:"provider"`
+	Cwd      string   `json:"cwd"`
+	Prompt   string   `json:"prompt"`
+	Mode     string   `json:"mode,omitempty"`
+	Model    string   `json:"model,omitempty"`
+	Worktree bool     `json:"worktree,omitempty"` // each run in its own worktree
+	// Filled by the server:
+	Next       int64  `json:"next,omitempty"`    // ms
+	LastRun    int64  `json:"lastRun,omitempty"` // ms
+	LastThread string `json:"lastThread,omitempty"`
+	LastError  string `json:"lastError,omitempty"`
 }
 
 // Port: a TCP port something of yours listens on (a dev server, usually).

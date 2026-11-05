@@ -71,6 +71,7 @@ export default function Home() {
               <Stack.Toolbar.MenuAction key={h.id} isOn={h.id === host?.id} onPress={() => switchTo(h)}>{h.name}</Stack.Toolbar.MenuAction>
             ))}
           </Stack.Toolbar.Menu>
+          <Stack.Toolbar.MenuAction icon="calendar.badge.clock" onPress={() => router.push('/schedules')}>Schedules</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon="plus" onPress={() => router.push('/pair')}>Pair another Mac</Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
         <Stack.Toolbar.Button icon="folder.badge.plus" onPress={() => router.push('/browse')} />
