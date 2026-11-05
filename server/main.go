@@ -7,21 +7,32 @@ import (
 	"os"
 )
 
-const version = "0.0.0-dev"
+const version = "0.1.0-dev"
+
+const usage = `usage:
+  luther serve      run the server (launchd runs this)
+  luther version
+`
 
 func main() {
 	cmd := "serve"
 	if len(os.Args) > 1 {
 		cmd = os.Args[1]
 	}
-	switch cmd {
-	case "version", "--version", "-v":
+	if cmd == "version" || cmd == "--version" || cmd == "-v" {
 		fmt.Println("luther", version)
-	case "serve":
-		fmt.Fprintln(os.Stderr, "luther serve: not implemented yet (Phase 2)")
+		return
+	}
+	var err error
+	if cfg, err = loadConfig(); err != nil {
+		fmt.Fprintln(os.Stderr, "luther:", err)
 		os.Exit(1)
+	}
+	switch cmd {
+	case "serve":
+		serve()
 	default:
-		fmt.Fprintf(os.Stderr, "usage: luther [serve | version]\n")
+		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)
 	}
 }

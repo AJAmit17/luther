@@ -11,7 +11,7 @@ phone (Expo app, TypeScript)
   ├─ route A: https://<mac>.<tailnet>.ts.net      (tailscale serve → 127.0.0.1:<port>)
   └─ route B: https://luther.<your-domain>         (cloudflared → 127.0.0.1:<port>)
 Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
-  ├─ store: SQLite — projects, threads, event log, devices
+  ├─ state: ~/.luther/config.json — port, routes, paired devices (history stays in each CLI's own store)
   ├─ orchestrator: one agent process per open thread → events → every connected phone
   │    ├─ claude adapter: `claude -p` stream-json (Claude Code's headless protocol)
   │    └─ codex adapter:  `codex app-server` JSON-RPC over stdio
@@ -29,6 +29,7 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 | Agents run with the user's own CLI logins | Luther never handles provider credentials or API keys. |
 | Bind 127.0.0.1 only; tailnet and Cloudflare are reverse proxies; bearer token on every route | One listener, one auth path. Both proxies arrive from localhost, so the server can't tell routes apart. |
 | No hosted relay in v1 | Phones talk to the Mac directly over the tailnet or tunnel. Luther pushes from the Mac via Expo; a small hosted relay for discovery and offline push is optional later. |
+| No database: config + devices in a JSON file; projects and threads come from the CLIs' own session stores | Luther owns almost no state; duplicating history would drift from the CLIs. |
 | Go structs are the wire-protocol source of truth; `app/src/lib/protocol.ts` mirrors them | Two languages, one small protocol. Keep both in the same change. |
 | Codex wire types generated from `codex app-server generate-json-schema` | The protocol is large and versioned; generate, don't hand-write. |
 | Reuse Burrow's Go engine (Claude stream-json, verified wire facts, session indexer, pairing, push) | Same author, already verified against the real CLI. |
@@ -46,11 +47,10 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [x] Go types in `server/protocol.go`; mirror in `app/src/lib/protocol.ts`
 
 ### Phase 2: Server core
-- [ ] HTTP + WS server on 127.0.0.1; config in `~/.luther/config.json`
-- [ ] Pairing: one-time code → QR; per-device token; list and revoke devices
-- [ ] SQLite store (`modernc.org/sqlite`, pure Go): projects, threads, events, devices
-- [ ] Projects: add a folder, list, browse folders under `$HOME`
-- [ ] Login-shell PATH and clean env so `claude` / `codex` are found under launchd
+- [x] HTTP + WS server on 127.0.0.1; config in `~/.luther/config.json` (0600)
+- [x] Pairing: `luther pair` gets a one-time code (admin token) → QR; phone trades it for a per-device token; list and revoke devices
+- [x] Browse folders under `$HOME` (projects themselves are derived from sessions, phase 4)
+- [x] Login-shell PATH and clean env so `claude` / `codex` are found under launchd
 
 ### Phase 3: Agent orchestration
 - [ ] Adapter interface: start/resume thread, send turn, interrupt, answer approval, set model, set permission mode, event stream, stop
