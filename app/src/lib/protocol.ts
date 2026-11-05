@@ -1,0 +1,78 @@
+// Mirror of server/protocol.go — the Go types are the source of truth. Change both together.
+
+export type Provider = 'claude' | 'codex';
+export type Mode = 'ask' | 'edits' | 'plan' | 'full';
+
+export type ProviderInfo = { id: Provider; name: string; installed: boolean; version?: string; modes: Mode[] };
+
+export type Project = { cwd: string; name: string; sessions: number; lastActive: string; live: number };
+
+export type Session = {
+  provider: Provider;
+  id: string;
+  cwd: string;
+  title: string;
+  preview: string;
+  lastActive: string;
+  live: string;
+  busy: boolean;
+};
+
+export type OpenReq = { provider: Provider; cwd: string; resume?: string; fork?: boolean; move?: boolean; model?: string; mode?: Mode };
+
+export type Usage = { inputTokens: number; outputTokens: number; costUsd?: number };
+
+export type State = {
+  provider: Provider;
+  session: string;
+  cwd: string;
+  busy: boolean;
+  activity: string;
+  model: string;
+  mode: Mode;
+  commands?: string[];
+  usage?: Usage;
+  dup?: boolean;
+};
+
+export type ThreadInfo = State & { id: string; title: string; clients: number };
+
+export type Msg = { id: string; role: 'user' | 'assistant' | 'tool' | 'system'; text: string; tool?: string };
+export type Option = { label: string; desc?: string };
+export type Question = { id: string; question: string; header?: string; options: Option[]; multiSelect?: boolean };
+export type Prompt = {
+  id: string;
+  kind: 'permission' | 'question' | 'plan';
+  tool: string;
+  title: string;
+  body?: string;
+  options?: Option[];
+  questions?: Question[];
+};
+export type Answer = { id: string; choice: number; answers?: Record<string, string[]>; message?: string };
+
+export type Frame =
+  | { type: 'snapshot'; state: State; messages: Msg[]; draft: string; prompts: Prompt[] }
+  | { type: 'message'; message: Msg }
+  | { type: 'messages'; messages: Msg[]; reset?: boolean }
+  | { type: 'draft'; delta?: string; reset?: boolean }
+  | { type: 'state'; state: State }
+  | { type: 'prompt'; prompt: Prompt }
+  | { type: 'prompt_closed'; id: string }
+  | { type: 'error'; error: string }
+  | { type: 'ended' };
+
+export type ClientFrame =
+  | { type: 'send'; text: string }
+  | ({ type: 'answer' } & Answer)
+  | { type: 'interrupt' }
+  | { type: 'mode'; mode: Mode }
+  | { type: 'model'; model: string };
+
+export type Command = { name: string; desc: string };
+export type Device = { id: string; name: string; created: string; lastSeen: string; push: boolean };
+export type Term = { name: string; cwd: string; attached: boolean; created: number };
+export type FileEntry = { name: string; dir: boolean; size: number };
+export type FileContent = { path: string; text: string; binary?: boolean; truncated?: boolean };
+export type GitChange = { path: string; status: string };
+export type GitStatus = { branch: string; files: GitChange[] };

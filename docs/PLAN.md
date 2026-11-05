@@ -41,9 +41,9 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [x] `docs/PLAN.md`, `CLAUDE.md`, `.gitignore`
 
 ### Phase 1: Protocol
-- [ ] Concepts: environment (the Mac), project (a folder), thread (a conversation with one provider), turn, message, tool call, approval, question, plan, provider
-- [ ] HTTP API (JSON) + one WebSocket per client: requests/replies, and a per-thread event stream (snapshot, then deltas)
-- [ ] Go types in `server/protocol.go`; mirror in `app/src/lib/protocol.ts`
+- [x] Concepts: environment (the Mac), project (a folder), thread (a conversation with one provider), turn, message, tool call, approval, question, plan, provider
+- [x] HTTP API (JSON); one WebSocket per open thread (snapshot, then deltas) and per terminal
+- [x] Go types in `server/protocol.go`; mirror in `app/src/lib/protocol.ts`
 
 ### Phase 2: Server core
 - [ ] HTTP + WS server on 127.0.0.1; config in `~/.luther/config.json`
