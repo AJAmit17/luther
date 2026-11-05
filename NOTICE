@@ -1,0 +1,8 @@
+Luther includes ideas and, where marked in source, code adapted from:
+
+t3code — https://github.com/pingdotgg/t3code
+MIT License, Copyright (c) 2026 T3 Tools Inc.
+
+Ported files carry a header naming the t3code file they came from. The full
+MIT license text for t3code is reproduced in third-party/t3code-LICENSE once
+any code is ported.
