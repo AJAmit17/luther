@@ -4,7 +4,6 @@ import { Stack, router, useFocusEffect } from 'expo-router';
 import { api, currentHost, del, keyFor, removeHost, resolve, routeInUse, upsertHost, type Host } from '@/lib/hosts';
 import type { Device } from '@/lib/protocol';
 import { Group, GroupRow, Icon, IconTile, Note, Pill, ago, c, card, mono, type } from '@/components/ui';
-import { UsageSection } from '@/components/usage-section';
 import { AppearancePicker } from '@/components/appearance-picker';
 
 const input = { ...type.subhead, fontFamily: mono, paddingHorizontal: 16, paddingVertical: 13 } as const;
@@ -86,8 +85,6 @@ export default function Settings() {
           </View>
 
           <AppearancePicker />
-
-          <UsageSection />
 
           <Group title="Connection" footer={status || 'Tried in this order; tap one to try it first.'}>
             {h.routes.map((u, i) => (

@@ -36,7 +36,7 @@ go build -o luther .
 ./luther version
 ```
 
-Use `version` for a read-only CLI check. Bare `luther` starts the foreground server on this main-based branch. Do not point exploratory tests at a personal running server; Cobra help/completion belongs to the companion daily-driver branch.
+Help, completion, and version output must remain side-effect-free. Do not point exploratory tests at a personal running server.
 
 For a physical iPhone, follow [the native Release workflow](README.md#build-the-iphone-app). Prebuild may generate native projects; Expo Go, `expo run:*`, and Metro are not part of physical-device deployment here.
 
@@ -75,7 +75,7 @@ Extract pure behavior into `src/lib` and use the existing Node test setup.
 
 ### Usage and missing data
 
-This branch shows plan-limit windows in Settings. The daily-driver branch owns `src/lib/usage.ts`, token aggregation, and Hermes-safe compact formatting/tests; those changes are not imported here. When extending that work, reuse its formatter rather than adding another one. Units are base 1,000: K/M/B/T.
+Reuse `src/lib/usage.ts`. Hermes can ignore compact `Intl.NumberFormat` notation; existing tests cover this limitation. Units are base 1,000: K/M/B/T.
 
 Context occupancy is not token consumption. Missing usage/costs are not known zeroes, and reported costs are not estimated subscription bills. Preserve transcript/counter deduplication.
 

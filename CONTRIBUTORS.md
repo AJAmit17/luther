@@ -15,7 +15,7 @@ Git history records individual authorship. `git shortlog -sne` lists authors in 
 ## Upstream foundations
 
 - Go and the Expo/React Native ecosystem.
-- Cobra and Lip Gloss for command structure and terminal presentation on the companion daily-driver branch.
+- Cobra and Lip Gloss for command structure and terminal presentation.
 - Agent Client Protocol and the provider CLIs Luther invokes.
 - tmux, Git, GitHub CLI, Tailscale, and Cloudflare Tunnel.
 - The cryptographic and WebSocket libraries recorded in the manifests.

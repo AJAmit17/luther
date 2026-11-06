@@ -14,6 +14,10 @@ export default function Tabs() {
         <NativeTabs.Trigger.Icon sf="calendar.badge.clock" md="schedule" />
         <NativeTabs.Trigger.Label>Schedules</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="usage">
+        <NativeTabs.Trigger.Icon sf="chart.bar.xaxis" md="bar_chart" />
+        <NativeTabs.Trigger.Label>Usage</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings">
         <NativeTabs.Trigger.Icon sf="gearshape" md="settings" />
         <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>

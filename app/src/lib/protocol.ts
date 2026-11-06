@@ -1,6 +1,6 @@
 // Mirror of server/protocol.go — the Go types are the source of truth. Change both together.
 
-export type Provider = 'claude' | 'codex' | 'opencode' | 'gemini' | 'cursor'; // the last three speak ACP
+export type Provider = 'claude' | 'codex' | 'opencode' | 'gemini' | 'cursor' | 'devin'; // the last three speak ACP
 export type Mode = 'ask' | 'edits' | 'plan' | 'full';
 
 export type ProviderInfo = { id: Provider; name: string; installed: boolean; version?: string; modes: Mode[] };
@@ -23,7 +23,11 @@ export type Session = {
 
 export type OpenReq = { provider: Provider; cwd: string; resume?: string; fork?: boolean; move?: boolean; model?: string; mode?: Mode; worktree?: boolean };
 
-export type Usage = { inputTokens: number; outputTokens: number; costUsd?: number };
+export type Usage = { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number; costUsd?: number; costReported?: boolean };
+export type UsageDay = Usage & { date: string };
+export type UsageBreakdown = Usage & { provider: Provider; model?: string };
+export type UsageHistory = { days: UsageDay[]; total: Usage; breakdown: UsageBreakdown[]; updated: number; notes: string[] };
+export type Repository = { cwd: string; name: string; branch: string; changes: number; error?: string };
 
 export type State = {
   provider: Provider;
@@ -35,6 +39,7 @@ export type State = {
   mode: Mode;
   commands?: string[];
   usage?: Usage;
+  contextTokens?: number;
   tasks?: Task[];
   dup?: boolean;
 };

@@ -25,18 +25,16 @@ The Mac keeps the files and runs the agents. The phone is the controller. Connec
 
 **Status:** pre-release. macOS and iPhone are the primary experience; the server also supports Linux. The iOS app is built from source and installed as a signed native app. There is no published App Store/TestFlight installation flow yet. Device/network end-to-end checks and release work are tracked in [the project plan](docs/PLAN.md).
 
-This branding/licensing branch is based on `main`. The separate `feat/luther-lifecycle-agents-workspaces-usage` branch contains the daily-driver additions described [below](#companion-feature-branch); they are not included here.
-
 ## What you can do
 
 | Capability | What it means |
 | --- | --- |
 | Continue real agent sessions | Stream responses, switch models and permission modes, interrupt work, and resume supported sessions. |
 | Stay in control | Answer permission requests, questions, and plans from the phone. Concurrent clients share a thread; the first accepted answer wins. |
-| Work in a repository | Open an agent workspace and use Git operations in an individual checkout. Parent-folder repository selection belongs to the companion feature branch. |
+| Work across repositories | Open a parent workspace containing several Git checkouts. Select the specific checkout before a Git mutation or worktree operation. |
 | Inspect the work | Browse files, review changes and per-turn checkpoints, commit, push, and create pull requests using the Mac's own tools. |
 | Use a persistent terminal | Open a tmux-backed terminal that can survive a phone disconnect and be attached to on the Mac. |
-| Check plan limits | View Claude/Codex usage windows and reset times in Settings. Daily token analytics belong to the companion feature branch. |
+| See usage honestly | Daily 7/30/90-day token charts, input/output/cache breakdowns, provider/model totals, plan limits, and reported costs. Compact K/M/B/T or exact counts. |
 | Reach other machines | Relay another Luther server through a maintained SSH forward instead of exposing that host directly. |
 | Keep tasks moving | Schedule prompts, attach files, dictate messages, inspect local dev-server previews, and use widgets or Live Activities. |
 
@@ -114,11 +112,12 @@ The installer, release workflow, and formula are not a claim that a tagged relea
 
 ```sh
 luther doctor
+luther start
 luther tailscale
-luther service install
+luther status
 ```
 
-`service install` starts Luther in the background and enables startup at login. Use `luther serve` for foreground operation. The shorter `start`/`stop`/`status` lifecycle belongs to the companion feature branch.
+`start` returns your terminal immediately. On macOS, `caffeinate` prevents idle sleep while the server runs, on battery or AC. It **does not override lid-close sleep**.
 
 For Cloudflare instead, run `luther tunnel` for setup instructions. After creating the tunnel and configuring credentials/DNS, register its real URL and ID:
 
@@ -140,13 +139,17 @@ luther pair
 
 Scan the QR code **inside Luther**, or paste the pairing payload into its pairing screen. The code is short-lived and single-use; treat the QR and JSON payload as sensitive.
 
-Pick a folder, select an installed agent, and send a task. For Git operations on this branch, open the individual Git checkout rather than a non-Git parent folder.
+Pick a folder, select an installed agent, and send a task. A parent folder does not need to be a Git repository for its child repositories to be usable.
 
 ## Everyday commands
 
 | Command | Purpose |
 | --- | --- |
 | `luther version` | Print the build version. |
+| `luther` | Read-only overview and suggested commands. |
+| `luther start` / `luther stop` | Start or stop the managed background server. |
+| `luther status` | Show state, routes, and paired-device information. |
+| `luther status --json` | Undecorated, credential-free status data. |
 | `luther serve` | Explicit foreground mode, also used by service managers. |
 | `luther pair` | Generate pairing instructions and a QR code. |
 | `luther tailscale` | Configure Tailscale Serve for the local listener. |
@@ -154,10 +157,11 @@ Pick a folder, select an installed agent, and send a task. For Git operations on
 | `luther doctor` | Diagnose installed tools, server, and routes. |
 | `luther service install` / `uninstall` | Install or remove startup-at-login behavior. |
 | `luther remote add\|pair\|list\|remove` | Manage SSH-relayed agent machines. |
+| `luther completion bash\|zsh\|fish\|powershell` | Generate shell completion. |
 
-Bare `luther` starts the foreground server on this branch; it is not a read-only overview. Cobra help/completion and Lip Gloss styling belong to the companion feature branch.
+Use `luther <command> --help` for arguments and examples. Styling is disabled for pipes and dumb terminals; `NO_COLOR=1` or `--no-color` also disables colors.
 
-Use `luther service uninstall` to remove the managed login service. Logs are under `~/.luther/`, including `serve.log`. Wake protection does not override lid-close sleep.
+`start` is on-demand; `service install` separately enables startup at login. With the login service installed, `stop` stops it now but does not remove its next-login behavior. Logs are under `~/.luther/`, including `serve.log`.
 
 ### Other machines over SSH
 
@@ -177,31 +181,20 @@ This uses key-based SSH and forwards the remote server through this Mac. The rem
 | --- | --- | --- |
 | Claude Code | Headless stream-JSON CLI | Reads local session history; the agent's CLI retains ownership of it. |
 | Codex | `codex app-server` over JSON-RPC | Lists/resumes sessions through the app-server protocol. |
+| Devin CLI | `devin acp` | Uses the existing login. Native Ask is read-only; Luther preserves that meaning. |
 | OpenCode | `opencode acp` | ACP capabilities determine models, modes, and session operations. |
 | Gemini CLI | `gemini --acp` | Requires a CLI version exposing the ACP interface. |
 | Cursor | `cursor-agent acp` or `agent acp` | Requires a compatible installed command. |
 
-ACP adapters share a protocol, not a guarantee of identical capabilities. Models and permissions depend on the agent. Live model turns and all providers' real permission paths are not universally verified. Devin support belongs to the companion feature branch. See the [end-to-end checklist](docs/PLAN.md#phase-10-end-to-end-tests).
+ACP adapters share a protocol, not a guarantee of identical capabilities. Models and permissions depend on the agent. Devin handshake/session/model/mode behavior has been checked; fake-peer tests cover protocol flows. Live model turns and all providers' real permission paths are not universally verified. See the [end-to-end checklist](docs/PLAN.md#phase-10-end-to-end-tests).
 
 ## Usage and notifications
 
-Settings shows Claude/Codex plan-limit windows and reset times, not a daily token-burn ledger. The dedicated Usage tab, transcript aggregation, cost coverage, and deterministic Compact/Full formatter belong to the companion feature branch.
+Usage history combines readable Claude/Codex transcripts with explicit usage reported by ACP prompts run through Luther. Supported streamed/cumulative records are deduplicated. Agent context occupancy is not token consumption.
+
+**Reported costs are not estimated bills or subscription charges.** Missing metrics stay unavailable; partial cost coverage is labeled. One billion is 1,000 million. The shared formatter handles K/M/B/T dynamically without relying on Hermes' compact `Intl` behavior.
 
 Notifications and Live Activities depend on events the app can receive. Background refresh may replay run summaries when iOS wakes the app. **Instant closed-app remote push is not implemented.** Do not rely on a suspended or closed app receiving immediate notifications.
-
-## Companion feature branch
-
-`feat/luther-lifecycle-agents-workspaces-usage` separately contains:
-
-- On-demand `luther start` / `stop` / `status`, with macOS idle-sleep protection on battery and AC.
-- Cobra command parsing/help/completion, Lip Gloss presentation, plain/no-color modes, and status JSON.
-- Provider identity in the thread header without the duplicate composer chip.
-- Devin through `devin acp`, preserving its native read-only Ask mode.
-- Explicit child-repository selection inside non-Git parent workspaces.
-- A dedicated Usage tab with 7/30/90-day token charts, provider/model and cache totals, and reported costs without inventing subscription bills.
-- Deterministic base-1,000 K/M/B/T formatting, a remembered Compact/Full toggle, and chart-overflow cues.
-
-Those additions have their own verification history and outstanding real-device/network checks. This branch intentionally does not import their commits.
 
 ## Build the iPhone app
 
@@ -252,7 +245,7 @@ Luther can run commands and change files. Pair only devices and people you trust
 - Key-paired phones seal API requests and event streams using X25519, HKDF-SHA256, and AES-256-GCM, with freshness/replay checks.
 - Browser dev-server previews use a separate token/cookie proxy and are **not** covered by the sealed app protocol. Relays still see connection metadata. Static device/server keys do not provide forward secrecy.
 - Provider-owned stores are read-only to Luther; it does not write configuration or credentials into `~/.claude` or `~/.codex`.
-- File confinement reduces mistakes; it does not make an agent with full access safe against malicious instructions. Git operations on this branch require an individual checkout.
+- File confinement and explicit repository selection reduce mistakes; they do not make an agent with full access safe against malicious instructions.
 
 Never commit pairing payloads, tokens, private keys, Cloudflare credentials, or `~/.luther` contents. Review logs before sharing. Automated cryptographic tests are not a claim of independent security audit.
 
@@ -267,7 +260,7 @@ For a suspected vulnerability, contact the maintainer privately through their [G
 | `server/internal/claude`, `codex`, `acp` | Provider process/protocol handling. |
 | `server/internal/workspace` | Files, repositories, Git, and worktrees. |
 | `server/internal/auth`, `seal`, `e2e` | Authentication and sealed transport. |
-| `server/internal/cli` | Commands, login services, networking setup, and remote hosts. |
+| `server/internal/lifecycle`, `cli` | Background operation and Cobra/Lip Gloss commands. |
 | `app/src/app` | Expo Router routes, mostly screen re-exports. |
 | `app/src/components` | Screens, chat controls, and shared UI. |
 | `app/src/lib` | Protocol, client logic, state, palette, and pure tests. |
@@ -310,7 +303,7 @@ The generator reads the shared palette and creates repository SVGs/PNGs and Icon
 - Pre-release; no completed public-release/TestFlight workflow is claimed.
 - iPhone-first; Android is not at feature parity and iPad is not validated.
 - Provider protocols and capabilities vary and can change independently.
-- Companion-branch transcript scans can be slow initially; subsequent requests use caching.
+- Initial usage-history scans can be slow; subsequent requests use caching.
 - An asleep, powered-off, or lid-closed Mac cannot reliably continue work or accept requests.
 - Closing the phone app can delay notifications and approvals.
 - Browser previews have different security/routing limits from the sealed connection.

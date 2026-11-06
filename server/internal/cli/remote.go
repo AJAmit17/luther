@@ -2,14 +2,11 @@ package cli
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	goruntime "runtime"
 	"strings"
-
-	"github.com/mdp/qrterminal/v3"
 
 	"github.com/AJAmit17/luther/server/internal/remote"
 )
@@ -27,7 +24,7 @@ func onRemote(r remote.Remote, args ...string) *exec.Cmd {
 }
 
 // Remote: luther remote add|pair|list|remove.
-func (c *CLI) Remote(args []string) error {
+func (c *CLI) Remote(args []string, port int, sshArg string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("%s", remoteUsage)
 	}
@@ -46,10 +43,10 @@ func (c *CLI) Remote(args []string) error {
 	switch args[0] {
 	case "list":
 		if len(rs) == 0 {
-			fmt.Println("No remotes. Add one: luther remote add NAME user@host")
+			c.view.message("No remote machines", "Add one: luther remote add NAME user@host")
 		}
 		for _, r := range rs {
-			fmt.Printf("%-16s %-28s forwarded to 127.0.0.1:%d\n", r.Name, r.Target, r.Local)
+			fmt.Fprintf(c.out, "%-16s %-28s forwarded to 127.0.0.1:%d\n", r.Name, r.Target, r.Local)
 		}
 		return nil
 
@@ -65,7 +62,7 @@ func (c *CLI) Remote(args []string) error {
 			return err
 		}
 		c.reloadRemotes()
-		fmt.Printf("✓ removed %s (luther keeps running there: `ssh … luther service uninstall` stops it)\n", args[1])
+		c.view.message("Remote relay removed", args[1]+" · Luther keeps running on that machine")
 		return nil
 
 	case "pair":
@@ -93,18 +90,15 @@ func (c *CLI) Remote(args []string) error {
 		}
 		p["routes"] = routes
 		b, _ := json.Marshal(p)
-		qrterminal.GenerateHalfBlock(string(b), qrterminal.L, os.Stdout)
-		fmt.Printf("\nScan with the Luther app to pair with %s (through this machine), or paste:\n%s\n", r.Name, b)
+		c.view.message("Pair a remote phone", r.Name+" · relayed through this machine")
+		c.view.qr(string(b))
+		fmt.Fprintf(c.out, "\nScan with the Luther app to pair with %s (through this machine), or paste:\n%s\n", r.Name, b)
 		return nil
 
 	case "add":
-		fs := flag.NewFlagSet("remote add", flag.ExitOnError)
-		port := fs.Int("port", 47900, "luther's port on the remote")
-		sshArg := fs.String("ssh", "", `extra ssh flag, e.g. "-p 2222"`)
 		if len(args) < 3 {
 			return fmt.Errorf("%s", remoteUsage)
 		}
-		fs.Parse(args[3:])
 		name, target := args[1], args[2]
 		if !remote.NameRe.MatchString(name) {
 			return fmt.Errorf("name: lowercase letters, digits and dashes")
@@ -112,13 +106,13 @@ func (c *CLI) Remote(args []string) error {
 		if _, i := find(name); i >= 0 {
 			return fmt.Errorf("%s exists; remove it first", name)
 		}
-		r := remote.Remote{Name: name, Target: target, Port: *port, SSHArg: *sshArg}
-		fmt.Printf("· ssh %s … ", target)
+		r := remote.Remote{Name: name, Target: target, Port: port, SSHArg: sshArg}
+		fmt.Fprintf(c.out, "  Connecting to %s ... ", target)
 		uname, err := remote.SSH(r, "uname -sm").Output()
 		if err != nil {
 			return fmt.Errorf("can't ssh to %s without a prompt (%v); set up key login (ssh-copy-id) and try again", target, err)
 		}
-		fmt.Println(strings.TrimSpace(string(uname)))
+		fmt.Fprintln(c.out, strings.TrimSpace(string(uname)))
 		if _, err := onRemote(r, "version").Output(); err != nil {
 			if !sameMachineKind(string(uname)) {
 				return fmt.Errorf("luther isn't installed on %s. Install it there, then run this again:\n  ssh %s 'curl -fsSL https://raw.githubusercontent.com/AJAmit17/luther/main/install.sh | sh'", name, target)
@@ -127,21 +121,21 @@ func (c *CLI) Remote(args []string) error {
 			if err != nil {
 				return err
 			}
-			fmt.Println("· copying this luther to ~/.local/bin/luther there (same OS and CPU)")
+			fmt.Fprintln(c.out, "  Copying Luther to ~/.local/bin/luther there (same OS and CPU)")
 			if out, err := remote.SSH(r, "mkdir -p ~/.local/bin").CombinedOutput(); err != nil {
 				return fmt.Errorf("%v: %s", err, out)
 			}
 			scp := []string{"-o", "BatchMode=yes"}
-			if f := strings.Fields(*sshArg); len(f) == 2 && f[0] == "-p" {
+			if f := strings.Fields(sshArg); len(f) == 2 && f[0] == "-p" {
 				scp = append(scp, "-P", f[1])
 			}
 			if out, err := exec.Command("scp", append(scp, self, target+":.local/bin/luther")...).CombinedOutput(); err != nil {
 				return fmt.Errorf("scp: %v: %s", err, out)
 			}
 		}
-		fmt.Println("· starting luther there (luther service install)")
+		fmt.Fprintln(c.out, "  Starting Luther there (luther service install)")
 		out, err := onRemote(r, "service", "install").CombinedOutput()
-		fmt.Print(indent(string(out)))
+		fmt.Fprint(c.out, indent(string(out)))
 		if err != nil {
 			return fmt.Errorf("luther service install on %s: %v", name, err)
 		}
@@ -150,7 +144,8 @@ func (c *CLI) Remote(args []string) error {
 			return err
 		}
 		c.reloadRemotes()
-		fmt.Printf("✓ %s added: relayed at <this machine's routes>/r/%s\n  next: luther remote pair %s\n", name, name, name)
+		c.view.message("Remote machine connected", name+" · relayed at <this machine's routes>/r/"+name)
+		fmt.Fprintf(c.out, "  Next: luther remote pair %s\n", name)
 		return nil
 	}
 	return fmt.Errorf("%s", remoteUsage)
@@ -158,8 +153,12 @@ func (c *CLI) Remote(args []string) error {
 
 // reloadRemotes: tell the running server (if any) to pick up the change.
 func (c *CLI) reloadRemotes() {
-	if res, err := c.adminPost("/remotes/reload"); err != nil || res.StatusCode != 200 {
-		fmt.Println("! the server isn't running; the change applies when it starts")
+	res, err := c.adminPost("/remotes/reload")
+	if err == nil {
+		defer res.Body.Close()
+	}
+	if err != nil || res.StatusCode != 200 {
+		fmt.Fprintln(c.out, "  The server isn't running; the change applies when it starts.")
 	}
 }
 
