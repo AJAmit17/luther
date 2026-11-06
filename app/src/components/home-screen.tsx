@@ -18,7 +18,7 @@ function ThreadRow({ t, onStop }: { t: ThreadInfo; onStop: () => void }) {
       title={threadTitle(t)}
       sub={t.busy ? t.activity || 'Working…' : `${home(t.cwd)}${t.clients ? ` · ${t.clients} watching` : ''}`}
       subLines={1}
-      right={waiting ? <Pill label="Needs you" tone="accent" icon="hand.raised.fill" /> : t.busy ? <Pill label="Working" tone="accent" live /> : <Pill label="Ready" tone="green" />}
+      right={waiting ? <Pill label="Needs you" tone="warn" icon="hand.raised.fill" /> : t.busy ? <Pill label="Working" tone="accent" live /> : <Pill label="Ready" tone="green" />}
       onPress={() => router.push({ pathname: '/thread/[id]', params: { id: t.id, cwd: t.cwd } })}
       menu={[
         { id: 'open', title: 'Open', image: 'arrow.up.right' },

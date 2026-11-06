@@ -15,7 +15,8 @@ for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do
   CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath \
     -ldflags "-s -w -X github.com/AJAmit17/luther/server/internal/protocol.Version=$version" \
     -o "$work/luther" .
-  tar -C "$work" -czf "$work.tar.gz" luther
+  cp "$root/LICENSE" "$root/NOTICE" "$work/"
+  COPYFILE_DISABLE=1 tar -C "$work" -czf "$work.tar.gz" luther LICENSE NOTICE
   rm -rf "$work"
 done
 cd "$dist"

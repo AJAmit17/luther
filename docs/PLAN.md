@@ -37,6 +37,7 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 | Codex wire types generated from `codex app-server generate-json-schema` | The protocol is large and versioned; generate, don't hand-write. |
 | Reuse Burrow's Go engine (Claude stream-json, verified wire facts, session indexer, pairing, push) | Same author, already verified against the real CLI. |
 | Never write to `~/.claude` or `~/.codex` | Those are the CLIs' stores; Luther only reads them. |
+| Visual identity: Relay mark, mineral neutrals, deep teal / pale sea glass | User-approved direction. `app/src/lib/palette.ts` owns semantic colors; `scripts/generate-brand.swift` generates repo/mobile artwork. Filled actions use `onAccent`; attention remains distinct from the brand. |
 
 ## Phases
 
@@ -115,6 +116,17 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [x] Project instruction files — `PUT /files` with a base hash (409 on a concurrent change, symlink-escape safe, tested); app Instructions screen and an editor for any text file. User-level files under ~/.claude and ~/.codex stay read-only
 - [x] One-line install — `install.sh` (release download with checksum, or source build), `Formula/luther.rb` (tap from this repo), `scripts/build-release.sh` + `.github/workflows/release.yml` on `v*` tags. Not run yet: a real release, a brew install
 
+### Phases 9d–9e: Companion daily-driver branch
+
+Lifecycle commands, Devin, multi-repository selection, daily Usage analytics/formatting, thread-header cleanup, and Cobra/Lip Gloss are implemented separately on `feat/luther-lifecycle-agents-workspaces-usage`. This Relay branch starts from `main` without those commits; their completed checklists and verification history remain on that branch.
+
+### Phase 9f: Relay identity and project documentation
+- [x] Approved Relay geometry: reusable vectors, outlined light/dark wordmarks, social artwork, mobile bitmaps, and Icon Composer source. Discard the visual experiments.
+- [x] Shared Relay palette without screen-layout changes; readable filled-action foregrounds and separate attention states. Match widget and Live Activity colors.
+- [x] Detailed README, native-only iPhone setup, contribution guide, contributor credit, and reproducible artwork instructions.
+- [x] Apache-2.0 with project `NOTICE`, approved by the maintainer. Preserve project notices in server archives, installer and Homebrew; align app metadata and contribution terms. No mandatory UI badge or added advertising condition.
+- [x] Verification: 15 main-based app tests, typecheck/lint, Go race tests/vet/build, 66 solid-palette contrast pairs, repeatable asset generation, Apple asset compilation and compiled-silhouette check, Android safe-circle check, and isolated notice-copy/archive checks. The companion branch's Usage tests are not imported. Full native app rebuild, phone installation, and public release remain separate.
+
 ### Phase 10: End-to-end tests
 - [ ] Pair over tailnet and over Cloudflare
 - [ ] Claude thread: chat, approval, question, plan, Stop, model/mode switch
@@ -126,4 +138,6 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [ ] Mac reboot: service comes back; phone reconnects
 
 ### Phase 11: Publish (later)
-- [ ] License choice, first tagged release, TestFlight (push on iOS needs a paid Apple account)
+- [x] Licence choice: Apache-2.0 with attribution in `NOTICE`.
+- [ ] First tagged release and verified installation.
+- [ ] TestFlight (push on iOS needs a paid Apple account).

@@ -27,9 +27,9 @@ export function PromptCard({ p, more, answered, onChoose, onAnswer, onSkip }: {
   const style = (i: number) => (q ? 'list' : i === 0 ? 'primary' : i === options.length - 1 && options.length > 1 ? 'deny' : 'quiet');
 
   return (
-    <View style={[card, { padding: 14, gap: 12, borderColor: tint('accent', 0.55), borderWidth: 1, maxHeight: 460 }]}>
+    <View style={[card, { padding: 14, gap: 12, borderColor: tint('warn', 0.55), borderWidth: 1, maxHeight: 460 }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Icon name={icon} size={16} color={c.accent} />
+        <Icon name={icon} size={16} color={c.warn} />
         <Text style={[type.headline, { flex: 1 }]} numberOfLines={2}>{q ? q.header || p.title : p.title}</Text>
         {total > 1 && <Text style={[type.caption, { fontVariant: ['tabular-nums'] }]}>{answered + 1} of {total}</Text>}
         {more > 0 && <Text style={type.caption}>+{more} waiting</Text>}
@@ -50,13 +50,13 @@ export function PromptCard({ p, more, answered, onChoose, onAnswer, onSkip }: {
           const on = picked.includes(o.label);
           const s = style(i);
           const bg = on || s === 'primary' ? c.accent : s === 'deny' ? tint('red', 0.1) : c.muted;
-          const fg = on || s === 'primary' ? '#FFFFFF' : s === 'deny' ? c.red : c.text;
+          const fg = on || s === 'primary' ? c.onAccent : s === 'deny' ? c.red : c.text;
           return (
             <Pressable key={i} onPress={() => tap(i)} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderCurve: 'continuous', paddingHorizontal: 14, paddingVertical: 11, backgroundColor: bg, opacity: pressed ? 0.7 : 1 })}>
-              {q?.multiSelect && <Icon name={on ? 'checkmark.circle.fill' : 'circle'} size={17} color={on ? '#FFFFFF' : c.dim} />}
+              {q?.multiSelect && <Icon name={on ? 'checkmark.circle.fill' : 'circle'} size={17} color={on ? c.onAccent : c.dim} />}
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[type.subhead, { fontWeight: '600', color: fg }]}>{o.label}</Text>
-                {!!o.desc && <Text style={[type.caption, { color: on || s === 'primary' ? '#FFFFFFCC' : c.dim }]}>{o.desc}</Text>}
+                {!!o.desc && <Text style={[type.caption, { color: on || s === 'primary' ? tint('onAccent', 0.9) : c.dim }]}>{o.desc}</Text>}
               </View>
             </Pressable>
           );

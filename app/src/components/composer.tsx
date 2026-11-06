@@ -23,7 +23,7 @@ function Round({ icon, onPress, disabled, label, tone = 'accent' }: { icon: stri
       accessibilityLabel={label}
       style={({ pressed }) => ({ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: disabled ? tint('text', 0.1) : tone === 'text' ? c.text : c.accent, opacity: pressed ? 0.75 : 1 })}
     >
-      <Icon name={icon} size={15} color={disabled ? c.faint : tone === 'text' ? c.bg : '#FFFFFF'} />
+      <Icon name={icon} size={15} color={disabled ? c.faint : tone === 'text' ? c.bg : c.onAccent} />
     </Pressable>
   );
 }

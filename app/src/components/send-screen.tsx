@@ -56,8 +56,8 @@ export default function Send() {
             <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
               {installed.map((p) => (
                 <Pressable key={p.id} onPress={() => setPicked(p.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: provider === p.id ? c.accent : c.card }}>
-                  <ProviderMark p={p.id} size={14} color={provider === p.id ? '#FFFFFF' : undefined} />
-                  <Text style={{ color: provider === p.id ? '#fff' : c.text, fontWeight: '500' }}>{p.name}</Text>
+                  <ProviderMark p={p.id} size={14} color={provider === p.id ? c.onAccent : undefined} />
+                  <Text style={{ color: provider === p.id ? c.onAccent : c.text, fontWeight: '500' }}>{p.name}</Text>
                 </Pressable>
               ))}
             </View>

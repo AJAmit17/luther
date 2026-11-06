@@ -18,6 +18,14 @@ say() { printf '%s\n' "$*"; }
 die() { say "luther install: $*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
+copy_notices() {
+  for name in LICENSE NOTICE; do
+    [ -f "$1/$name" ] || continue
+    mkdir -p "$2"
+    install -m 0644 "$1/$name" "$2/$name"
+  done
+}
+
 case $(uname -s) in
   Darwin) os=darwin ;;
   Linux) os=linux ;;
@@ -68,12 +76,14 @@ from_source() {
   git clone -q --depth 1 ${LUTHER_VERSION:+--branch "$LUTHER_VERSION"} "$url" "$tmp/src"
   ver=$(git -C "$tmp/src" describe --tags --always 2>/dev/null || echo dev)
   (cd "$tmp/src/server" && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X github.com/AJAmit17/luther/server/internal/protocol.Version=$ver" -o "$tmp/luther" .)
+  copy_notices "$tmp/src" "$tmp"
 }
 
 from_release || from_source
 
 mkdir -p "$bin"
 install -m 0755 "$tmp/luther" "$bin/luther"
+copy_notices "$tmp" "${XDG_DATA_HOME:-$HOME/.local/share}/luther"
 say "✓ installed $("$bin/luther" version) → $bin/luther"
 case ":$PATH:" in
   *":$bin:"*) ;;

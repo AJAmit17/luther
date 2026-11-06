@@ -1,56 +1,27 @@
-# Welcome to your Expo app 👋
+# Luther for iPhone
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+The Expo/React Native controller for Luther's Mac-side server. Start with the [project README](../README.md), [native iPhone builds](../README.md#build-the-iphone-app), and [contribution guide](../CONTRIBUTING.md).
 
-## Get started
+## Local checks
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```sh
+npm ci
+npm run typecheck
+npm run lint
+npm test
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+The project uses Expo SDK 58 and `package-lock.json`. Read matching versioned documentation before changing APIs/config plugins; do not upgrade React Native independently.
 
-### Other setup steps
+## Layout
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+- `src/app`: Expo Router routes.
+- `src/components`: screens and reusable UI.
+- `src/lib`: client logic, mirrored protocol, shared palette, and pure tests.
+- `src/widgets`: widget/Live Activity code with its own runtime.
+- `assets/luther.icon`: layered Relay app icon.
+- `assets/images/luther-*`: generated icons and splash marks.
 
-## Learn more
+Regenerate branding from the repository root with `swift scripts/generate-brand.swift` on macOS. The generator reads `src/lib/palette.ts`; do not edit generated artwork directly.
 
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Physical iPhones use a signed standalone Release built with `xcodebuild`, installed/launched using `xcrun devicectl`. Do not use Expo Go, `expo run:*`, or a Metro development server for that workflow. Native directories are generated from `app.config.js` and config plugins rather than hand-maintained.
