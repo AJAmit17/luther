@@ -59,3 +59,18 @@ func TestModelSet(t *testing.T) {
 		t.Error("user text taken")
 	}
 }
+
+// Claude Code's answer to initialize gives the /model menu, versions included.
+func TestParseInitModels(t *testing.T) {
+	line := `{"type":"control_response","response":{"request_id":"luther-models","response":{"models":[
+		{"value":"default","resolvedModel":"claude-opus-5-5","displayName":"Default (recommended)"},
+		{"value":"opus","resolvedModel":"claude-opus-5-5","displayName":"Opus 5.5","description":"For complex work"},
+		{"value":"haiku","resolvedModel":"claude-haiku-5-5","displayName":"Haiku 5.5"}]}}}`
+	ms, ok := parseInitModels([]byte(line))
+	if !ok || len(ms) != 2 || ms[0] != (protocol.Model{ID: "opus", Name: "Opus 5.5", Desc: "For complex work", Resolved: "claude-opus-5-5"}) {
+		t.Fatalf("got %+v %v", ms, ok)
+	}
+	if _, ok := parseInitModels([]byte(`{"type":"system"}`)); ok {
+		t.Fatal("other line taken")
+	}
+}

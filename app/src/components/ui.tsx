@@ -269,6 +269,7 @@ const PROVIDERS: Record<Provider, { name: string; icon: string; color: ColorValu
   gemini: { name: 'Gemini', icon: 'diamond', get color() { return scheme === 'dark' ? '#9C8CFF' : '#5B4BD6'; } },
   cursor: { name: 'Cursor', icon: 'cursorarrow', get color() { return scheme === 'dark' ? '#4FD1DB' : '#0E7C86'; } },
   devin: { name: 'Devin', icon: 'd.circle.fill', get color() { return c.blue; } },
+  omp: { name: 'Oh My Pi', icon: 'p.circle.fill', get color() { return c.warn; } },
 };
 const info = (p: Provider) => PROVIDERS[p] ?? { name: p, icon: 'cpu', color: c.dim };
 export const providerIcon = (p: Provider) => info(p).icon;

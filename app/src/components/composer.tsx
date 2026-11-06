@@ -4,7 +4,8 @@ import { MenuView } from '@expo/ui/community/menu';
 import * as Haptics from 'expo-haptics';
 import { AttachmentStrip, type useAttachments } from '@/components/attachments';
 import { Icon, MODES, c, mono, tint, type, useHex, useScheme } from '@/components/ui';
-import type { Mode, Provider } from '@/lib/protocol';
+import type { Mode, Model, Provider } from '@/lib/protocol';
+import { ModelPicker, modelName } from '@/components/model-picker';
 import type { useVoice } from '@/lib/voice';
 
 const Chip = ({ icon, mark, label, color = c.dim, bg }: { icon?: string; mark?: React.ReactNode; label: string; color?: any; bg?: any }) => {
@@ -44,7 +45,7 @@ export function Composer(p: {
   attach: boolean;
   provider?: Provider;
   model: string;
-  models: string[];
+  models: Model[];
   setModel: (m: string) => void;
   mode: Mode;
   setMode: (m: Mode) => void;
@@ -57,6 +58,7 @@ export function Composer(p: {
   const scheme = useScheme();
   const input = useRef<ComponentRef<typeof TextInput>>(null);
   const [focused, setFocused] = useState(false);
+  const [picking, setPicking] = useState(false);
   const m = MODES.find((x) => x.id === p.mode) ?? MODES[0];
   const empty = !p.text.trim() && !p.att.items.length;
   const modeColor = p.mode === 'full' ? c.red : p.mode === 'ask' ? c.dim : c.accent;
@@ -92,14 +94,9 @@ export function Composer(p: {
           </MenuView>
         )}
         <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', gap: 2 }}>
-          <MenuView
-            colorScheme={scheme}
-            title="Model"
-            actions={(p.models.length ? p.models : p.model ? [p.model] : []).map((x) => ({ id: x, title: x, state: p.model === x || p.model.includes(x) ? 'on' : 'off' }))}
-            onPressAction={({ nativeEvent }) => p.setModel(nativeEvent.event)}
-          >
-            <Chip icon="cpu" label={p.model || 'Default model'} />
-          </MenuView>
+          <Pressable onPress={() => setPicking(true)} accessibilityRole="button" accessibilityLabel="Model">
+            <Chip icon="cpu" label={modelName(p.models, p.model) || 'Default model'} />
+          </Pressable>
           <MenuView
             colorScheme={scheme}
             title="Permissions"
@@ -134,6 +131,7 @@ export function Composer(p: {
           <Round icon="arrow.up" label="Send" onPress={p.send} disabled={!p.canSend} />
         )}
       </View>
+      <ModelPicker open={picking} models={p.models} selected={p.model} onPick={p.setModel} onClose={() => setPicking(false)} />
     </View>
   );
 }

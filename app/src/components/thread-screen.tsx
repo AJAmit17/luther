@@ -10,6 +10,7 @@ import { BlockRow } from '@/components/chat-rows';
 import { Composer } from '@/components/composer';
 import { PromptCard } from '@/components/prompt-card';
 import { useAttachments } from '@/components/attachments';
+import { useModels } from '@/components/model-picker';
 import { TaskPanel } from '@/components/task-panel';
 import { toBlocks, type Block } from '@/lib/blocks';
 import type { Command, Prompt } from '@/lib/protocol';
@@ -74,10 +75,10 @@ export default function ThreadScreen() {
   const [away, setAway] = useState(false);
   const [text, setText] = useState('');
   const [cmds, setCmds] = useState<Command[]>([]);
-  const [models, setModels] = useState<string[]>([]);
   const [qa, setQa] = useState<{ id?: string; answers: Record<string, string[]> }>({ answers: {} }); // question in progress
   const st = ev.state;
   const provider = st?.provider;
+  const models = useModels(provider);
   const dir = (st?.cwd || cwd || '').split('/').pop() || 'Thread';
   const top = ev.prompts[0];
   const answers = top && qa.id === top.id ? qa.answers : {};
@@ -93,7 +94,6 @@ export default function ThreadScreen() {
   useEffect(() => {
     if (!provider) return;
     api<Command[]>(`/commands?provider=${provider}&cwd=${encodeURIComponent(st?.cwd ?? '')}`).then(setCmds, () => {});
-    api<string[]>('/models?provider=' + provider).then(setModels, () => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider]);
 

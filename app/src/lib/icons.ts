@@ -92,4 +92,5 @@ export const materialIcons: Record<string, AndroidSymbol> = {
   'photo': 'image',
   'wrench.and.screwdriver': 'build',
   bell: 'notifications',
+  'p.circle.fill': 'local_parking',
 };

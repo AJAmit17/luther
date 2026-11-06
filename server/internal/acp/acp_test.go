@@ -177,3 +177,32 @@ func TestDevinACP(t *testing.T) {
 		t.Fatalf("cancellation duplicated usage: %+v", report.Total)
 	}
 }
+
+// Model choices keep the agent's names; groups come from option groups or the
+// "provider/" prefix; the older availableModels form still works.
+func TestModelsOf(t *testing.T) {
+	var r sessionResp
+	json.Unmarshal([]byte(`{"configOptions":[{"id":"model","category":"model","currentValue":"a","options":[
+		{"value":"claude-opus-5-5-medium","name":"Claude Opus 5.5"},
+		{"name":"Fast","options":[{"value":"swe-2-flash","name":"SWE-2 Flash"}]},
+		{"value":"openrouter/x/y","name":"OpenRouter/Y","description":"openrouter/x/y"}]}]}`), &r)
+	got := modelsOf(r)
+	want := []protocol.Model{
+		{ID: "claude-opus-5-5-medium", Name: "Claude Opus 5.5"},
+		{ID: "swe-2-flash", Name: "SWE-2 Flash", Group: "Fast"},
+		{ID: "openrouter/x/y", Name: "OpenRouter/Y", Group: "openrouter"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %+v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("%d: got %+v want %+v", i, got[i], want[i])
+		}
+	}
+	var old sessionResp
+	json.Unmarshal([]byte(`{"models":{"availableModels":[{"modelId":"m1","name":"Model One"}]}}`), &old)
+	if ms := modelsOf(old); len(ms) != 1 || ms[0].Name != "Model One" {
+		t.Fatalf("availableModels: %+v", ms)
+	}
+}

@@ -50,6 +50,7 @@ const (
 	Gemini   Provider = "gemini"
 	Cursor   Provider = "cursor"
 	Devin    Provider = "devin"
+	OMP      Provider = "omp" // Oh My Pi
 )
 
 // Permission modes, normalized across providers.
@@ -272,6 +273,18 @@ type Run struct {
 	Total     int      `json:"total,omitempty"`  // tasks
 }
 
+// Model: one model an agent can run, as the agent names it. ID is what to
+// pass back (an alias like "opus" for Claude); Resolved, when set, is the
+// full model ID a session then reports (e.g. "claude-opus-5-5"); Group
+// sorts long lists (OpenCode and Oh My Pi list their providers' models).
+type Model struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Desc     string `json:"desc,omitempty"`
+	Resolved string `json:"resolved,omitempty"`
+	Group    string `json:"group,omitempty"`
+}
+
 type Command struct {
 	Name string `json:"name"`
 	Desc string `json:"desc"`
@@ -339,6 +352,8 @@ func (p Provider) Name() string {
 		return "Cursor"
 	case Devin:
 		return "Devin"
+	case OMP:
+		return "Oh My Pi"
 	}
 	return string(p)
 }
