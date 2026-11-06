@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -21,6 +22,7 @@ import (
 	"github.com/AJAmit17/luther/server/internal/protocol"
 	"github.com/AJAmit17/luther/server/internal/text"
 	"github.com/AJAmit17/luther/server/internal/uploads"
+	"github.com/AJAmit17/luther/server/internal/usage"
 )
 
 // Claude runtime: one headless `claude -p` per open thread, speaking Claude
@@ -146,8 +148,10 @@ type streamRec struct {
 	RateLimit    json.RawMessage `json:"rate_limit_info"`
 	TotalCostUSD float64         `json:"total_cost_usd"`
 	Usage        struct {
-		InputTokens  int64 `json:"input_tokens"`
-		OutputTokens int64 `json:"output_tokens"`
+		InputTokens      int64 `json:"input_tokens"`
+		OutputTokens     int64 `json:"output_tokens"`
+		CacheReadTokens  int64 `json:"cache_read_input_tokens"`
+		CacheWriteTokens int64 `json:"cache_creation_input_tokens"`
 	} `json:"usage"`
 }
 
@@ -281,11 +285,21 @@ func (c *runtime) handle(line []byte) {
 			}
 			u.InputTokens += r.Usage.InputTokens
 			u.OutputTokens += r.Usage.OutputTokens
+			u.CacheReadTokens += r.Usage.CacheReadTokens
+			u.CacheWriteTokens += r.Usage.CacheWriteTokens
 			u.CostUSD += r.TotalCostUSD
+			u.CostReported = true
 			st.Usage = u
 			t.TurnEnd()
 		}
 	})
+	if r.Type == "result" {
+		st := t.State()
+		id := "claude/cost/" + st.Session + "/" + text.OrDefault(r.UUID, text.RandHex(12))
+		if err := usage.Record(id, protocol.Claude, "", time.Now(), protocol.Usage{CostUSD: r.TotalCostUSD, CostReported: true}); err != nil {
+			log.Printf("save Claude cost: %v", err)
+		}
+	}
 }
 
 // onRequest: hub lock held.

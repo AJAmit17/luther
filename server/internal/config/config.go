@@ -44,17 +44,9 @@ func path() string { return filepath.Join(Dir(), "config.json") }
 
 // Load reads (or creates) the config.
 func Load() (*Config, error) {
-	c := &Config{Port: DefaultPort}
-	b, err := os.ReadFile(path())
-	if err == nil {
-		if err := json.Unmarshal(b, c); err != nil {
-			return nil, err
-		}
-	} else if !os.IsNotExist(err) {
+	c, err := Read()
+	if err != nil {
 		return nil, err
-	}
-	if c.Name == "" {
-		c.Name, _ = os.Hostname()
 	}
 	if c.AdminToken == "" || c.SecretKey == "" {
 		if c.AdminToken == "" {
@@ -66,6 +58,22 @@ func Load() (*Config, error) {
 		if err := c.Save(); err != nil {
 			return nil, err
 		}
+	}
+	return c, nil
+}
+
+func Read() (*Config, error) {
+	c := &Config{Port: DefaultPort}
+	b, err := os.ReadFile(path())
+	if err == nil {
+		if err := json.Unmarshal(b, c); err != nil {
+			return nil, err
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+	if c.Name == "" {
+		c.Name, _ = os.Hostname()
 	}
 	return c, nil
 }

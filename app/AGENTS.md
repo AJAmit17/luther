@@ -31,11 +31,14 @@ Run lint and typecheck before declaring any task done.
 
 ## Building with EAS
 
+For the user's physical iPhone, build a signed standalone Release app with `xcodebuild` (`ios/Luther.xcworkspace`, scheme `Luther`), then install and launch it with `xcrun devicectl`. Do not use `expo run:*`, Expo Go, or a Metro dev server for physical-device deployment.
+
 Use EAS to build, sign, and submit the app in the cloud (`eas build`, `eas submit`) and to ship over-the-air updates (`eas update`) — no local Xcode or Android Studio required. Run EAS CLI as `bunx eas-cli <command>` in Bun projects, or `npx eas-cli@latest <command>` otherwise; substitute that for bare `eas` in docs examples.
 Docs: https://docs.expo.dev/eas/index.md
 
 ## Rules
 
+- For token counts, reuse `src/lib/usage.ts`; its regression tests cover Hermes iOS ignoring Intl compact notation, which Node-only formatting tests miss.
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md

@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { MenuView } from '@expo/ui/community/menu';
 import * as Haptics from 'expo-haptics';
 import { AttachmentStrip, type useAttachments } from '@/components/attachments';
-import { Icon, MODES, ProviderMark, c, mono, providerName, tint, type } from '@/components/ui';
+import { Icon, MODES, c, mono, tint, type } from '@/components/ui';
 import type { Mode, Provider } from '@/lib/protocol';
 import type { useVoice } from '@/lib/voice';
 
@@ -85,7 +85,6 @@ export function Composer(p: {
           </MenuView>
         )}
         <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', gap: 2 }}>
-          {!!p.provider && <Chip mark={<ProviderMark p={p.provider} size={13} />} label={providerName(p.provider)} />}
           <MenuView
             title="Model"
             actions={(p.models.length ? p.models : p.model ? [p.model] : []).map((x) => ({ id: x, title: x, state: p.model === x || p.model.includes(x) ? 'on' : 'off' }))}
@@ -95,10 +94,10 @@ export function Composer(p: {
           </MenuView>
           <MenuView
             title="Permissions"
-            actions={MODES.map((x) => ({ id: x.id, title: x.label, image: x.icon as any, state: p.mode === x.id ? 'on' : 'off', attributes: x.id === 'full' ? { destructive: true } : undefined }))}
+            actions={MODES.map((x) => ({ id: x.id, title: p.provider === 'devin' && x.id === 'ask' ? 'Ask (read-only)' : x.label, image: x.icon as any, state: p.mode === x.id ? 'on' : 'off', attributes: x.id === 'full' ? { destructive: true } : undefined }))}
             onPressAction={({ nativeEvent }) => p.setMode(nativeEvent.event as Mode)}
           >
-            <Chip icon={m.icon} label={m.label} color={modeColor} bg={p.mode === 'ask' ? undefined : tint(p.mode === 'full' ? 'red' : 'accent', 0.12)} />
+            <Chip icon={m.icon} label={p.provider === 'devin' && p.mode === 'ask' ? 'Ask (read-only)' : m.label} color={modeColor} bg={p.mode === 'ask' ? undefined : tint(p.mode === 'full' ? 'red' : 'accent', 0.12)} />
           </MenuView>
         </ScrollView>
         {focused && (

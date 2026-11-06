@@ -49,6 +49,7 @@ const (
 	OpenCode Provider = "opencode" // the rest speak ACP (package acp)
 	Gemini   Provider = "gemini"
 	Cursor   Provider = "cursor"
+	Devin    Provider = "devin"
 )
 
 // Permission modes, normalized across providers.
@@ -110,17 +111,18 @@ type ThreadInfo struct {
 
 // State of one open thread; sent in snapshot and on every change.
 type State struct {
-	Provider Provider `json:"provider"`
-	Session  string   `json:"session"` // native id; changes on Claude's /clear
-	Cwd      string   `json:"cwd"`
-	Busy     bool     `json:"busy"`
-	Activity string   `json:"activity"`
-	Model    string   `json:"model"`
-	Mode     string   `json:"mode"`
-	Commands []string `json:"commands,omitempty"`
-	Usage    *Usage   `json:"usage,omitempty"`
-	Tasks    []Task   `json:"tasks,omitempty"` // the agent's own todo list / plan
-	Dup      bool     `json:"dup,omitempty"`   // a CLI outside Luther also has it open
+	Provider      Provider `json:"provider"`
+	Session       string   `json:"session"` // native id; changes on Claude's /clear
+	Cwd           string   `json:"cwd"`
+	Busy          bool     `json:"busy"`
+	Activity      string   `json:"activity"`
+	Model         string   `json:"model"`
+	Mode          string   `json:"mode"`
+	Commands      []string `json:"commands,omitempty"`
+	Usage         *Usage   `json:"usage,omitempty"`
+	ContextTokens int64    `json:"contextTokens,omitempty"`
+	Tasks         []Task   `json:"tasks,omitempty"` // the agent's own todo list / plan
+	Dup           bool     `json:"dup,omitempty"`   // a CLI outside Luther also has it open
 }
 
 type Task struct {
@@ -138,9 +140,39 @@ type Turn struct {
 }
 
 type Usage struct {
-	InputTokens  int64   `json:"inputTokens"`
-	OutputTokens int64   `json:"outputTokens"`
-	CostUSD      float64 `json:"costUsd,omitempty"`
+	InputTokens      int64   `json:"inputTokens"`
+	OutputTokens     int64   `json:"outputTokens"`
+	CostUSD          float64 `json:"costUsd,omitempty"`
+	CacheReadTokens  int64   `json:"cacheReadTokens,omitempty"`
+	CacheWriteTokens int64   `json:"cacheWriteTokens,omitempty"`
+	CostReported     bool    `json:"costReported,omitempty"`
+}
+
+type UsageDay struct {
+	Date string `json:"date"`
+	Usage
+}
+
+type UsageBreakdown struct {
+	Provider Provider `json:"provider"`
+	Model    string   `json:"model,omitempty"`
+	Usage
+}
+
+type UsageHistory struct {
+	Days      []UsageDay       `json:"days"`
+	Total     Usage            `json:"total"`
+	Breakdown []UsageBreakdown `json:"breakdown"`
+	Updated   int64            `json:"updated"`
+	Notes     []string         `json:"notes"`
+}
+
+type Repository struct {
+	Cwd     string `json:"cwd"`
+	Name    string `json:"name"`
+	Branch  string `json:"branch"`
+	Changes int    `json:"changes"`
+	Error   string `json:"error,omitempty"`
 }
 
 // Msg: one chat row.
@@ -303,6 +335,8 @@ func (p Provider) Name() string {
 		return "Gemini"
 	case Cursor:
 		return "Cursor"
+	case Devin:
+		return "Devin"
 	}
 	return string(p)
 }

@@ -61,6 +61,7 @@ func Handler(cfg *config.Config) http.Handler {
 	mux.HandleFunc("GET /commands", wrap(commands))
 	mux.HandleFunc("GET /dirs", wrap(dirs))
 	mux.HandleFunc("GET /usage", wrap(limits))
+	usage.Routes(mux, wrap)
 	schedule.Start(mux, wrap, open)
 	remote.Start(mux, wrap, func(r *http.Request) bool { return auth.DeviceID(r) == auth.Admin })
 	e2e.Routes(mux, a, mux, cfg.Port)
@@ -73,7 +74,9 @@ func Serve(cfg *config.Config) {
 	env.LoginPath()
 	env.CleanEnv()
 	if goruntime.GOOS == "darwin" { // keep the Mac awake (on AC) while Luther runs
-		exec.Command("caffeinate", "-is", "-w", strconv.Itoa(os.Getpid())).Start()
+		if err := exec.Command("/usr/bin/caffeinate", "-is", "-w", strconv.Itoa(os.Getpid())).Start(); err != nil {
+			log.Printf("idle sleep prevention unavailable: %v", err)
+		}
 	}
 	go hub.ReapIdle()
 	go claude.WatchDups()

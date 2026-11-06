@@ -6,6 +6,6 @@ export function setQuickActions() {
   setItems<RouterAction>([
     { id: 'send', title: 'Send to Luther', subtitle: 'New task for an agent', icon: 'symbol:paperplane', params: { href: '/send' } },
     { id: 'home', title: 'Running now', icon: 'symbol:bolt.horizontal', params: { href: '/' } },
-    { id: 'settings', title: 'Usage & settings', icon: 'symbol:gauge.with.dots.needle.33percent', params: { href: '/settings' } },
+    { id: 'usage', title: 'Usage', icon: 'symbol:chart.bar.xaxis', params: { href: '/usage' } },
   ]);
 }

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { api, del, post } from '@/lib/hosts';
-import type { GitStatus } from '@/lib/protocol';
+import type { GitStatus, Repository } from '@/lib/protocol';
 import { Button, Icon, Note, Row, c, mono, useLoad, listStyle } from '@/components/ui';
 
 const label: Record<string, string> = { M: 'modified', A: 'added', D: 'deleted', R: 'renamed', '?': 'new', U: 'conflict' };
@@ -13,6 +13,26 @@ const label: Record<string, string> = { M: 'modified', A: 'added', D: 'deleted',
 // Uncommitted changes in the project: tap a file for its diff, commit everything.
 export default function Git() {
   const { cwd } = useLocalSearchParams<{ cwd: string }>();
+  const { data, error, pull } = useLoad(() => api<Repository[]>('/git/repos?cwd=' + encodeURIComponent(cwd)), [cwd]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const repo = data?.find((r) => r.cwd === selected) ?? (data?.length === 1 ? data[0] : null);
+  if (repo) return <RepositoryChanges key={repo.cwd} cwd={repo.cwd} name={repo.name} back={data && data.length > 1 ? () => setSelected(null) : undefined} />;
+  return (
+    <FlatList
+      style={{ flex: 1, backgroundColor: c.bg }}
+      contentContainerStyle={listStyle}
+      contentInsetAdjustmentBehavior="automatic"
+      data={data ?? []}
+      keyExtractor={(r) => r.cwd}
+      refreshControl={<RefreshControl {...pull} />}
+      ListHeaderComponent={<><Stack.Screen options={{ title: 'Repositories' }} />{error ? <Note error>{error}</Note> : <Note>Choose a repository. Git actions only affect the selected checkout.</Note>}</>}
+      ListEmptyComponent={data ? <Note>No repositories found. Choose a folder containing git checkouts (up to four levels deep).</Note> : undefined}
+      renderItem={({ item: r }) => <Row icon={<Icon name="arrow.triangle.branch" color={c.blue} />} title={r.name} sub={r.error || `${r.branch || 'Detached HEAD'} · ${r.changes ? `${r.changes} changed files` : 'Clean'}`} onPress={() => setSelected(r.cwd)} />}
+    />
+  );
+}
+
+function RepositoryChanges({ cwd, name, back }: { cwd: string; name: string; back?: () => void }) {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const { data, error, load, pull } = useLoad(() => api<GitStatus>('/git/status?cwd=' + encodeURIComponent(cwd)), [cwd]);
@@ -52,8 +72,9 @@ export default function Git() {
 
   return (
     <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={headerHeight} style={{ flex: 1, backgroundColor: c.bg as any }}>
-      <Stack.Screen options={{ title: data?.branch ? `Changes · ${data.branch}` : 'Changes' }} />
+      <Stack.Screen options={{ title: data?.branch ? `${name} · ${data.branch}` : name }} />
       <Stack.Toolbar placement="right">
+        {back ? <Stack.Toolbar.Button icon="square.grid.2x2" onPress={back} /> : null}
         <Stack.Toolbar.Menu icon="ellipsis.circle">
           <Stack.Toolbar.MenuAction icon="doc.text.magnifyingglass" onPress={() => router.push({ pathname: '/diff', params: { cwd } })}>All diffs</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon="arrow.up.circle" disabled={busy} onPress={push}>Push</Stack.Toolbar.MenuAction>
@@ -99,4 +120,3 @@ export default function Git() {
     </KeyboardAvoidingView>
   );
 }
-

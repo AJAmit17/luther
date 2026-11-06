@@ -220,8 +220,9 @@ func (c *runtime) onNotify(method string, raw json.RawMessage) {
 		RequestID  json.RawMessage
 		TokenUsage struct {
 			Total struct {
-				InputTokens  int64 `json:"inputTokens"`
-				OutputTokens int64 `json:"outputTokens"`
+				InputTokens       int64 `json:"inputTokens"`
+				OutputTokens      int64 `json:"outputTokens"`
+				CachedInputTokens int64 `json:"cachedInputTokens"`
 			} `json:"total"`
 		} `json:"tokenUsage"`
 	}
@@ -281,7 +282,7 @@ func (c *runtime) onNotify(method string, raw json.RawMessage) {
 		})
 	case "thread/tokenUsage/updated":
 		t.Do(func(st *protocol.State) {
-			st.Usage = &protocol.Usage{InputTokens: p.TokenUsage.Total.InputTokens, OutputTokens: p.TokenUsage.Total.OutputTokens}
+			st.Usage = &protocol.Usage{InputTokens: max(0, p.TokenUsage.Total.InputTokens-p.TokenUsage.Total.CachedInputTokens), OutputTokens: p.TokenUsage.Total.OutputTokens, CacheReadTokens: p.TokenUsage.Total.CachedInputTokens}
 		})
 	case "serverRequest/resolved": // answered elsewhere or auto-resolved
 		t.Do(func(st *protocol.State) {

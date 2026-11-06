@@ -231,6 +231,7 @@ const PROVIDERS: Record<Provider, { name: string; icon: string; color: ColorValu
   opencode: { name: 'OpenCode', icon: 'curlybraces', color: c.green },
   gemini: { name: 'Gemini', icon: 'diamond', color: dyn(['#5B4BD6', '#9C8CFF']) },
   cursor: { name: 'Cursor', icon: 'cursorarrow', color: dyn(['#0E7C86', '#4FD1DB']) },
+  devin: { name: 'Devin', icon: 'd.circle.fill', color: c.blue },
 };
 const info = (p: Provider) => PROVIDERS[p] ?? { name: p, icon: 'cpu', color: c.dim };
 export const providerIcon = (p: Provider) => info(p).icon;
