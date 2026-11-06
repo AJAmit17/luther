@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -266,6 +265,9 @@ func (c *runtime) handle(line []byte) {
 				if r.IsReplay && m.Role == "user" && !strings.HasPrefix(m.Text, "[Request interrupted") {
 					t.TurnStart()
 				}
+				if model := modelSet(m); model != "" {
+					st.Model = model // a typed /model: Claude only says so in its output
+				}
 				t.Add(m)
 			}
 
@@ -421,9 +423,8 @@ func (c *runtime) Send(msg string, files []string) error {
 		var blocks []map[string]any
 		var other []string
 		for _, f := range files {
-			b, err := os.ReadFile(f)
-			if err == nil && uploads.IsImage(f) && len(b) < 5<<20 {
-				blocks = append(blocks, map[string]any{"type": "image", "source": map[string]any{"type": "base64", "media_type": uploads.MediaType(f), "data": base64.StdEncoding.EncodeToString(b)}})
+			if b, mt, ok := uploads.ForAgent(f); ok {
+				blocks = append(blocks, map[string]any{"type": "image", "source": map[string]any{"type": "base64", "media_type": mt, "data": base64.StdEncoding.EncodeToString(b)}})
 			} else {
 				other = append(other, f)
 			}
@@ -442,15 +443,25 @@ func (c *runtime) control(req map[string]any) error {
 
 func (c *runtime) Interrupt() error { return c.control(map[string]any{"subtype": "interrupt"}) }
 
+// SetMode / SetModel: Claude applies them at once; the state shows them right
+// away (Claude's next init reports the same).
 func (c *runtime) SetMode(m string) error {
-	return c.control(map[string]any{"subtype": "set_permission_mode", "mode": modes[m]})
+	if err := c.control(map[string]any{"subtype": "set_permission_mode", "mode": modes[m]}); err != nil {
+		return err
+	}
+	c.t.Do(func(st *protocol.State) { st.Mode = m })
+	return nil
 }
 
 func (c *runtime) SetModel(m string) error {
 	if m == "" {
 		return errors.New("empty model")
 	}
-	return c.control(map[string]any{"subtype": "set_model", "model": m})
+	if err := c.control(map[string]any{"subtype": "set_model", "model": m}); err != nil {
+		return err
+	}
+	c.t.Do(func(st *protocol.State) { st.Model = m })
+	return nil
 }
 
 func (c *runtime) Answer(p *protocol.Prompt, a protocol.Answer) error {
@@ -500,4 +511,17 @@ func (c *runtime) agentLabel(id string) string {
 		return "Subagent (" + text.Clip(d, 30) + ")"
 	}
 	return "Subagent"
+}
+
+// modelSet: the model a "/model" command switched to, from Claude's
+// "Set model to haiku (claude-haiku-5-5)"; "" for any other message.
+func modelSet(m protocol.Msg) string {
+	rest, ok := strings.CutPrefix(m.Text, "Set model to ")
+	if m.Role != "system" || !ok {
+		return ""
+	}
+	if i, j := strings.LastIndex(rest, "("), strings.LastIndex(rest, ")"); i >= 0 && j > i {
+		return strings.TrimSpace(rest[i+1 : j])
+	}
+	return strings.TrimSpace(rest)
 }

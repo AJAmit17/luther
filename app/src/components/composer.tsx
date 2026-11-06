@@ -3,27 +3,32 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { MenuView } from '@expo/ui/community/menu';
 import * as Haptics from 'expo-haptics';
 import { AttachmentStrip, type useAttachments } from '@/components/attachments';
-import { Icon, MODES, c, mono, tint, type } from '@/components/ui';
+import { Icon, MODES, c, mono, tint, type, useHex, useScheme } from '@/components/ui';
 import type { Mode, Provider } from '@/lib/protocol';
 import type { useVoice } from '@/lib/voice';
 
-const Chip = ({ icon, mark, label, color = c.dim, bg }: { icon?: string; mark?: React.ReactNode; label: string; color?: any; bg?: any }) => (
-  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 999, backgroundColor: bg }}>
-    {mark ?? <Icon name={icon!} size={12} color={color} />}
-    <Text numberOfLines={1} style={[type.caption, { fontFamily: mono, color, maxWidth: 150 }]}>{label}</Text>
-  </View>
-);
+const Chip = ({ icon, mark, label, color = c.dim, bg }: { icon?: string; mark?: React.ReactNode; label: string; color?: any; bg?: any }) => {
+  useHex();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: process.env.EXPO_OS === 'android' ? 12 : 6, borderRadius: 999, backgroundColor: bg }}>
+      {mark ?? <Icon name={icon!} size={12} color={color} />}
+      <Text numberOfLines={1} style={[type.caption, { fontFamily: mono, color, maxWidth: 150 }]}>{label}</Text>
+    </View>
+  );
+};
 
 function Round({ icon, onPress, disabled, label, tone = 'accent' }: { icon: string; onPress: () => void; disabled?: boolean; label: string; tone?: 'accent' | 'text' }) {
+  useHex();
+  const size = process.env.EXPO_OS === 'android' ? 48 : 34;
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => ({ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: disabled ? tint('text', 0.1) : tone === 'text' ? c.text : c.accent, opacity: pressed ? 0.75 : 1 })}
+      style={({ pressed }) => ({ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: disabled ? tint('text', 0.1) : tone === 'text' ? c.text : c.accent, opacity: pressed ? 0.75 : 1 })}
     >
-      <Icon name={icon} size={15} color={disabled ? c.faint : tone === 'text' ? c.bg : c.onAccent} />
+      <Icon name={icon} size={process.env.EXPO_OS === 'android' ? 22 : 15} color={disabled ? c.faint : tone === 'text' ? c.bg : c.onAccent} />
     </Pressable>
   );
 }
@@ -49,13 +54,14 @@ export function Composer(p: {
   stop: () => void;
   voice: ReturnType<typeof useVoice>;
 }) {
+  const scheme = useScheme();
   const input = useRef<ComponentRef<typeof TextInput>>(null);
   const [focused, setFocused] = useState(false);
   const m = MODES.find((x) => x.id === p.mode) ?? MODES[0];
   const empty = !p.text.trim() && !p.att.items.length;
   const modeColor = p.mode === 'full' ? c.red : p.mode === 'ask' ? c.dim : c.accent;
   return (
-    <View style={{ padding: 10, gap: 8, backgroundColor: c.card, borderRadius: 24, borderCurve: 'continuous', borderWidth: 1, borderColor: c.line }}>
+    <View style={{ padding: 10, gap: 8, backgroundColor: c.card, borderRadius: process.env.EXPO_OS === 'android' ? 16 : 24, borderCurve: 'continuous', borderWidth: 1, borderColor: c.line }}>
       {p.attach && <AttachmentStrip items={p.att.items} onRemove={p.att.remove} />}
       <TextInput
         ref={input}
@@ -72,6 +78,7 @@ export function Composer(p: {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
         {p.attach && (
           <MenuView
+            colorScheme={scheme}
             actions={[
               { id: 'photos', title: 'Photo Library', image: 'photo.on.rectangle' },
               { id: 'camera', title: 'Take Photo', image: 'camera' },
@@ -86,6 +93,7 @@ export function Composer(p: {
         )}
         <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', gap: 2 }}>
           <MenuView
+            colorScheme={scheme}
             title="Model"
             actions={(p.models.length ? p.models : p.model ? [p.model] : []).map((x) => ({ id: x, title: x, state: p.model === x || p.model.includes(x) ? 'on' : 'off' }))}
             onPressAction={({ nativeEvent }) => p.setModel(nativeEvent.event)}
@@ -93,6 +101,7 @@ export function Composer(p: {
             <Chip icon="cpu" label={p.model || 'Default model'} />
           </MenuView>
           <MenuView
+            colorScheme={scheme}
             title="Permissions"
             actions={MODES.map((x) => ({ id: x.id, title: p.provider === 'devin' && x.id === 'ask' ? 'Ask (read-only)' : x.label, image: x.icon as any, state: p.mode === x.id ? 'on' : 'off', attributes: x.id === 'full' ? { destructive: true } : undefined }))}
             onPressAction={({ nativeEvent }) => p.setMode(nativeEvent.event as Mode)}

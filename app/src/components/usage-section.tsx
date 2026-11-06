@@ -1,12 +1,13 @@
 import { Text, View } from 'react-native';
 import { api, currentHostIdSync } from '@/lib/hosts';
 import type { Limits } from '@/lib/protocol';
-import { Group, ProviderIcon, ago, c, providerName, type, until, useLoad } from '@/components/ui';
+import { Group, ProviderIcon, ago, c, providerName, type, until, useLoad, useHex } from '@/components/ui';
 
 // Each agent's plan usage on the Mac: how much of each window is used and when
 // it resets. Both are asked fresh (Claude at Anthropic's usage endpoint, as its
 // own /usage does; Codex over its app-server).
 export function UsageSection({ refresh }: { refresh?: number }) {
+  useHex();
   const host = currentHostIdSync();
   const { data, error } = useLoad(() => api<Limits[]>('/usage'), [host, refresh], 'usage');
   if (!data?.length && !error) return null;

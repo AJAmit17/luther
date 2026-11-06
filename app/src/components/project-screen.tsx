@@ -4,12 +4,14 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { api, post } from '@/lib/hosts';
 import type { Session } from '@/lib/protocol';
 import { openThread } from '@/lib/threads';
-import { Button, Empty, Icon, Note, Pill, ProviderIcon, Row, ago, c, listStyle, providerName, useLoad } from '@/components/ui';
+import { Button, Empty, Icon, Note, Pill, ProviderIcon, Row, ago, c, listStyle, providerName, useLoad, useHex, searchColors } from '@/components/ui';
+import { tb } from '@/components/toolbar-icon';
 import { onSessionAction, sessionActions } from '@/components/session-menu';
 
 // One project folder: every past conversation (any agent), pinned first, then
 // newest. Conversations that ran in a Luther worktree show their branch.
 export default function ProjectScreen() {
+  useHex();
   const { cwd, name } = useLocalSearchParams<{ cwd: string; name: string }>();
   const [archived, setArchived] = useState(false);
   const [q, setQ] = useState('');
@@ -18,7 +20,8 @@ export default function ProjectScreen() {
     [cwd, archived],
     'sessions',
   );
-  const search = useMemo(() => ({ placeholder: 'Search conversations', onChangeText: (e: { nativeEvent: { text: string } }) => setQ(e.nativeEvent.text) }), []);
+  const hx = useHex();
+  const search = useMemo(() => ({ ...searchColors(hx), placeholder: 'Search conversations', onChangeText: (e: { nativeEvent: { text: string } }) => setQ(e.nativeEvent.text) }), [hx]);
   const needle = q.trim().toLowerCase();
   const shown = (data ?? []).filter((s) => !needle || `${s.title} ${s.preview} ${s.worktree ?? ''}`.toLowerCase().includes(needle));
   const go = (pathname: '/files' | '/git' | '/preview' | '/instructions' | '/schedule' | '/new') => router.push({ pathname, params: { cwd } });
@@ -35,16 +38,16 @@ export default function ProjectScreen() {
         }}
       />
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button icon="terminal" onPress={terminal} />
-        <Stack.Toolbar.Menu icon="ellipsis">
-          <Stack.Toolbar.MenuAction icon="folder" onPress={() => go('/files')}>Files</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="arrow.triangle.branch" onPress={() => go('/git')}>Changes</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="globe" onPress={() => go('/preview')}>Preview dev server</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="text.book.closed" onPress={() => go('/instructions')}>Instructions</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="calendar.badge.plus" onPress={() => go('/schedule')}>Schedule a run</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="archivebox" isOn={archived} onPress={() => setArchived((a) => !a)}>Show archived</Stack.Toolbar.MenuAction>
+        <Stack.Toolbar.Button icon={tb('terminal')} onPress={terminal} />
+        <Stack.Toolbar.Menu icon={tb('ellipsis')}>
+          <Stack.Toolbar.MenuAction icon={tb('folder')} onPress={() => go('/files')}>Files</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('arrow.triangle.branch')} onPress={() => go('/git')}>Changes</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('globe')} onPress={() => go('/preview')}>Preview dev server</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('text.book.closed')} onPress={() => go('/instructions')}>Instructions</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('calendar.badge.plus')} onPress={() => go('/schedule')}>Schedule a run</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('archivebox')} isOn={archived} onPress={() => setArchived((a) => !a)}>Show archived</Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
-        <Stack.Toolbar.Button icon="square.and.pencil" onPress={() => go('/new')} />
+        <Stack.Toolbar.Button icon={tb('square.and.pencil')} onPress={() => go('/new')} />
       </Stack.Toolbar>
       <FlatList
         style={{ flex: 1, backgroundColor: c.bg }}
@@ -72,6 +75,7 @@ export default function ProjectScreen() {
 }
 
 export function SessionRow({ s, onChange, showDir }: { s: Session; onChange: () => void; showDir?: boolean }) {
+  useHex();
   const open = () => (s.live ? router.push({ pathname: '/thread/[id]', params: { id: s.live, cwd: s.cwd } }) : openThread({ provider: s.provider, cwd: s.cwd, resume: s.id }));
   const meta = [providerName(s.provider), ago(s.lastActive), showDir ? s.cwd.split('/').pop() : '', s.preview && s.preview !== s.title ? s.preview : ''].filter(Boolean).join(' · ');
   return (

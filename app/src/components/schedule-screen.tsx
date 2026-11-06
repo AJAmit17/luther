@@ -5,19 +5,26 @@ import { api, post } from '@/lib/hosts';
 import type { Job, Mode, Project, Provider, ProviderInfo } from '@/lib/protocol';
 import { DAYS, describe, fromCron, parseTime, toCron, type Preset } from '@/lib/cron';
 import { peek } from '@/lib/cache';
-import { Button, Icon, MODES, Note, c, home, mono, useLoad, ProviderMark } from '@/components/ui';
+import { Button, Icon, MODES, Note, c, home, mono, useLoad, ProviderMark, useHex } from '@/components/ui';
 
-const Chip = ({ label, on, onPress, icon, mark }: { label: string; on: boolean; onPress: () => void; icon?: string; mark?: React.ReactNode }) => (
-  <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: on ? c.accent : c.card }}>
-    {mark ?? (!!icon && <Icon name={icon} size={13} color={on ? c.onAccent : c.text} />)}
-    <Text style={{ color: on ? c.onAccent : c.text, fontWeight: '500' }}>{label}</Text>
-  </Pressable>
-);
-const Label = ({ children }: { children: string }) => <Text style={{ color: c.dim, fontWeight: '600', fontSize: 13 }}>{children}</Text>;
-const input = { color: c.text, backgroundColor: c.card, borderRadius: 12, borderCurve: 'continuous', padding: 12, fontSize: 16 } as const;
+const Chip = ({ label, on, onPress, icon, mark }: { label: string; on: boolean; onPress: () => void; icon?: string; mark?: React.ReactNode }) => {
+  useHex();
+  return (
+    <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: on ? c.accent : c.card }}>
+      {mark ?? (!!icon && <Icon name={icon} size={13} color={on ? c.onAccent : c.text} />)}
+      <Text style={{ color: on ? c.onAccent : c.text, fontWeight: '500' }}>{label}</Text>
+    </Pressable>
+  );
+};
+const Label = ({ children }: { children: string }) => {
+  useHex();
+  return <Text style={{ color: c.dim, fontWeight: '600', fontSize: 13 }}>{children}</Text>;
+};
 
 // One schedule: what to run, where, with which agent, and when.
 export default function ScheduleEditor() {
+  useHex();
+  const input = { color: c.text, backgroundColor: c.card, borderRadius: 12, borderCurve: 'continuous', padding: 12, fontSize: 16 } as const;
   const params = useLocalSearchParams<{ id?: string; cwd?: string }>();
   const existing = params.id ? peek<Job[]>('schedules:[]')?.find((j) => j.id === params.id) : undefined;
   const start = fromCron(existing?.cron ?? '0 9 * * 1-5');

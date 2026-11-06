@@ -4,13 +4,14 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { api } from '@/lib/hosts';
 import type { Project, Provider, ProviderInfo } from '@/lib/protocol';
 import { openThread } from '@/lib/threads';
-import { Icon, Note, Row, c, home, useLoad, listStyle, ProviderMark } from '@/components/ui';
+import { Icon, Note, Row, c, home, useLoad, listStyle, ProviderMark, useHex } from '@/components/ui';
 
 // "Send to Luther": a message (from a Shortcut, Siri, the Share Sheet via a
 // Shortcut, a widget, or the home-screen icon's menu) to a new thread in a
 // project. luther://send?text=…[&cwd=…][&provider=…] — with cwd it goes
 // straight there.
 export default function Send() {
+  useHex();
   const params = useLocalSearchParams<{ text?: string; cwd?: string; provider?: Provider }>();
   const [text, setText] = useState(params.text ?? '');
   const { data: projects, error } = useLoad(() => api<Project[]>('/projects'), [], 'projects');

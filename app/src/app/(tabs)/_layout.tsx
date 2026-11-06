@@ -5,7 +5,7 @@ import { useHex } from '@/components/ui';
 export default function Tabs() {
   const h = useHex();
   return (
-    <NativeTabs minimizeBehavior="onScrollDown" tintColor={h.accent}>
+    <NativeTabs minimizeBehavior="onScrollDown" tintColor={h.accent} {...(process.env.EXPO_OS === 'android' ? { labelVisibilityMode: 'labeled' as const, backgroundColor: h.card, indicatorColor: h.muted, iconColor: { default: h.dim, selected: h.accent }, labelStyle: { default: { color: h.dim }, selected: { color: h.accent } } } : {})}>
       <NativeTabs.Trigger name="(home)">
         <NativeTabs.Trigger.Icon sf="desktopcomputer" md="computer" />
         <NativeTabs.Trigger.Label>Mac</NativeTabs.Trigger.Label>

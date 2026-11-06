@@ -1,7 +1,7 @@
 import { Pressable, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { setAppearance, useAppearance, type Choice } from '@/lib/theme';
-import { SectionTitle, c, palettes, type } from '@/components/ui';
+import { SectionTitle, c, palettes, type, useHex } from '@/components/ui';
 
 /** A tiny phone in a scheme: the accent dot, a few lines, a message bubble. */
 function Phone({ scheme }: { scheme: 'light' | 'dark' }) {
@@ -30,6 +30,7 @@ const OPTIONS: { id: Choice; label: string }[] = [
 
 // Settings → Appearance: follow the iPhone, or always light, or always dark.
 export function AppearancePicker() {
+  useHex();
   const choice = useAppearance();
   return (
     <View style={{ gap: 6 }}>

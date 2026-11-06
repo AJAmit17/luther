@@ -6,11 +6,12 @@ import { api, currentHostIdSync } from '@/lib/hosts';
 import type { Usage, UsageHistory } from '@/lib/protocol';
 import { chartDays, formatTokens, providerTotals, tokenTotal, type TokenFormat } from '@/lib/usage';
 import { UsageSection } from '@/components/usage-section';
-import { Group, Icon, Note, ProviderIcon, ago, c, card, providerName, type, useLoad } from '@/components/ui';
+import { Group, Icon, Note, ProviderIcon, ago, c, card, providerName, type, useLoad, useHex } from '@/components/ui';
 
 const NUMBER_FORMAT_KEY = 'luther.usage-number-format';
 
 function Breakdown({ usage, format }: { usage: Usage; format: TokenFormat }) {
+  useHex();
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14 }}>
       {[
@@ -22,6 +23,7 @@ function Breakdown({ usage, format }: { usage: Usage; format: TokenFormat }) {
 }
 
 export default function UsageScreen() {
+  useHex();
   const [days, setDays] = useState<7 | 30 | 90>(30);
   const [metric, setMetric] = useState<'tokens' | 'cost'>('tokens');
   const [numberFormat, setNumberFormat] = useState<TokenFormat>(() => {

@@ -6,12 +6,13 @@ import { Stack, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HttpError, api } from '@/lib/hosts';
 import type { FileContent } from '@/lib/protocol';
-import { Banner, Note, c, mono } from '@/components/ui';
+import { Banner, Note, c, mono, useHex } from '@/components/ui';
 
 // Edit a text file in the project (instructions like CLAUDE.md, mostly). A file
 // that doesn't exist yet is created on save. Saving is refused if the file
 // changed on the Mac meanwhile, so an agent's edit is never overwritten.
 export default function Edit() {
+  useHex();
   const { cwd, path, template } = useLocalSearchParams<{ cwd: string; path: string; template?: string }>();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();

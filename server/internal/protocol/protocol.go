@@ -183,6 +183,8 @@ type Msg struct {
 	Tool string `json:"tool,omitempty"`
 	// Parent: the subagent call (that tool row's ID) this step belongs to.
 	Parent string `json:"parent,omitempty"`
+	// Images: pictures sent with a user message, by name for GET /uploads/{name}.
+	Images []string `json:"images,omitempty"`
 }
 
 // Limits: an agent's plan usage, per window. Claude reports it during turns;

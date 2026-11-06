@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { LayoutAnimation, Pressable, Text, View } from 'react-native';
 import type { Task } from '@/lib/protocol';
-import { Icon, c, card, type } from '@/components/ui';
+import { Icon, c, card, type, useHex } from '@/components/ui';
 
 // The agent's own plan (Claude's to-dos, Codex's plan): the current step and a
 // progress bar; tap for every step.
 export function TaskPanel({ tasks }: { tasks: Task[] }) {
+  useHex();
   const [open, setOpen] = useState(false);
   const done = tasks.filter((t) => t.status === 'completed').length;
   const now = tasks.find((t) => t.status === 'in_progress') ?? tasks.find((t) => t.status === 'pending');

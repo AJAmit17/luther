@@ -13,6 +13,7 @@ import (
 	"github.com/AJAmit17/luther/server/internal/paths"
 	"github.com/AJAmit17/luther/server/internal/protocol"
 	"github.com/AJAmit17/luther/server/internal/text"
+	"github.com/AJAmit17/luther/server/internal/uploads"
 )
 
 // ---- history: Claude Code transcripts (~/.claude/projects/*/<sid>.jsonl) → messages ----
@@ -31,6 +32,7 @@ var (
 	cmdNameRe = regexp.MustCompile(`<command-name>(.*?)</command-name>`)
 	cmdArgsRe = regexp.MustCompile(`(?s)<command-args>(.*?)</command-args>`)
 	stdoutRe  = regexp.MustCompile(`(?s)<local-command-stdout>(.*?)</local-command-stdout>`)
+	ansiRe    = regexp.MustCompile(`\x1b\[[0-9;]*[A-Za-z]`) // the CLI's colours in command output
 )
 
 type chatRec struct {
@@ -47,11 +49,15 @@ type chatRec struct {
 }
 
 type block struct {
-	ID    string         `json:"id"`
-	Type  string         `json:"type"`
-	Text  string         `json:"text"`
-	Name  string         `json:"name"`
-	Input map[string]any `json:"input"`
+	ID     string         `json:"id"`
+	Type   string         `json:"type"`
+	Text   string         `json:"text"`
+	Name   string         `json:"name"`
+	Input  map[string]any `json:"input"`
+	Source struct {
+		MediaType string `json:"media_type"`
+		Data      string `json:"data"`
+	} `json:"source"`
 }
 
 func (r chatRec) hidden() bool { return r.IsSidechain || r.IsMeta || r.IsCompact || r.TransOnly }
@@ -104,7 +110,7 @@ func recMsgs(r chatRec) []protocol.Msg {
 			return []protocol.Msg{{ID: r.UUID, Role: "user", Text: cmd}}
 		}
 		if m := stdoutRe.FindStringSubmatch(text); m != nil {
-			if s := strings.TrimSpace(m[1]); s != "" {
+			if s := strings.TrimSpace(strings.ReplaceAll(ansiRe.ReplaceAllString(m[1], ""), "`", "")); s != "" {
 				return []protocol.Msg{{ID: r.UUID, Role: "system", Text: s}}
 			}
 			return nil
@@ -112,25 +118,44 @@ func recMsgs(r chatRec) []protocol.Msg {
 		if strings.HasPrefix(strings.TrimSpace(text), "<") {
 			return nil // caveats and other wrappers
 		}
-		return []protocol.Msg{{ID: r.UUID, Role: "user", Text: text}}
+		m := protocol.Msg{ID: r.UUID, Role: "user"}
+		m.Text, m.Images = uploads.SplitAttached(text)
+		return []protocol.Msg{m}
 	}
 	var blocks []block
 	json.Unmarshal(r.Message.Content, &blocks)
 	var out []protocol.Msg
+	var images []string // a user's pictures, shown on their message
 	for i, b := range blocks {
 		id := fmt.Sprintf("%s#%d", r.UUID, i)
 		switch {
+		case b.Type == "image" && r.Type == "user":
+			if name := uploads.Keep(b.Source.MediaType, b.Source.Data); name != "" {
+				images = append(images, name)
+			}
+		case b.Type == "text" && strings.HasPrefix(b.Text, "[Image: original "): // the CLI's note on a resized image
 		case b.Type == "text" && strings.TrimSpace(b.Text) != "" && !strings.HasPrefix(b.Text, "<"):
 			role := "assistant"
 			if r.Type == "user" {
 				role = "user"
 			}
-			out = append(out, protocol.Msg{ID: id, Role: role, Text: b.Text})
+			m := protocol.Msg{ID: id, Role: role, Text: b.Text}
+			if role == "user" {
+				m.Text, m.Images = uploads.SplitAttached(b.Text)
+			}
+			out = append(out, m)
 		case b.Type == "tool_use":
 			if isAgentTool(b.Name) && b.ID != "" {
 				id = b.ID // a subagent's steps name this call as their Parent
 			}
 			out = append(out, protocol.Msg{ID: id, Role: "tool", Tool: b.Name, Text: toolSummary(b.Name, b.Input)})
+		}
+	}
+	if len(images) > 0 {
+		if len(out) > 0 && out[0].Role == "user" {
+			out[0].Images = append(images, out[0].Images...)
+		} else {
+			out = append([]protocol.Msg{{ID: r.UUID + "#img", Role: "user", Images: images}}, out...)
 		}
 	}
 	return out

@@ -1,10 +1,9 @@
 import { useMemo } from 'react';
-import { Linking, ScrollView, Text, View, type TextStyle } from 'react-native';
-import { c, card, mono, tint, type } from '@/components/ui';
+import { Linking, ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
+import { c, card, mono, tint, type, useHex } from '@/components/ui';
 
 // An agent reply, block by block: headings, paragraphs, lists, quotes, code
 // fences, and inline `code`, **bold**, *italic*, [links](url) and bare URLs.
-// ponytail: no tables; they read as their raw lines.
 
 type Block =
   | { kind: 'heading'; level: number; text: string }
@@ -12,6 +11,7 @@ type Block =
   | { kind: 'item'; marker: string; indent: number; text: string }
   | { kind: 'quote'; text: string }
   | { kind: 'code'; lang: string; text: string }
+  | { kind: 'table'; rows: string[][] }
   | { kind: 'rule' };
 
 function parse(src: string): Block[] {
@@ -30,6 +30,18 @@ function parse(src: string): Block[] {
       const code: string[] = [];
       for (i++; i < lines.length && !/^\s*```/.test(lines[i]); i++) code.push(lines[i]);
       out.push({ kind: 'code', lang: fence[1], text: code.join('\n') });
+      continue;
+    }
+    if (/^\s*\|/.test(l)) {
+      // A table: consecutive | lines; the |---| line under the header is dropped.
+      flush();
+      const rows: string[][] = [];
+      for (; i < lines.length && /^\s*\|/.test(lines[i]); i++) {
+        if (/^\s*\|?[\s:|-]+\|?\s*$/.test(lines[i])) continue;
+        rows.push(lines[i].trim().replace(/^\||\|$/g, '').split('|').map((x) => x.trim()));
+      }
+      i--;
+      out.push({ kind: 'table', rows });
       continue;
     }
     const h = l.match(/^(#{1,6})\s+(.*)/);
@@ -56,6 +68,7 @@ function parse(src: string): Block[] {
 const SPAN = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*\s][^*]*\*|\[[^\]]+\]\([^)\s]+\)|https?:\/\/[^\s)]+)/g;
 
 function Inline({ text, style }: { text: string; style?: TextStyle | TextStyle[] }) {
+  useHex();
   return (
     <Text selectable style={[type.callout, { lineHeight: 23 }, style]}>
       {text.split(SPAN).map((p, i) => {
@@ -82,6 +95,7 @@ function Inline({ text, style }: { text: string; style?: TextStyle | TextStyle[]
 }
 
 function Piece({ b }: { b: Block }) {
+  useHex();
   switch (b.kind) {
     case 'heading':
       return <Inline text={b.text} style={[b.level === 1 ? type.title3 : b.level === 2 ? type.headline : { ...type.callout, fontWeight: '600' }, { marginTop: 4 }]} />;
@@ -104,6 +118,22 @@ function Piece({ b }: { b: Block }) {
       );
     case 'rule':
       return <View style={{ height: 1, backgroundColor: c.line, marginVertical: 4 }} />;
+    case 'table':
+      return (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[card, { overflow: 'hidden' }]}>
+          <View>
+            {b.rows.map((r, i) => (
+              <View key={i} style={{ flexDirection: 'row', borderTopWidth: i ? StyleSheet.hairlineWidth : 0, borderTopColor: c.line, backgroundColor: i ? undefined : c.muted }}>
+                {r.map((cell, j) => (
+                  <View key={j} style={{ width: 150, paddingHorizontal: 10, paddingVertical: 8 }}>
+                    <Inline text={cell} style={[type.footnote, { color: c.text, lineHeight: 18 }, i ? {} : { fontWeight: '600' }]} />
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      );
     case 'code':
       return (
         <View style={[card, { backgroundColor: c.bg, overflow: 'hidden' }]}>

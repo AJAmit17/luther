@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Stack } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { useQuickActionRouting } from 'expo-quick-actions/router';
 import { useHex } from '@/components/ui';
 import { StatusBar } from 'expo-status-bar';
@@ -14,6 +14,7 @@ import { currentHost, onHostsChange, post, setCurrent } from '@/lib/hosts';
 import { onNotificationResponse } from '@/lib/notifier';
 import { openThread } from '@/lib/threads';
 import { setQuickActions } from '@/lib/quick-actions';
+import { restorePick } from '@/components/attachments';
 
 export default function Layout() {
   const [host, setHost] = useState<string | null>(null);
@@ -22,6 +23,7 @@ export default function Layout() {
 
   useEffect(() => {
     setQuickActions();
+    void restorePick();
     const sync = () => void currentHost().then((h) => setHost(h?.id ?? null));
     sync();
     const hosts = onHostsChange(sync);
@@ -52,9 +54,12 @@ export default function Layout() {
   // Pushed screens get an opaque header: content (the chat above all) must not
   // scroll under a see-through bar.
   const sheet = { headerShown: false, presentation: 'formSheet', sheetGrabberVisible: true, contentStyle: { backgroundColor: h.surface } } as const;
+  const base = h.dark ? DarkTheme : DefaultTheme;
+  const theme = { ...base, colors: { ...base.colors, primary: h.accent, background: h.bg, card: h.bg, text: h.text, border: h.line, notification: h.red } };
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: h.bg }}>
       <KeyboardProvider>
+        <ThemeProvider value={theme}>
         <StatusBar style={h.dark ? 'light' : 'dark'} />
         <Stack
           screenOptions={{
@@ -65,6 +70,7 @@ export default function Layout() {
             headerShadowVisible: false,
             headerTransparent: false,
             headerBackButtonDisplayMode: 'minimal',
+            headerTitleAlign: 'center', // Android too, as on iOS
             contentStyle: { backgroundColor: h.bg },
           }}
         >
@@ -86,6 +92,7 @@ export default function Layout() {
           <Stack.Screen name="term/[name]" options={{ title: 'Terminal' }} />
         </Stack>
         {host && <Feed key={host} host={host} />}
+        </ThemeProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>
   );

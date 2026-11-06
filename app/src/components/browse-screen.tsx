@@ -1,10 +1,11 @@
 import { Alert, FlatList, RefreshControl, View } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { api, post } from '@/lib/hosts';
-import { Button, Icon, Note, Row, c, useLoad, listStyle } from '@/components/ui';
+import { Button, Icon, Note, Row, c, useLoad, listStyle, useHex } from '@/components/ui';
 
 // Walk folders under the Mac's home folder to start an agent where none has run yet.
 export default function Browse() {
+  useHex();
   const { path } = useLocalSearchParams<{ path?: string }>();
   const { data, error, pull } = useLoad(() => api<string[]>('/dirs' + (path ? '?path=' + encodeURIComponent(path) : '')), [path]);
 

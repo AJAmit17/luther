@@ -3,6 +3,10 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
+      "@/components/*": [
+        "./src/components/*",
+        "./src/components/ios/*.ios"
+      ],
       "@/*": [
         "./src/*"
       ],

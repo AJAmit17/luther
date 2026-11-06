@@ -49,7 +49,7 @@ export type Turn = { n: number; prompt: string; startedAt: number; endedAt?: num
 
 export type ThreadInfo = State & { id: string; title: string; clients: number };
 
-export type Msg = { id: string; role: 'user' | 'assistant' | 'tool' | 'system'; text: string; tool?: string; parent?: string /* a subagent call's row id */ };
+export type Msg = { id: string; role: 'user' | 'assistant' | 'tool' | 'system'; text: string; tool?: string; parent?: string /* a subagent call's row id */; images?: string[] /* GET /uploads/{name} */ };
 export type Option = { label: string; desc?: string };
 export type Question = { id: string; question: string; header?: string; options: Option[]; multiSelect?: boolean };
 export type Prompt = {

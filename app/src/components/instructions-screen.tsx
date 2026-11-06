@@ -2,7 +2,7 @@ import { RefreshControl, ScrollView } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { HttpError, api } from '@/lib/hosts';
 import type { FileContent } from '@/lib/protocol';
-import { Badge, Icon, Note, Row, SectionTitle, c, useLoad , listStyle } from '@/components/ui';
+import { Badge, Icon, Note, Row, SectionTitle, c, useLoad , listStyle, useHex } from '@/components/ui';
 
 // The project's instruction files, the ones each agent reads at the start of a
 // conversation. Tap to edit; a missing one is created. Your personal ones
@@ -27,6 +27,7 @@ const TEMPLATE = `# Project instructions
 `;
 
 export default function Instructions() {
+  useHex();
   const { cwd } = useLocalSearchParams<{ cwd: string }>();
   const { data, error, pull } = useLoad(
     () =>
