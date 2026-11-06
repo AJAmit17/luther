@@ -2,11 +2,12 @@ import { FlatList, RefreshControl } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { api } from '@/lib/hosts';
 import type { Turn } from '@/lib/protocol';
-import { Icon, Note, Row, ago, c, useLoad, listStyle } from '@/components/ui';
+import { Icon, Note, Row, ago, c, useLoad, listStyle, useHex } from '@/components/ui';
 
 // Every turn of an open thread, newest first, with the files it changed. Tap
 // one for its diff and to roll the project back to before it.
 export default function Turns() {
+  useHex();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, error, pull } = useLoad(() => api<Turn[]>(`/threads/${encodeURIComponent(id)}/turns`), [id]);
   return (

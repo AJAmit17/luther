@@ -3,13 +3,14 @@ import { Alert, ScrollView, Text, TextInput, View } from 'react-native';
 import { Stack, router, useFocusEffect } from 'expo-router';
 import { api, currentHost, del, keyFor, removeHost, resolve, routeInUse, upsertHost, type Host } from '@/lib/hosts';
 import type { Device } from '@/lib/protocol';
-import { Group, GroupRow, Icon, IconTile, Note, Pill, ago, c, card, mono, type } from '@/components/ui';
+import { Group, GroupRow, Icon, IconTile, Note, Pill, ago, c, card, mono, type, useHex } from '@/components/ui';
 import { AppearancePicker } from '@/components/appearance-picker';
-
-const input = { ...type.subhead, fontFamily: mono, paddingHorizontal: 16, paddingVertical: 13 } as const;
+import { PermissionsSection } from '@/components/permissions-section';
 
 // The current Mac: usage, routes (in order), Cloudflare Access token, paired devices.
 export default function Settings() {
+  useHex();
+  const input = { ...type.subhead, fontFamily: mono, paddingHorizontal: 16, paddingVertical: 13 } as const;
   const [h, setH] = useState<Host | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [status, setStatus] = useState('');
@@ -69,6 +70,7 @@ export default function Settings() {
       {!h ? (
         <>
           <AppearancePicker />
+          <PermissionsSection />
           <Note>No Mac paired.</Note>
         </>
       ) : (
@@ -85,6 +87,7 @@ export default function Settings() {
           </View>
 
           <AppearancePicker />
+          <PermissionsSection />
 
           <Group title="Connection" footer={status || 'Tried in this order; tap one to try it first.'}>
             {h.routes.map((u, i) => (
@@ -102,7 +105,7 @@ export default function Settings() {
             <GroupRow icon="bolt.horizontal" iconColor={c.accent} label="Test connection" onPress={test} right={<View />} />
           </Group>
 
-          <Group title="Cloudflare Access" footer="Only if your tunnel sits behind Cloudflare Access with a service token. Stored in the iOS keychain.">
+          <Group title="Cloudflare Access" footer="Only if your tunnel sits behind Cloudflare Access with a service token. Stored in this phone’s secure storage.">
             <TextInput style={input} placeholder="CF-Access-Client-Id" placeholderTextColor={c.faint as string} autoCapitalize="none" autoCorrect={false}
               value={h.cfId ?? ''} onChangeText={(v) => setH({ ...h, cfId: v.trim() })} onEndEditing={() => save(h)} />
             <View style={{ height: 1, backgroundColor: c.line }} />

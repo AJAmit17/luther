@@ -1,8 +1,10 @@
 // Mirror of server/protocol.go — the Go types are the source of truth. Change both together.
 
-export type Provider = 'claude' | 'codex' | 'opencode' | 'gemini' | 'cursor' | 'devin'; // the last three speak ACP
+export type Provider = 'claude' | 'codex' | 'opencode' | 'gemini' | 'cursor' | 'devin' | 'omp'; // all but the first two speak ACP
 export type Mode = 'ask' | 'edits' | 'plan' | 'full';
 
+/** A model as its agent lists it; `resolved` is the full ID an alias runs (Claude). */
+export type Model = { id: string; name: string; desc?: string; resolved?: string; group?: string };
 export type ProviderInfo = { id: Provider; name: string; installed: boolean; version?: string; modes: Mode[] };
 
 export type Project = { cwd: string; name: string; sessions: number; lastActive: string; live: number };
@@ -49,7 +51,7 @@ export type Turn = { n: number; prompt: string; startedAt: number; endedAt?: num
 
 export type ThreadInfo = State & { id: string; title: string; clients: number };
 
-export type Msg = { id: string; role: 'user' | 'assistant' | 'tool' | 'system'; text: string; tool?: string; parent?: string /* a subagent call's row id */ };
+export type Msg = { id: string; role: 'user' | 'assistant' | 'tool' | 'system'; text: string; tool?: string; parent?: string /* a subagent call's row id */; images?: string[] /* GET /uploads/{name} */ };
 export type Option = { label: string; desc?: string };
 export type Question = { id: string; question: string; header?: string; options: Option[]; multiSelect?: boolean };
 export type Prompt = {

@@ -1,16 +1,43 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import * as SecureStore from 'expo-secure-store';
+import { router } from 'expo-router';
 import { upload } from '@/lib/hosts';
-import { Icon, c, type } from '@/components/ui';
+import { Icon, c, type, useHex } from '@/components/ui';
 
 type Item = { key: string; uri: string; name: string; image: boolean; path?: string };
 
+// Android may kill Luther while the camera or photo picker is open; it then
+// starts again on Home and the photo is lost. So the conversation is noted
+// before the picker opens, and on the next launch restorePick() takes the
+// photo back (the picker keeps it) and reopens that conversation with it.
+const PICKING = 'luther.picking';
+type Where = { id: string; cwd?: string };
+let restored: { id: string; assets: ImagePicker.ImagePickerAsset[] } | null = null;
+
+/** At launch (Android): finish a pick the system interrupted. */
+export async function restorePick() {
+  if (process.env.EXPO_OS !== 'android') return;
+  let where: Where | null = null;
+  try {
+    where = JSON.parse(SecureStore.getItem(PICKING) ?? 'null');
+    SecureStore.deleteItemAsync(PICKING).catch(() => {});
+  } catch {
+    return;
+  }
+  if (!where) return;
+  const r = await ImagePicker.getPendingResultAsync().catch(() => null);
+  if (!r || !('assets' in r) || r.canceled || !r.assets?.length) return;
+  restored = { id: where.id, assets: r.assets };
+  router.push({ pathname: '/thread/[id]', params: { id: where.id, cwd: where.cwd ?? '' } });
+}
+
 // Photos and files for the next message. Each is uploaded to the Mac as soon as
-// it's picked, so sending only names the paths.
-export function useAttachments() {
+// it's picked, so sending only names the paths. `where` is the conversation they're for.
+export function useAttachments(where?: Where) {
   const [items, setItems] = useState<Item[]>([]);
 
   const add = (picked: Omit<Item, 'key'>[]) => {
@@ -30,11 +57,31 @@ export function useAttachments() {
   const fromImages = (r: ImagePicker.ImagePickerResult) =>
     !r.canceled && add(r.assets.map((a) => ({ uri: a.uri, name: a.fileName ?? `photo-${Date.now()}.jpg`, image: true })));
 
+  // A photo the system interrupted (restorePick) joins this conversation's next message.
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+  useEffect(() => {
+    if (restored && where && restored.id === where.id) {
+      fromImages({ canceled: false, assets: restored.assets });
+      restored = null;
+    }
+  }, [where?.id]);
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+
+  // Note where we are while the picker is open (see restorePick).
+  const picking = async (open: () => Promise<ImagePicker.ImagePickerResult>) => {
+    if (where) SecureStore.setItem(PICKING, JSON.stringify(where));
+    try {
+      fromImages(await open());
+    } finally {
+      SecureStore.deleteItemAsync(PICKING).catch(() => {});
+    }
+  };
+
   const pick = async (from: 'photos' | 'camera' | 'files') => {
-    if (from === 'photos') fromImages(await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 0.8 }));
+    if (from === 'photos') await picking(() => ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 0.8 }));
     if (from === 'camera') {
       if (!(await ImagePicker.requestCameraPermissionsAsync()).granted) return Alert.alert('Camera access is off', 'Turn it on for Luther in Settings.');
-      fromImages(await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 }));
+      await picking(() => ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 }));
     }
     if (from === 'files') {
       const r = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
@@ -53,6 +100,7 @@ export function useAttachments() {
 }
 
 export function AttachmentStrip({ items, onRemove }: { items: Item[]; onRemove: (key: string) => void }) {
+  useHex();
   if (!items.length) return null;
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8 }}>

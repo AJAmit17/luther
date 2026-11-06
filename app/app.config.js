@@ -80,6 +80,8 @@ module.exports = {
       'expo-background-task',
     ],
     web: { favicon: './assets/images/luther-favicon.png' },
-    experiments: { typedRoutes: true, reactCompiler: true },
+    // No React Compiler: the theme repaints one palette in place (components/ui.tsx),
+    // which compiled components would keep cached in their old colours.
+    experiments: { typedRoutes: true },
   },
 };

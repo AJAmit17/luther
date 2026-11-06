@@ -1,19 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { MenuView } from '@expo/ui/community/menu';
 import { api } from '@/lib/hosts';
 import type { Mode, Provider, ProviderInfo, Repository } from '@/lib/protocol';
 import { openThread } from '@/lib/threads';
-import { Button, Group, GroupRow, Icon, MODES, Note, ProviderIcon, c, card, home, tint, type, useLoad } from '@/components/ui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ModelPicker, modelName, useModels } from '@/components/model-picker';
+import { Button, Group, GroupRow, Icon, MODES, Note, ProviderIcon, c, card, home, tint, type, useLoad, useScheme } from '@/components/ui';
 
 // New thread in a folder (a sheet): the agent, its model, permissions, worktree.
 export default function NewThread() {
+  const scheme = useScheme();
+  const insets = useSafeAreaInsets();
   const { cwd } = useLocalSearchParams<{ cwd: string }>();
   const { data: providers, error } = useLoad(() => api<ProviderInfo[]>('/providers'), [], 'providers');
   const installed = (providers ?? []).filter((p) => p.installed);
   const [provider, setProvider] = useState<Provider | null>(null);
-  const [models, setModels] = useState<string[]>([]);
+  const [picking, setPicking] = useState(false);
   const [model, setModel] = useState('');
   const [mode, setMode] = useState<Mode>('ask');
   const [worktree, setWorktree] = useState(false);
@@ -26,17 +30,10 @@ export default function NewThread() {
   const p = provider ?? installed[0]?.id ?? null;
   const worktreeCwd = repos?.find((r) => r.cwd === repo && !r.error)?.cwd ?? (repos?.length === 1 && !repos[0].error ? repos[0].cwd : '');
 
-  useEffect(() => {
-    if (!p) return;
-    let live = true;
-    api<string[]>('/models?provider=' + p).then((m) => live && setModels(m), () => live && setModels([]));
-    return () => {
-      live = false;
-    };
-  }, [p]);
+  const models = useModels(p);
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.surface }} contentContainerStyle={{ padding: 20, paddingTop: 28, gap: 20, paddingBottom: 40 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: c.surface }} contentContainerStyle={{ padding: 20, paddingTop: 28, gap: 20, paddingBottom: 40 + Math.max(insets.bottom, process.env.EXPO_OS === 'android' ? 48 : 0) }}>
       <View style={{ gap: 4 }}>
         <Text style={type.title2}>New thread</Text>
         <Text selectable style={type.footnote} numberOfLines={1}>{home(cwd)}</Text>
@@ -70,12 +67,15 @@ export default function NewThread() {
       </View>
 
       <Group title="Model">
-        <MenuView
-          actions={[{ id: '', title: 'Default', state: !model ? 'on' : 'off' }, ...models.map((m) => ({ id: m, title: m, state: (model === m ? 'on' : 'off') as 'on' | 'off' }))]}
-          onPressAction={({ nativeEvent }) => setModel(nativeEvent.event)}
-        >
-          <GroupRow first icon="cpu" label={model || 'Default'} sub={models.length ? undefined : 'The agent picks; you can switch later'} right={<Icon name="chevron.up.chevron.down" size={13} color={c.faint} />} />
-        </MenuView>
+        <GroupRow
+          first
+          icon="cpu"
+          label={modelName(models, model) || 'Default'}
+          sub={model ? models.find((m) => m.id === model)?.desc : models.length ? `${models.length} models` : 'Asking the agent for its models…'}
+          onPress={() => setPicking(true)}
+          right={<Icon name="chevron.up.chevron.down" size={13} color={c.faint} />}
+        />
+        <ModelPicker open={picking} models={models} selected={model} onPick={setModel} onClose={() => setPicking(false)} withDefault />
       </Group>
 
       <Group title="Permissions">
@@ -96,7 +96,7 @@ export default function NewThread() {
       <Group footer="Its own branch and checkout, so several agents in one project don't step on each other.">
         <GroupRow first icon="arrow.triangle.branch" iconColor={c.blue} label="Separate worktree" right={<Switch value={worktree} onValueChange={setWorktree} />} />
         {worktree ? (
-          <MenuView actions={(repos ?? []).filter((r) => !r.error).map((r) => ({ id: r.cwd, title: r.name, subtitle: r.branch, state: r.cwd === worktreeCwd ? 'on' : 'off' }))} onPressAction={({ nativeEvent }) => setRepo(nativeEvent.event)}>
+          <MenuView colorScheme={scheme} actions={(repos ?? []).filter((r) => !r.error).map((r) => ({ id: r.cwd, title: r.name, subtitle: r.branch, state: r.cwd === worktreeCwd ? 'on' : 'off' }))} onPressAction={({ nativeEvent }) => setRepo(nativeEvent.event)}>
             <GroupRow icon="folder" label={loadingRepos ? 'Finding repositories…' : repos?.find((r) => r.cwd === worktreeCwd)?.name || 'Choose a repository'} sub={repoError || (!loadingRepos && !repos?.length ? 'No git checkouts found in this folder' : 'The thread will run in a worktree of this repository')} />
           </MenuView>
         ) : null}

@@ -4,11 +4,12 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { currentHost, post, resolve, api } from '@/lib/hosts';
 import type { Port } from '@/lib/protocol';
-import { Icon, Note, Row, c, home, useLoad, listStyle } from '@/components/ui';
+import { Icon, Note, Row, c, home, useLoad, listStyle, useHex } from '@/components/ui';
 
 // Dev servers on the Mac (anything of yours listening on a port), opened in
 // Safari on the phone through Luther's route: tap localhost:3000, see the app.
 export default function Preview() {
+  useHex();
   const { cwd } = useLocalSearchParams<{ cwd?: string }>();
   const { data, error, pull } = useLoad(() => api<Port[]>('/ports'), []);
   const [opening, setOpening] = useState<number | null>(null);

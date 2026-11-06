@@ -2,12 +2,14 @@ import { FlatList, RefreshControl, ScrollView, Text } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { api } from '@/lib/hosts';
 import type { FileContent, FileEntry } from '@/lib/protocol';
-import { Icon, Note, Row, c, mono, useLoad, listStyle } from '@/components/ui';
+import { Icon, Note, Row, c, mono, useLoad, listStyle, useHex } from '@/components/ui';
+import { tb } from '@/components/toolbar-icon';
 
 const size = (n: number) => (n >= 1 << 20 ? (n / (1 << 20)).toFixed(1) + ' MB' : n >= 1024 ? Math.round(n / 1024) + ' KB' : n + ' B');
 
 // Project files: a folder lists its entries, a file shows (and text files open in the editor).
 export default function Files() {
+  useHex();
   const { cwd, path = '' } = useLocalSearchParams<{ cwd: string; path?: string }>();
   const { data, error, pull } = useLoad(
     () => api<FileEntry[] | FileContent>(`/files?cwd=${encodeURIComponent(cwd)}&path=${encodeURIComponent(path)}`),
@@ -21,7 +23,7 @@ export default function Files() {
         <Stack.Screen options={{ title }} />
         {!!data.hash && (
           <Stack.Toolbar placement="right">
-            <Stack.Toolbar.Button icon="square.and.pencil" onPress={() => router.push({ pathname: '/edit', params: { cwd, path } })} />
+            <Stack.Toolbar.Button icon={tb('square.and.pencil')} onPress={() => router.push({ pathname: '/edit', params: { cwd, path } })} />
           </Stack.Toolbar>
         )}
         <ScrollView style={{ flex: 1, backgroundColor: c.bg as any }} contentInsetAdjustmentBehavior="automatic">

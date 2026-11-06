@@ -1,7 +1,9 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
+import { Image } from 'expo-image';
+import { api } from '@/lib/hosts';
 import { LayoutAnimation, Pressable, Text, View } from 'react-native';
 import { Markdown } from '@/components/markdown';
-import { Icon, PulsingDot, c, card, mono, tint, type } from '@/components/ui';
+import { Icon, PulsingDot, c, card, mono, tint, type, useHex } from '@/components/ui';
 import { workSummary, type Block } from '@/lib/blocks';
 import type { Msg } from '@/lib/protocol';
 
@@ -29,18 +31,60 @@ export const toolIcon = (t?: string) =>
                   ? 'sparkle'
                   : 'wrench.and.screwdriver';
 
-function UserBubble({ text }: { text: string }) {
+// Pictures sent with a message, fetched once per run (through the same, maybe
+// encrypted, channel as every other request) and kept as data URIs.
+const shown = new Map<string, Promise<string>>();
+const picture = (name: string) => {
+  let p = shown.get(name);
+  if (!p) {
+    p = api<{ type: string; data: string }>('/uploads/' + encodeURIComponent(name)).then((r) => `data:${r.type};base64,${r.data}`);
+    p.catch(() => shown.delete(name)); // try again next time
+    shown.set(name, p);
+  }
+  return p;
+};
+
+function SentImage({ name }: { name: string }) {
+  useHex();
+  const [uri, setUri] = useState<string>();
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    picture(name).then((u) => live && setUri(u), () => live && setFailed(true));
+    return () => {
+      live = false;
+    };
+  }, [name]);
   return (
-    <View style={{ alignItems: 'flex-end', paddingLeft: 48 }}>
-      <Text selectable style={[type.callout, { lineHeight: 22, backgroundColor: c.muted, borderRadius: 20, borderCurve: 'continuous', overflow: 'hidden', paddingHorizontal: 15, paddingVertical: 10 }]}>
-        {text}
-      </Text>
+    <View style={{ width: 168, height: 168, borderRadius: 16, borderCurve: 'continuous', overflow: 'hidden', backgroundColor: c.muted, alignItems: 'center', justifyContent: 'center' }}>
+      {uri ? <Image source={{ uri }} style={{ width: 168, height: 168 }} contentFit="cover" accessibilityLabel="Attached image" /> : <Icon name={failed ? 'photo' : 'photo.on.rectangle'} size={22} color={c.faint} />}
+    </View>
+  );
+}
+
+function UserBubble({ text, images }: { text: string; images?: string[] }) {
+  useHex();
+  return (
+    <View style={{ alignItems: 'flex-end', paddingLeft: 48, gap: 6 }}>
+      {!!images?.length && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6 }}>
+          {images.map((n) => (
+            <SentImage key={n} name={n} />
+          ))}
+        </View>
+      )}
+      {!!text && (
+        <Text selectable style={[type.callout, { lineHeight: 22, backgroundColor: c.muted, borderRadius: 20, borderCurve: 'continuous', overflow: 'hidden', paddingHorizontal: 15, paddingVertical: 10 }]}>
+          {text}
+        </Text>
+      )}
     </View>
   );
 }
 
 /** One step: the tool and what it touched, on one or two lines. */
 export function StepRow({ m }: { m: Msg }) {
+  useHex();
   if (m.role === 'assistant') return <Text style={[type.footnote, { color: c.dim }]} numberOfLines={4}>{m.text}</Text>;
   return (
     <View style={{ flexDirection: 'row', gap: 9, alignItems: 'flex-start' }}>
@@ -57,6 +101,7 @@ export function StepRow({ m }: { m: Msg }) {
 
 /** The agent's steps between two messages: one line when done, the live step while running. */
 const WorkCard = memo(function WorkCard({ steps, live, activity }: { steps: Msg[]; live: boolean; activity?: string }) {
+  useHex();
   const [open, setOpen] = useState(false);
   const last = steps[steps.length - 1];
   return (
@@ -76,6 +121,7 @@ const WorkCard = memo(function WorkCard({ steps, live, activity }: { steps: Msg[
 
 /** A subagent the agent started: its task, a peek at its latest step, all steps on tap. */
 function AgentCard({ m, steps, live }: { m: Msg; steps: Msg[]; live: boolean }) {
+  useHex();
   const [open, setOpen] = useState(false);
   const tools = steps.filter((s) => s.role === 'tool');
   const last = tools[tools.length - 1];
@@ -104,6 +150,7 @@ function AgentCard({ m, steps, live }: { m: Msg; steps: Msg[]; live: boolean }) 
 }
 
 function Notice({ text }: { text: string }) {
+  useHex();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 24 }}>
       <View style={{ height: 1, flex: 1, backgroundColor: c.line }} />
@@ -114,6 +161,7 @@ function Notice({ text }: { text: string }) {
 }
 
 function ErrorRow({ text }: { text: string }) {
+  useHex();
   return (
     <View style={{ flexDirection: 'row', gap: 8, padding: 12, borderRadius: 14, borderCurve: 'continuous', backgroundColor: tint('red', 0.1) }}>
       <Icon name="exclamationmark.triangle.fill" size={15} color={c.red} />
@@ -124,10 +172,11 @@ function ErrorRow({ text }: { text: string }) {
 
 /** One block of the chat. */
 export const BlockRow = memo(function BlockRow({ b, live, activity }: { b: Block; live: boolean; activity?: string }) {
+  useHex();
   if (b.kind === 'work') return <WorkCard steps={b.steps} live={live} activity={activity} />;
   if (b.kind === 'agent') return <AgentCard m={b.m} steps={b.steps} live={live} />;
   const m = b.m;
-  if (m.role === 'user') return <UserBubble text={m.text} />;
+  if (m.role === 'user') return <UserBubble text={m.text} images={m.images} />;
   if (m.role === 'system') return m.id.startsWith('err-') ? <ErrorRow text={m.text} /> : <Notice text={m.text} />;
   if (m.role === 'tool') return <StepRow m={m} />;
   return <Markdown text={m.text} />;

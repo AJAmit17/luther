@@ -141,6 +141,20 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [x] Apache-2.0 with project `NOTICE`, approved by the maintainer. Preserve project notices in server archives, installer and Homebrew; align app metadata and contribution terms. No mandatory UI badge or added advertising condition.
 - [x] Verification: 21 app tests, typecheck/lint, Go race tests/vet/build, 66 solid-palette contrast pairs, repeatable asset generation, Apple asset compilation and compiled-silhouette check, Android safe-circle check, and isolated notice-copy/archive checks. Full native app rebuild, phone installation, and public release remain separate.
 
+### Phase 9g: Native Android build and phone refresh
+- [x] Generate Android from the shared Expo SDK 58 app and build a standalone arm64 Release APK without a Metro development server. Signature verified; JavaScript embedded; API 24+, target API 36, non-debuggable. Build commands are in `app/README.md`.
+- [x] Install and launch on the USB-connected Motorola Edge 50 Pro with `adb`; pairing screen rendered, app process remained alive, and app-UID startup error/fatal logs were empty. Local test signing is not production/Play Store signing.
+- [x] Build the current Relay-branded iOS app as a signed native Release; verify its signature and install on the connected iPhone with `devicectl`.
+- [ ] Confirm iPhone launch after unlocking; installation succeeded, but automatic launch was blocked by the device lock.
+- [x] App typecheck/lint, all 21 tests, and Go vet/build pass. Shared application code is unchanged; native folders/build outputs remain ignored.
+- [ ] Android pairing and agent-turn workflows; native Android equivalents for iOS-only symbols/toolbars/widgets remain separate from this build-only pass.
+
+### Phase 9h: Android presentation
+- [ ] Align Android content, native stack headers, tab bar, and system bars with the saved System/Light/Dark appearance. Preserve iOS dynamic colors and Relay identity.
+- [ ] Render Android Material Symbols through the installed Expo Symbols module; retain SF images on iOS.
+- [ ] Constrain menu-wrapped list rows; use Android typography, tonal cards, and comfortable composer controls.
+- [ ] Rebuild/install the standalone Android Release; verify Home, Settings, chat, and appearance changes through scrcpy/device captures. Initial screenshot probe failed with a 17.04:1 header/content contrast.
+
 ### Phase 10: End-to-end tests
 - [ ] Pair over tailnet and over Cloudflare
 - [ ] Claude thread: chat, approval, question, plan, Stop, model/mode switch

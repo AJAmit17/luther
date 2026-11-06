@@ -3,11 +3,13 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { api, del, post } from '@/lib/hosts';
 import type { Job } from '@/lib/protocol';
 import { describe } from '@/lib/cron';
-import { Note, ProviderIcon, Row, ago, c, until, useLoad, listStyle } from '@/components/ui';
+import { Note, ProviderIcon, Row, ago, c, until, useLoad, listStyle, useHex } from '@/components/ui';
+import { tb } from '@/components/toolbar-icon';
 
 // Agent runs on a timetable: each opens a new thread with its prompt. The Mac
 // runs them (while it's awake); the phone hears about them like any run.
 export default function Schedules() {
+  useHex();
   const { cwd } = useLocalSearchParams<{ cwd?: string }>();
   const { data, error, load, pull } = useLoad(() => api<Job[]>('/schedules'), [], 'schedules');
   const jobs = (data ?? []).filter((j) => !cwd || j.cwd === cwd);
@@ -32,7 +34,7 @@ export default function Schedules() {
     <>
       <Stack.Screen options={{ title: 'Schedules' }} />
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button icon="plus" onPress={() => router.push({ pathname: '/schedule', params: cwd ? { cwd } : {} })} />
+        <Stack.Toolbar.Button icon={tb('plus')} onPress={() => router.push({ pathname: '/schedule', params: cwd ? { cwd } : {} })} />
       </Stack.Toolbar>
       <FlatList
         contentContainerStyle={listStyle}

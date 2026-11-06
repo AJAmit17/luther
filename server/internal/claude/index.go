@@ -13,6 +13,7 @@ import (
 
 	"github.com/AJAmit17/luther/server/internal/protocol"
 	"github.com/AJAmit17/luther/server/internal/text"
+	"github.com/AJAmit17/luther/server/internal/uploads"
 )
 
 // Index: Claude Code's transcripts (~/.claude/projects/*/*.jsonl), read-only and
@@ -118,7 +119,7 @@ func parseSession(r io.Reader) (protocol.Session, bool) {
 					case "ai-title":
 						ai = rec.AITitle
 					case "last-prompt":
-						s.Preview = text.OneLine(rec.LastPrompt)
+						s.Preview = text.OneLine(attachedOff(rec.LastPrompt))
 					case "user":
 						if wantFirst && !rec.IsMeta {
 							first = promptText(rec.Message.Content)
@@ -131,8 +132,8 @@ func parseSession(r io.Reader) (protocol.Session, bool) {
 			break
 		}
 	}
-	s.Title = text.OrDefault(custom, text.OrDefault(ai, first))
-	s.Preview = text.OrDefault(s.Preview, first)
+	s.Title = text.OrDefault(custom, text.OrDefault(ai, attachedOff(first)))
+	s.Preview = text.OrDefault(s.Preview, attachedOff(first))
 	return s, s.Cwd != ""
 }
 
@@ -154,4 +155,14 @@ func promptText(raw json.RawMessage) string {
 		return ""
 	}
 	return msg
+}
+
+// attachedOff: a prompt without its "Attached files: …" paths (photos are
+// shown as pictures, not as their paths on the Mac).
+func attachedOff(prompt string) string {
+	t, images := uploads.SplitAttached(prompt)
+	if t == "" && len(images) > 0 {
+		return "Photo"
+	}
+	return t
 }

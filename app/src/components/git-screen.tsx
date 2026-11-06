@@ -6,12 +6,14 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { api, del, post } from '@/lib/hosts';
 import type { GitStatus, Repository } from '@/lib/protocol';
-import { Button, Icon, Note, Row, c, mono, useLoad, listStyle } from '@/components/ui';
+import { Button, Icon, Note, Row, c, mono, useLoad, listStyle, useHex } from '@/components/ui';
+import { tb } from '@/components/toolbar-icon';
 
 const label: Record<string, string> = { M: 'modified', A: 'added', D: 'deleted', R: 'renamed', '?': 'new', U: 'conflict' };
 
 // Uncommitted changes in the project: tap a file for its diff, commit everything.
 export default function Git() {
+  useHex();
   const { cwd } = useLocalSearchParams<{ cwd: string }>();
   const { data, error, pull } = useLoad(() => api<Repository[]>('/git/repos?cwd=' + encodeURIComponent(cwd)), [cwd]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -33,6 +35,7 @@ export default function Git() {
 }
 
 function RepositoryChanges({ cwd, name, back }: { cwd: string; name: string; back?: () => void }) {
+  useHex();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const { data, error, load, pull } = useLoad(() => api<GitStatus>('/git/status?cwd=' + encodeURIComponent(cwd)), [cwd]);
@@ -74,13 +77,13 @@ function RepositoryChanges({ cwd, name, back }: { cwd: string; name: string; bac
     <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={headerHeight} style={{ flex: 1, backgroundColor: c.bg as any }}>
       <Stack.Screen options={{ title: data?.branch ? `${name} · ${data.branch}` : name }} />
       <Stack.Toolbar placement="right">
-        {back ? <Stack.Toolbar.Button icon="square.grid.2x2" onPress={back} /> : null}
-        <Stack.Toolbar.Menu icon="ellipsis.circle">
-          <Stack.Toolbar.MenuAction icon="doc.text.magnifyingglass" onPress={() => router.push({ pathname: '/diff', params: { cwd } })}>All diffs</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="arrow.up.circle" disabled={busy} onPress={push}>Push</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="arrow.triangle.pull" disabled={busy} onPress={pr}>Create pull request</Stack.Toolbar.MenuAction>
+        {back ? <Stack.Toolbar.Button icon={tb('square.grid.2x2')} onPress={back} /> : null}
+        <Stack.Toolbar.Menu icon={tb('ellipsis.circle')}>
+          <Stack.Toolbar.MenuAction icon={tb('doc.text.magnifyingglass')} onPress={() => router.push({ pathname: '/diff', params: { cwd } })}>All diffs</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('arrow.up.circle')} disabled={busy} onPress={push}>Push</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('arrow.triangle.pull')} disabled={busy} onPress={pr}>Create pull request</Stack.Toolbar.MenuAction>
           {data?.worktree ? (
-            <Stack.Toolbar.MenuAction icon="trash" destructive onPress={() => removeWorktree()}>Remove worktree</Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.MenuAction icon={tb('trash')} destructive onPress={() => removeWorktree()}>Remove worktree</Stack.Toolbar.MenuAction>
           ) : null}
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>

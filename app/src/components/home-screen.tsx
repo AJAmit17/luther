@@ -6,7 +6,8 @@ import type { Project, Session, Term, ThreadInfo } from '@/lib/protocol';
 import { SessionRow } from '@/components/project-screen';
 import { requestNotificationPermission } from '@/lib/notifier';
 import { updateWidgets } from '@/lib/widgets';
-import { Empty, Icon, IconTile, Note, Pill, ProviderIcon, Row, SectionTitle, ago, c, home, listStyle, providerName, type, useLoad } from '@/components/ui';
+import { Empty, Icon, IconTile, Note, Pill, ProviderIcon, Row, SectionTitle, ago, c, home, listStyle, providerName, type, useLoad, useHex, searchColors } from '@/components/ui';
+import { tb } from '@/components/toolbar-icon';
 
 const threadTitle = (t: ThreadInfo) => t.title || `${providerName(t.provider)} · ${t.cwd.split('/').pop()}`;
 
@@ -30,6 +31,7 @@ function ThreadRow({ t, onStop }: { t: ThreadInfo; onStop: () => void }) {
 }
 
 function ProjectRow({ p }: { p: Project }) {
+  useHex();
   const open = (pathname: '/project' | '/new' | '/files' | '/git' | '/preview' | '/schedule') => router.push({ pathname, params: { cwd: p.cwd, name: p.name } });
   return (
     <Row
@@ -53,6 +55,7 @@ function ProjectRow({ p }: { p: Project }) {
 
 // The current Mac: what's running on it now, then its projects.
 export default function Home() {
+  useHex();
   const [host, setHost] = useState<Host | null | undefined>(undefined);
   const [all, setAll] = useState<Host[]>([]);
   useEffect(() => {
@@ -84,14 +87,16 @@ export default function Home() {
   const found = useLoad(() => (q ? api<Session[]>('/sessions?q=' + encodeURIComponent(q)) : Promise.resolve([])), [host?.id, q]);
   // Header options built once: rebuilding them each render re-applies the native
   // search bar, and a large title set after first layout overlaps it.
+  const hx = useHex();
   const search = useMemo(
     () => ({
+      ...searchColors(hx),
       placeholder: 'Search all conversations',
       onSearchButtonPress: (e: { nativeEvent: { text: string } }) => setQ(e.nativeEvent.text.trim()),
       onChangeText: (e: { nativeEvent: { text: string } }) => !e.nativeEvent.text && setQ(''),
       onCancelButtonPress: () => setQ(''),
     }),
-    [],
+    [hx],
   );
 
   const switchTo = async (h: Host) => {
@@ -121,15 +126,15 @@ export default function Home() {
         options={{ title: host.name, headerSearchBarOptions: search }}
       />
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu icon="desktopcomputer">
+        <Stack.Toolbar.Menu icon={tb('desktopcomputer')}>
           <Stack.Toolbar.Menu inline title="Macs">
             {all.map((h) => (
               <Stack.Toolbar.MenuAction key={h.id} isOn={h.id === host?.id} onPress={() => switchTo(h)}>{h.name}</Stack.Toolbar.MenuAction>
             ))}
           </Stack.Toolbar.Menu>
-          <Stack.Toolbar.MenuAction icon="plus" onPress={() => router.push('/pair')}>Pair another Mac</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('plus')} onPress={() => router.push('/pair')}>Pair another Mac</Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
-        <Stack.Toolbar.Button icon="square.and.pencil" onPress={() => router.push('/browse')} />
+        <Stack.Toolbar.Button icon={tb('square.and.pencil')} onPress={() => router.push('/browse')} />
       </Stack.Toolbar>
 
       {q ? (

@@ -128,7 +128,7 @@ func Sessions(cwd string) []protocol.Session {
 	return ss
 }
 
-func Models() []string {
+func Models() []protocol.Model {
 	s, err := srv()
 	if err != nil {
 		return nil
@@ -139,14 +139,21 @@ func Models() []string {
 	}
 	var out struct {
 		Data []struct {
-			ID    string `json:"id"`
-			Model string `json:"model"`
+			ID          string `json:"id"`
+			Model       string `json:"model"`
+			DisplayName string `json:"displayName"`
+			Description string `json:"description"`
+			Hidden      bool   `json:"hidden"`
 		} `json:"data"`
 	}
 	json.Unmarshal(raw, &out)
-	var ms []string
+	var ms []protocol.Model
 	for _, m := range out.Data {
-		ms = append(ms, text.OrDefault(m.ID, m.Model))
+		if m.Hidden {
+			continue
+		}
+		id := text.OrDefault(m.ID, m.Model)
+		ms = append(ms, protocol.Model{ID: id, Name: text.OrDefault(m.DisplayName, id), Desc: m.Description})
 	}
 	return ms
 }

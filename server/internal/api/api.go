@@ -80,6 +80,7 @@ func Serve(cfg *config.Config) {
 	}
 	go hub.ReapIdle()
 	go claude.WatchDups()
+	go warmModels()
 	addr := fmt.Sprintf("127.0.0.1:%d", cfg.Port)
 	log.Printf("luther %s listening on http://%s", protocol.Version, addr)
 	log.Fatal(http.ListenAndServe(addr, Handler(cfg)))
@@ -177,17 +178,6 @@ func providers(w http.ResponseWriter, r *http.Request) {
 		out = append(out, protocol.ProviderInfo{ID: a.ID, Name: a.Name, Installed: ok, Version: v, Modes: modes})
 	}
 	httpx.WriteJSON(w, out)
-}
-
-func models(w http.ResponseWriter, r *http.Request) {
-	switch protocol.Provider(r.URL.Query().Get("provider")) {
-	case protocol.Claude:
-		httpx.WriteJSON(w, []string{"opus", "sonnet", "haiku"}) // CLI aliases; the CLI resolves the latest of each
-	case protocol.Codex:
-		httpx.WriteJSON(w, httpx.OrEmpty(codex.Models()))
-	default:
-		httpx.WriteJSON(w, httpx.OrEmpty(acp.Models(protocol.Provider(r.URL.Query().Get("provider"))))) // known once a session has opened
-	}
 }
 
 func commands(w http.ResponseWriter, r *http.Request) {

@@ -131,7 +131,7 @@ The route also requires a running `cloudflared` process. On macOS, `luther servi
 
 ### 3. Install the app and pair
 
-Build the [native iPhone app](#build-the-iphone-app), then:
+Build the [native iPhone app](#build-the-iphone-app) or the [local Android APK](app/README.md#build-the-android-apk), then:
 
 ```sh
 luther pair

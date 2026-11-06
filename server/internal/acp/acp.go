@@ -43,6 +43,7 @@ var Agents = []Agent{
 	{protocol.Gemini, "Gemini CLI", []string{"gemini"}, []string{"--acp"}},
 	{protocol.Cursor, "Cursor", []string{"cursor-agent", "agent"}, []string{"acp"}},
 	{protocol.Devin, "Devin", []string{"devin"}, []string{"acp"}},
+	{protocol.OMP, "Oh My Pi", []string{"omp"}, []string{"acp"}},
 }
 
 func Find(p protocol.Provider) (Agent, bool) {
@@ -96,7 +97,7 @@ type server struct {
 
 	mu     sync.Mutex
 	rts    map[string]*runtime // session id → runtime
-	models []string            // from the last session/new, for GET /models
+	models []protocol.Model    // from the last session/new, for GET /models
 	listed time.Time
 	list   []protocol.Session
 }
@@ -246,17 +247,74 @@ func (s *server) sessions() []protocol.Session {
 	return all
 }
 
-// Models: the agent's models, as its last new session listed them.
-func Models(p protocol.Provider) []string {
-	procs.Lock()
-	s := procs.m[p]
-	procs.Unlock()
-	if s == nil {
+// Models: the agent's models, with its names for them. From its last new
+// session; before any, from a session opened just to ask, in a scratch folder
+// outside your home (so it never shows as a project).
+func Models(p protocol.Provider) []protocol.Model {
+	a, ok := Find(p)
+	if !ok || a.Bin() == "" {
+		return nil
+	}
+	s, err := srv(a)
+	if err != nil {
 		return nil
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.models
+	ms := s.models
+	s.mu.Unlock()
+	if ms != nil {
+		return ms
+	}
+	dir, err := os.MkdirTemp("", "luther-models-*") // fresh and private, as in claude.Models
+	if err != nil {
+		return nil
+	}
+	defer os.RemoveAll(dir)
+	raw, err := s.CallWait("session/new", map[string]any{"cwd": dir, "mcpServers": []any{}}, 45*time.Second)
+	if err != nil {
+		log.Printf("%s models: %v", a.Name, err)
+		return nil
+	}
+	var resp sessionResp
+	json.Unmarshal(raw, &resp)
+	ms = modelsOf(resp)
+	s.mu.Lock()
+	s.models = ms
+	s.mu.Unlock()
+	return ms
+}
+
+// modelsOf: a session's model choices (configOptions, grouped or flat; else
+// the older models.availableModels), named as the agent names them.
+func modelsOf(r sessionResp) []protocol.Model {
+	var out []protocol.Model
+	var walk func(group string, opts []choice)
+	walk = func(group string, opts []choice) {
+		for _, o := range opts {
+			if o.Value != "" {
+				m := protocol.Model{ID: o.Value, Name: text.OrDefault(o.Name, o.Value), Desc: o.Desc, Group: group}
+				if i := strings.Index(o.Value, "/"); m.Group == "" && i > 0 {
+					m.Group = o.Value[:i] // "openrouter/…", "github-copilot/…"
+				}
+				if m.Desc == m.ID {
+					m.Desc = ""
+				}
+				out = append(out, m)
+			}
+			walk(text.OrDefault(o.Name, group), o.Options)
+		}
+	}
+	for _, o := range r.Config {
+		if o.Category == "model" {
+			walk("", o.Options)
+		}
+	}
+	if out == nil && r.Models != nil {
+		for _, m := range r.Models.Available {
+			out = append(out, protocol.Model{ID: m.ID, Name: text.OrDefault(m.Name, m.ID), Desc: m.Desc})
+		}
+	}
+	return out
 }
 
 // ---- one open session ----
@@ -271,6 +329,7 @@ type option struct {
 type choice struct {
 	Value   string   `json:"value"`
 	Name    string   `json:"name"`
+	Desc    string   `json:"description"`
 	Options []choice `json:"options"`
 }
 
@@ -288,7 +347,14 @@ func choices(options []choice) []choice {
 type sessionResp struct {
 	SessionID string   `json:"sessionId"`
 	Config    []option `json:"configOptions"`
-	Modes     *struct {
+	Models    *struct {
+		Available []struct {
+			ID   string `json:"modelId"`
+			Name string `json:"name"`
+			Desc string `json:"description"`
+		} `json:"availableModels"`
+	} `json:"models"`
+	Modes *struct {
 		Current   string `json:"currentModeId"`
 		Available []struct {
 			ID string `json:"id"`
@@ -399,16 +465,13 @@ func (s *server) drop(id string) {
 
 // configure: the session's model and mode options.
 func (c *runtime) configure(r sessionResp) {
-	var models []string
+	models := modelsOf(r)
 	model := ""
 	c.mu.Lock()
 	c.config = r.Config
 	for _, o := range r.Config {
 		switch o.Category {
 		case "model":
-			for _, x := range choices(o.Options) {
-				models = append(models, x.Value)
-			}
 			model = o.Current
 		case "mode":
 			if !strings.Contains(o.Current, "plan") {

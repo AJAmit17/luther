@@ -10,6 +10,7 @@ import { BlockRow } from '@/components/chat-rows';
 import { Composer } from '@/components/composer';
 import { PromptCard } from '@/components/prompt-card';
 import { useAttachments } from '@/components/attachments';
+import { useModels } from '@/components/model-picker';
 import { TaskPanel } from '@/components/task-panel';
 import { toBlocks, type Block } from '@/lib/blocks';
 import type { Command, Prompt } from '@/lib/protocol';
@@ -18,6 +19,7 @@ import { useThread } from '@/lib/socket';
 import { useVoice } from '@/lib/voice';
 import { formatTokens as fmt } from '@/lib/usage';
 import { Banner, Empty, Icon, ProviderMark, PulsingDot, c, card, mono, providerName, type, useHex } from '@/components/ui';
+import { tb } from '@/components/toolbar-icon';
 
 function useKeyboardShown() {
   const [shown, setShown] = useState(false);
@@ -30,6 +32,7 @@ function useKeyboardShown() {
 
 /** Floats above the composer: how long the agent has been at it, and a way back to the newest message. */
 function WorkingPill({ busy, since, away, jump }: { busy: boolean; since?: number; away: boolean; jump: () => void }) {
+  useHex();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!busy) return;
@@ -63,7 +66,7 @@ function WorkingPill({ busy, since, away, jump }: { busy: boolean; since?: numbe
 export default function ThreadScreen() {
   const { id, cwd, send } = useLocalSearchParams<{ id: string; cwd?: string; send?: string }>();
   const ev = useThread(id);
-  const att = useAttachments();
+  const att = useAttachments({ id, cwd });
   const headerHeight = useHeaderHeight();
   const hx = useHex();
   const inset = useSafeAreaInsets().bottom;
@@ -72,10 +75,10 @@ export default function ThreadScreen() {
   const [away, setAway] = useState(false);
   const [text, setText] = useState('');
   const [cmds, setCmds] = useState<Command[]>([]);
-  const [models, setModels] = useState<string[]>([]);
   const [qa, setQa] = useState<{ id?: string; answers: Record<string, string[]> }>({ answers: {} }); // question in progress
   const st = ev.state;
   const provider = st?.provider;
+  const models = useModels(provider);
   const dir = (st?.cwd || cwd || '').split('/').pop() || 'Thread';
   const top = ev.prompts[0];
   const answers = top && qa.id === top.id ? qa.answers : {};
@@ -91,7 +94,6 @@ export default function ThreadScreen() {
   useEffect(() => {
     if (!provider) return;
     api<Command[]>(`/commands?provider=${provider}&cwd=${encodeURIComponent(st?.cwd ?? '')}`).then(setCmds, () => {});
-    api<string[]>('/models?provider=' + provider).then(setModels, () => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider]);
 
@@ -186,19 +188,19 @@ export default function ThreadScreen() {
         }}
       />
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button icon="terminal" onPress={terminal} />
-        <Stack.Toolbar.Menu icon="ellipsis">
-          <Stack.Toolbar.MenuAction icon="folder" onPress={() => go('/files')}>Files</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="arrow.triangle.branch" onPress={() => go('/git')}>Changes</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="clock.arrow.circlepath" onPress={() => router.push({ pathname: '/turns', params: { id } })}>Turns and undo</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="globe" onPress={() => go('/preview')}>Preview dev server</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="text.book.closed" onPress={() => go('/instructions')}>Instructions</Stack.Toolbar.MenuAction>
+        <Stack.Toolbar.Button icon={tb('terminal')} onPress={terminal} />
+        <Stack.Toolbar.Menu icon={tb('ellipsis')}>
+          <Stack.Toolbar.MenuAction icon={tb('folder')} onPress={() => go('/files')}>Files</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('arrow.triangle.branch')} onPress={() => go('/git')}>Changes</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('clock.arrow.circlepath')} onPress={() => router.push({ pathname: '/turns', params: { id } })}>Turns and undo</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('globe')} onPress={() => go('/preview')}>Preview dev server</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('text.book.closed')} onPress={() => go('/instructions')}>Instructions</Stack.Toolbar.MenuAction>
           {usage ? (
-            <Stack.Toolbar.MenuAction icon="chart.bar" disabled onPress={() => {}}>
+            <Stack.Toolbar.MenuAction icon={tb('chart.bar')} disabled onPress={() => {}}>
               {`${fmt(usage.inputTokens)} in · ${fmt(usage.outputTokens)} out${usage.costUsd ? ` · $${usage.costUsd.toFixed(2)}` : ''}`}
             </Stack.Toolbar.MenuAction>
           ) : null}
-          <Stack.Toolbar.MenuAction icon="stop.circle" destructive onPress={stop}>Stop agent</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('stop.circle')} destructive onPress={stop}>Stop agent</Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
 
@@ -222,21 +224,22 @@ export default function ThreadScreen() {
                 {!!ev.draft && <BlockRow b={{ kind: 'msg', id: '__draft', m: { id: '__draft', role: 'assistant', text: ev.draft + ' ▍' } }} live={false} />}
               </View>
             }
-            ListEmptyComponent={
-              <View style={{ transform: [{ scaleY: -1 }] }}>
-                {ev.status === 'open' ? (
-                  <Empty icon="bubble.left.and.text.bubble.right" title={`Ask ${provider ? providerName(provider) : 'the agent'}`} sub={`Anything about ${dir}. It runs on your Mac, with your files.`} />
-                ) : (
-                  <Empty icon="antenna.radiowaves.left.and.right" title="Connecting" sub="Reaching your Mac…" />
-                )}
-              </View>
-            }
             onScroll={(e) => setAway(e.nativeEvent.contentOffset.y > 240)}
             scrollEventThrottle={100}
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingHorizontal: 16, paddingTop: busy || away ? 56 : 12, paddingBottom: 16, flexGrow: 1 }}
           />
+          {!blocks.length && !ev.draft && (
+            // Over the list, not its empty view: an inverted list draws that upside down (differently per platform).
+            <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>
+              {ev.status === 'open' ? (
+                <Empty icon="bubble.left.and.text.bubble.right" title={`Ask ${provider ? providerName(provider) : 'the agent'}`} sub={`Anything about ${dir}. It runs on your Mac, with your files.`} />
+              ) : (
+                <Empty icon="antenna.radiowaves.left.and.right" title="Connecting" sub="Reaching your Mac…" />
+              )}
+            </View>
+          )}
           <WorkingPill busy={busy} since={ev.since} away={away} jump={() => list.current?.scrollToOffset({ offset: 0, animated: true })} />
         </View>
 

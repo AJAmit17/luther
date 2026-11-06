@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Markdown } from '@/components/markdown';
-import { Icon, c, card, mono, tint, type } from '@/components/ui';
+import { Icon, c, card, mono, tint, type, useHex } from '@/components/ui';
 import type { Prompt } from '@/lib/protocol';
 
 // The agent needs you: a permission, a plan to approve, or questions (one at a
@@ -11,6 +11,7 @@ import type { Prompt } from '@/lib/protocol';
 export function PromptCard({ p, more, answered, onChoose, onAnswer, onSkip }: {
   p: Prompt; more: number; answered: number; onChoose: (i: number) => void; onAnswer: (labels: string[]) => void; onSkip: () => void;
 }) {
+  useHex();
   const q = p.kind === 'question' ? p.questions?.[answered] : undefined;
   const total = p.questions?.length ?? 0;
   const [picked, setPicked] = useState<string[]>([]); // reset by the parent's key
