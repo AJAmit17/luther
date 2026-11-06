@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { MenuView } from '@expo/ui/community/menu';
 import { api } from '@/lib/hosts';
-import type { Mode, Provider, ProviderInfo } from '@/lib/protocol';
+import type { Mode, Provider, ProviderInfo, Repository } from '@/lib/protocol';
 import { openThread } from '@/lib/threads';
 import { Button, Group, GroupRow, Icon, MODES, Note, ProviderIcon, c, card, home, tint, type, useLoad } from '@/components/ui';
 
@@ -17,8 +17,14 @@ export default function NewThread() {
   const [model, setModel] = useState('');
   const [mode, setMode] = useState<Mode>('ask');
   const [worktree, setWorktree] = useState(false);
+  const [repo, setRepo] = useState('');
+  const { data: repos, error: repoError, loading: loadingRepos } = useLoad(
+    () => worktree ? api<Repository[]>('/git/repos?cwd=' + encodeURIComponent(cwd)) : Promise.resolve<Repository[]>([]),
+    [worktree, cwd],
+  );
   const [busy, setBusy] = useState(false);
   const p = provider ?? installed[0]?.id ?? null;
+  const worktreeCwd = repos?.find((r) => r.cwd === repo && !r.error)?.cwd ?? (repos?.length === 1 && !repos[0].error ? repos[0].cwd : '');
 
   useEffect(() => {
     if (!p) return;
@@ -36,7 +42,7 @@ export default function NewThread() {
         <Text selectable style={type.footnote} numberOfLines={1}>{home(cwd)}</Text>
       </View>
       {!!error && <Note error>{error}</Note>}
-      {providers && !installed.length && <Note error>No agent CLI is installed on this Mac (claude, codex, opencode, gemini, cursor).</Note>}
+      {providers && !installed.length && <Note error>No agent CLI is installed on this Mac (claude, codex, opencode, gemini, cursor, devin).</Note>}
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         {installed.map((x) => {
@@ -80,7 +86,7 @@ export default function NewThread() {
             icon={m.icon}
             iconColor={m.id === 'full' ? c.red : c.accent}
             label={m.label}
-            sub={m.desc}
+            sub={p === 'devin' && m.id === 'ask' ? 'Devin’s native Ask mode is read-only' : m.desc}
             right={mode === m.id ? <Icon name="checkmark" size={15} color={c.accent} /> : <View style={{ width: 15 }} />}
             onPress={() => setMode(m.id)}
           />
@@ -89,6 +95,11 @@ export default function NewThread() {
 
       <Group footer="Its own branch and checkout, so several agents in one project don't step on each other.">
         <GroupRow first icon="arrow.triangle.branch" iconColor={c.blue} label="Separate worktree" right={<Switch value={worktree} onValueChange={setWorktree} />} />
+        {worktree ? (
+          <MenuView actions={(repos ?? []).filter((r) => !r.error).map((r) => ({ id: r.cwd, title: r.name, subtitle: r.branch, state: r.cwd === worktreeCwd ? 'on' : 'off' }))} onPressAction={({ nativeEvent }) => setRepo(nativeEvent.event)}>
+            <GroupRow icon="folder" label={loadingRepos ? 'Finding repositories…' : repos?.find((r) => r.cwd === worktreeCwd)?.name || 'Choose a repository'} sub={repoError || (!loadingRepos && !repos?.length ? 'No git checkouts found in this folder' : 'The thread will run in a worktree of this repository')} />
+          </MenuView>
+        ) : null}
       </Group>
 
       <Button
@@ -96,10 +107,11 @@ export default function NewThread() {
         icon="play.fill"
         label={busy ? 'Starting…' : 'Start'}
         busy={busy}
-        disabled={!p}
+        disabled={!p || (worktree && (loadingRepos || !worktreeCwd || !!repoError))}
         onPress={() => {
           setBusy(true);
-          openThread({ provider: p!, cwd, mode, model: model || undefined, worktree: worktree || undefined }, true).finally(() => setBusy(false));
+          const dir = worktree && !cwd.startsWith(worktreeCwd + '/') ? worktreeCwd : cwd;
+          openThread({ provider: p!, cwd: dir, mode, model: model || undefined, worktree: worktree || undefined }, true).finally(() => setBusy(false));
         }}
       />
     </ScrollView>

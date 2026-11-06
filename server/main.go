@@ -14,6 +14,9 @@ import (
 )
 
 const usage = `usage:
+  luther start                           run in the background, keeping the Mac awake
+  luther stop                            stop the background server and allow sleep
+  luther status                          show whether the server is running
   luther serve                           run the server (launchd runs this)
   luther pair                            QR + one-time code for the phone app
   luther tailscale [--https 443]         publish on your tailnet (tailscale serve)
@@ -41,6 +44,12 @@ func main() {
 	c := cli.New(cfg)
 	args := os.Args[min(2, len(os.Args)):]
 	switch cmd {
+	case "start":
+		err = c.Start()
+	case "stop":
+		err = c.Stop()
+	case "status":
+		c.Status()
 	case "serve":
 		api.Serve(cfg)
 	case "pair":

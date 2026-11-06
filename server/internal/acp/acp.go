@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	"github.com/AJAmit17/luther/server/internal/rpc"
 	"github.com/AJAmit17/luther/server/internal/text"
 	"github.com/AJAmit17/luther/server/internal/uploads"
+	"github.com/AJAmit17/luther/server/internal/usage"
 )
 
 // Agent: how to start one ACP agent. Bins are tried in order.
@@ -40,6 +42,7 @@ var Agents = []Agent{
 	{protocol.OpenCode, "OpenCode", []string{"opencode"}, []string{"acp"}},
 	{protocol.Gemini, "Gemini CLI", []string{"gemini"}, []string{"--acp"}},
 	{protocol.Cursor, "Cursor", []string{"cursor-agent", "agent"}, []string{"acp"}},
+	{protocol.Devin, "Devin", []string{"devin"}, []string{"acp"}},
 }
 
 func Find(p protocol.Provider) (Agent, bool) {
@@ -79,8 +82,9 @@ type caps struct {
 		Image bool `json:"image"`
 	} `json:"promptCapabilities"`
 	Session struct {
-		List *struct{} `json:"list"`
-		Fork *struct{} `json:"fork"`
+		List  *struct{} `json:"list"`
+		Fork  *struct{} `json:"fork"`
+		Close *struct{} `json:"close"`
 	} `json:"sessionCapabilities"`
 }
 
@@ -258,13 +262,27 @@ func Models(p protocol.Provider) []string {
 // ---- one open session ----
 
 type option struct {
-	ID       string `json:"id"`
-	Category string `json:"category"`
-	Current  string `json:"currentValue"`
-	Options  []struct {
-		Value string `json:"value"`
-		Name  string `json:"name"`
-	} `json:"options"`
+	ID       string   `json:"id"`
+	Category string   `json:"category"`
+	Current  string   `json:"currentValue"`
+	Options  []choice `json:"options"`
+}
+
+type choice struct {
+	Value   string   `json:"value"`
+	Name    string   `json:"name"`
+	Options []choice `json:"options"`
+}
+
+func choices(options []choice) []choice {
+	var out []choice
+	for _, o := range options {
+		if o.Value != "" {
+			out = append(out, o)
+		}
+		out = append(out, choices(o.Options)...)
+	}
+	return out
 }
 
 type sessionResp struct {
@@ -285,16 +303,19 @@ type runtime struct {
 
 	mu       sync.Mutex
 	busy     bool
+	stopped  bool
 	queue    []string // sent while a turn runs (ACP can't steer)
 	mode     string   // Luther's
 	config   []option // the agent's selectable options (model, mode)
 	agentDef string   // the agent's own mode to return to when leaving plan
 
 	// hub lock: text being streamed, and replayed history while loading.
-	replay bool   // session/load is replaying history
-	kind   string // "agent" | "user" | "": what buf holds
-	buf    strings.Builder
-	seq    int
+	replay    bool   // session/load is replaying history
+	kind      string // "agent" | "user" | "": what buf holds
+	buf       strings.Builder
+	seq       int
+	cost      float64
+	costKnown bool
 }
 
 // Open starts, loads (resume) or forks a session.
@@ -353,8 +374,9 @@ func Open(a Agent, r protocol.OpenReq) (*hub.Thread, error) {
 			t.Do(func(*protocol.State) { t.Fail(err.Error()) })
 		}
 	}
-	if mode == protocol.ModePlan {
-		rt.applyMode(mode)
+	if err := rt.applyMode(mode); err != nil {
+		rt.Stop()
+		return nil, err
 	}
 	return t, nil
 }
@@ -384,7 +406,7 @@ func (c *runtime) configure(r sessionResp) {
 	for _, o := range r.Config {
 		switch o.Category {
 		case "model":
-			for _, x := range o.Options {
+			for _, x := range choices(o.Options) {
 				models = append(models, x.Value)
 			}
 			model = o.Current
@@ -428,9 +450,13 @@ func (c *runtime) onUpdate(raw json.RawMessage) {
 			Commands []struct {
 				Name string `json:"name"`
 			} `json:"availableCommands"`
-			ModeID string                    `json:"currentModeId"`
-			Used   int64                     `json:"used"`
-			Cost   *struct{ Amount float64 } `json:"cost"`
+			ModeID string `json:"currentModeId"`
+			Used   int64  `json:"used"`
+			Cost   *struct {
+				Amount   float64
+				Currency string
+			} `json:"cost"`
+			Config []option `json:"configOptions"`
 		} `json:"update"`
 	}
 	if json.Unmarshal(raw, &p) != nil {
@@ -486,13 +512,15 @@ func (c *runtime) onUpdate(raw json.RawMessage) {
 				st.Mode = protocol.ModePlan
 			}
 		case "usage_update":
-			us := &protocol.Usage{InputTokens: u.Used}
-			if u.Cost != nil {
-				us.CostUSD = u.Cost.Amount
+			st.ContextTokens = u.Used
+			if u.Cost != nil && strings.EqualFold(u.Cost.Currency, "USD") {
+				c.cost, c.costKnown = u.Cost.Amount, true
 			}
-			st.Usage = us
 		}
 	})
+	if u.Kind == "config_option_update" {
+		c.configure(sessionResp{Config: u.Config})
+	}
 }
 
 // flush commits streamed text as a message. Hub lock held.
@@ -638,6 +666,10 @@ func (c *runtime) content(msg string, files []string) []map[string]any {
 // Send runs a turn; while one runs, the message waits for it to end.
 func (c *runtime) Send(msg string, files []string) error {
 	c.mu.Lock()
+	if c.stopped {
+		c.mu.Unlock()
+		return errors.New("session stopped")
+	}
 	if c.busy {
 		if len(files) > 0 {
 			c.mu.Unlock()
@@ -664,13 +696,43 @@ func (c *runtime) Send(msg string, files []string) error {
 }
 
 func (c *runtime) run(prompt []map[string]any) {
+	var costBefore float64
+	c.t.Do(func(*protocol.State) { costBefore = c.cost })
 	raw, err := c.s.CallWait("session/prompt", map[string]any{"sessionId": c.id, "prompt": prompt}, 0)
 	var r struct {
 		StopReason string `json:"stopReason"`
+		Usage      *struct {
+			Input  int64 `json:"inputTokens"`
+			Output int64 `json:"outputTokens"`
+			Read   int64 `json:"cachedReadTokens"`
+			Write  int64 `json:"cachedWriteTokens"`
+		} `json:"usage"`
 	}
 	json.Unmarshal(raw, &r)
+	var reported *protocol.Usage
+	model := ""
 	c.t.Do(func(st *protocol.State) {
 		c.flush()
+		if r.Usage != nil || (c.costKnown && c.cost > costBefore) {
+			u := protocol.Usage{CostUSD: max(0, c.cost-costBefore), CostReported: c.costKnown}
+			if r.Usage != nil {
+				u.InputTokens, u.OutputTokens = max(0, r.Usage.Input), max(0, r.Usage.Output)
+				u.CacheReadTokens, u.CacheWriteTokens = max(0, r.Usage.Read), max(0, r.Usage.Write)
+			}
+			reported = &u
+			model = st.Model
+			total := protocol.Usage{}
+			if st.Usage != nil {
+				total = *st.Usage
+			}
+			total.InputTokens += u.InputTokens
+			total.OutputTokens += u.OutputTokens
+			total.CacheReadTokens += u.CacheReadTokens
+			total.CacheWriteTokens += u.CacheWriteTokens
+			total.CostUSD += u.CostUSD
+			total.CostReported = total.CostReported || u.CostReported
+			st.Usage = &total
+		}
 		switch {
 		case err != nil:
 			c.t.Fail(err.Error())
@@ -683,6 +745,12 @@ func (c *runtime) run(prompt []map[string]any) {
 		}
 		c.t.TurnEnd()
 	})
+	if reported != nil {
+		id := string(c.s.agent.ID) + "/" + c.id + "/" + text.RandHex(12)
+		if err := usage.Record(id, c.s.agent.ID, model, time.Now(), *reported); err != nil {
+			log.Printf("save %s token usage: %v", c.s.agent.Name, err)
+		}
+	}
 	c.mu.Lock()
 	c.busy = false
 	next := ""
@@ -719,11 +787,14 @@ func (c *runtime) Interrupt() error {
 // SetMode: Luther's modes are enforced here (auto-approving in edits/full);
 // plan also switches the agent to its own plan mode when it has one.
 func (c *runtime) SetMode(m string) error {
+	if err := c.applyMode(m); err != nil {
+		return err
+	}
 	c.mu.Lock()
 	c.mode = m
 	c.mu.Unlock()
 	c.t.Do(func(st *protocol.State) { st.Mode = m })
-	return c.applyMode(m)
+	return nil
 }
 
 func (c *runtime) applyMode(m string) error {
@@ -735,8 +806,11 @@ func (c *runtime) applyMode(m string) error {
 			continue
 		}
 		want := def
+		if c.s.agent.ID == protocol.Devin {
+			want = map[string]string{protocol.ModeAsk: "ask", protocol.ModeEdits: "accept-edits", protocol.ModePlan: "plan", protocol.ModeFull: "bypass"}[m]
+		}
 		if m == protocol.ModePlan {
-			for _, x := range o.Options {
+			for _, x := range choices(o.Options) {
 				if strings.Contains(x.Value, "plan") {
 					want = x.Value
 				}
@@ -797,9 +871,14 @@ func (c *runtime) setOption(id, value string) error {
 func (c *runtime) Stop() {
 	c.mu.Lock()
 	busy := c.busy
+	c.stopped = true
+	c.queue = nil
 	c.mu.Unlock()
 	if busy {
 		c.s.Notify("session/cancel", map[string]any{"sessionId": c.id})
+	}
+	if c.s.caps.Session.Close != nil {
+		go c.s.CallWait("session/close", map[string]any{"sessionId": c.id}, 5*time.Second)
 	}
 	c.s.drop(c.id)
 	c.t.End()

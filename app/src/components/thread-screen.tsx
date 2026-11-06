@@ -16,7 +16,7 @@ import type { Command, Prompt } from '@/lib/protocol';
 import { setWatching } from '@/lib/feed';
 import { useThread } from '@/lib/socket';
 import { useVoice } from '@/lib/voice';
-import { Banner, Empty, Icon, PulsingDot, c, card, mono, providerName, type, useHex } from '@/components/ui';
+import { Banner, Empty, Icon, ProviderMark, PulsingDot, c, card, mono, providerName, type, useHex } from '@/components/ui';
 
 function useKeyboardShown() {
   const [shown, setShown] = useState(false);
@@ -167,13 +167,14 @@ export default function ThreadScreen() {
       <View style={{ alignItems: 'center' }}>
         <Text style={[type.headline, { color: hx.text }]} numberOfLines={1}>{dir}</Text>
         {!!provider && (
-          <Text style={[type.caption2, { color: hx.dim }]} numberOfLines={1}>
-            {providerName(provider)}{model ? ` · ${model}` : ''}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <ProviderMark p={provider} size={12} color={hx.dim} />
+            <Text style={[type.caption2, { color: hx.dim }]} numberOfLines={1}>{providerName(provider)}</Text>
+          </View>
         )}
       </View>
     ),
-    [dir, provider, model, hx.text, hx.dim],
+    [dir, provider, hx.text, hx.dim],
   );
 
   return (

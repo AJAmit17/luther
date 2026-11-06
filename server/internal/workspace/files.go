@@ -30,6 +30,7 @@ func Routes(mux *http.ServeMux, wrap httpx.Wrap) {
 	mux.HandleFunc("GET /files", wrap(files))
 	mux.HandleFunc("PUT /files", wrap(writeFile))
 	mux.HandleFunc("GET /git/status", wrap(gitStatus))
+	mux.HandleFunc("GET /git/repos", wrap(gitRepos))
 	mux.HandleFunc("GET /git/diff", wrap(gitDiff))
 	mux.HandleFunc("POST /git/commit", wrap(gitCommit))
 	mux.HandleFunc("POST /git/push", wrap(gitPush))
@@ -196,16 +197,27 @@ func gitStatus(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	out, err := git(cwd, "status", "--porcelain=v1", "-b", "-uall")
+	st, err := readStatus(cwd)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	httpx.WriteJSON(w, st)
+}
+
+func readStatus(cwd string) (protocol.GitStatus, error) {
 	st := protocol.GitStatus{Files: []protocol.GitChange{}, Worktree: IsWorktree(cwd)}
-	for _, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
+	out, err := git(cwd, "status", "--porcelain=v1", "-z", "-b", "-uall")
+	if err != nil {
+		return st, err
+	}
+	lines := strings.Split(out, "\x00")
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
 		switch {
 		case strings.HasPrefix(line, "## "):
 			head := strings.TrimPrefix(line, "## ")
+			head = strings.TrimPrefix(strings.TrimPrefix(head, "No commits yet on "), "Initial commit on ")
 			if b, rest, ok := strings.Cut(head, "..."); ok {
 				st.Branch = b
 				st.Upstream, _, _ = strings.Cut(rest, " ")
@@ -217,13 +229,13 @@ func gitStatus(w http.ResponseWriter, r *http.Request) {
 			}
 		case len(line) > 3:
 			path := line[3:]
-			if _, to, ok := strings.Cut(path, " -> "); ok { // rename
-				path = to
+			if strings.ContainsAny(line[:2], "RC") { // rename
+				i++
 			}
 			st.Files = append(st.Files, protocol.GitChange{Path: path, Status: line[:2]})
 		}
 	}
-	httpx.WriteJSON(w, st)
+	return st, nil
 }
 
 // gitDiff: GET /git/diff?cwd=&path= → plain-text unified diff of the working tree

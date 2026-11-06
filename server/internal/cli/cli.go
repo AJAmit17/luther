@@ -197,7 +197,7 @@ func (c *CLI) Service(args []string) error {
 
 func (c *CLI) waitUp() error {
 	for i := 0; i < 40; i++ {
-		if res, err := http.Get(c.localURL() + "/healthz"); err == nil && res.StatusCode == 200 {
+		if c.running() {
 			fmt.Println("✓ server answering on", c.localURL())
 			return nil
 		}
@@ -314,7 +314,7 @@ func (c *CLI) Doctor() {
 		fmt.Printf("%s %-12s %s\n", mark, what, detail)
 	}
 	env.LoginPath()
-	for _, bin := range []string{"claude", "codex", "tmux", "git", "gh", "tailscale", "cloudflared"} {
+	for _, bin := range []string{"claude", "codex", "opencode", "gemini", "cursor-agent", "devin", "tmux", "git", "gh", "tailscale", "cloudflared"} {
 		out, err := exec.Command(bin, "--version").CombinedOutput()
 		if bin == "tmux" {
 			out, err = exec.Command(bin, "-V").CombinedOutput()

@@ -1,6 +1,6 @@
 # Luther
 
-Drive the coding agents on your Mac (Claude Code, Codex, OpenCode, Gemini CLI, Cursor) from your phone, over your tailnet or a Cloudflare tunnel. Traffic between the phone and the Mac is end-to-end encrypted, so a tunnel only ever relays ciphertext.
+Drive the coding agents on your Mac (Claude Code, Codex, OpenCode, Gemini CLI, Cursor, Devin CLI) from your phone, over your tailnet or a Cloudflare tunnel. Traffic between the phone and the Mac is end-to-end encrypted, so a tunnel only ever relays ciphertext.
 
 - `server/` — the Go server (`luther serve`), on macOS or Linux
 - `app/` — the Expo iPhone app
@@ -25,9 +25,19 @@ Then:
 ```sh
 luther doctor            # what's installed, what's missing
 luther tailscale         # a route over your tailnet (and/or: luther tunnel)
-luther service install   # run now and at login (launchd; systemd on Linux)
+luther start             # run in the background; this terminal stays free
 luther pair              # QR for the app
+luther status            # check the local server
+luther stop              # stop the managed server and allow idle sleep again
 ```
+
+On macOS, the server holds `caffeinate` idle-sleep assertions on battery and AC until it stops. This does not override lid-close sleep. Logs are in `~/.luther/serve.log`. `start` is on-demand; use `luther service install` separately to start at login. If installed at login, `stop` stops it for the current login; the installed service still starts at the next login. `luther serve` remains available for foreground debugging.
+
+Devin uses its released `devin acp` interface and the CLI's existing login. Its native Ask mode is read-only; Auto-accept edits, Plan and Full access map to Devin's Code, Plan and Bypass Permissions modes.
+
+The Changes screen discovers git checkouts inside a multi-repository chat folder. Choose a repository before a git action; Luther never initializes the parent or commits across repositories implicitly. Separate-worktree threads also let you choose which checkout to use.
+
+The Usage tab shows plan limits and daily token burn for 7, 30 or 90 days, with provider/model and input/output/cache breakdowns. Claude and Codex history includes readable local transcripts, even from terminal sessions. Other agents contribute only explicit usage reported by prompts run through Luther after this update. Costs are reported amounts only, not estimates or subscription charges; unavailable usage and costs are not represented as known zeroes.
 
 ## Agents on other machines
 
