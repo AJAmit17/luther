@@ -1,7 +1,25 @@
 import type { Usage, UsageBreakdown, UsageDay } from './protocol.ts';
 
 export const tokenTotal = (u: Usage) => u.inputTokens + u.outputTokens + (u.cacheReadTokens ?? 0) + (u.cacheWriteTokens ?? 0);
-export const formatTokens = (n: number) => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n);
+export type TokenFormat = 'compact' | 'full';
+const tokenUnits = ['', 'K', 'M', 'B', 'T'];
+const fullTokenFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+
+export function formatTokens(n: number, format: TokenFormat = 'compact') {
+  if (format === 'full') return fullTokenFormat.format(n);
+  let value = n;
+  let unit = 0;
+  while (Math.abs(value) >= 1000 && unit < tokenUnits.length - 1) {
+    value /= 1000;
+    unit++;
+  }
+  value = Number(value.toFixed(2));
+  if (Math.abs(value) >= 1000 && unit < tokenUnits.length - 1) {
+    value /= 1000;
+    unit++;
+  }
+  return `${value}${tokenUnits[unit]}`;
+}
 
 export function chartDays(days: UsageDay[], metric: 'tokens' | 'cost') {
   const values = days.map((d) => metric === 'tokens' ? tokenTotal(d) : (d.costUsd ?? 0));

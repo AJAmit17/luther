@@ -33,6 +33,8 @@ luther stop              # stop the managed server and allow idle sleep again
 
 On macOS, the server holds `caffeinate` idle-sleep assertions on battery and AC until it stops. This does not override lid-close sleep. Logs are in `~/.luther/serve.log`. `start` is on-demand; use `luther service install` separately to start at login. If installed at login, `stop` stops it for the current login; the installed service still starts at the next login. `luther serve` remains available for foreground debugging.
 
+Running `luther` without a command now shows a read-only overview instead of starting a foreground server. Use `luther --help` or `<command> --help` for grouped commands, flags and examples. `luther completion bash|zsh|fish|powershell` generates shell completion. Terminal output uses a compact styled layout; pipes and dumb terminals get plain output. `NO_COLOR=1` or `--no-color` disables colors. `luther pair --json` remains an undecorated pairing payload; `luther status --json` provides a credential-free status summary.
+
 Devin uses its released `devin acp` interface and the CLI's existing login. Its native Ask mode is read-only; Auto-accept edits, Plan and Full access map to Devin's Code, Plan and Bypass Permissions modes.
 
 The Changes screen discovers git checkouts inside a multi-repository chat folder. Choose a repository before a git action; Luther never initializes the parent or commits across repositories implicitly. Separate-worktree threads also let you choose which checkout to use.

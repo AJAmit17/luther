@@ -4,72 +4,14 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/AJAmit17/luther/server/internal/api"
 	"github.com/AJAmit17/luther/server/internal/cli"
-	"github.com/AJAmit17/luther/server/internal/config"
-	"github.com/AJAmit17/luther/server/internal/protocol"
 )
 
-const usage = `usage:
-  luther start                           run in the background, keeping the Mac awake
-  luther stop                            stop the background server and allow sleep
-  luther status                          show whether the server is running
-  luther serve                           run the server (launchd runs this)
-  luther pair                            QR + one-time code for the phone app
-  luther tailscale [--https 443]         publish on your tailnet (tailscale serve)
-  luther tunnel [--url URL --id UUID]    Cloudflare tunnel route (run without flags for steps)
-  luther service install|uninstall       run at login (launchd; systemd on Linux)
-  luther remote add|pair|list|remove     agents on other machines, over ssh
-  luther doctor                          check CLIs, server, routes
-  luther version
-`
-
 func main() {
-	cmd := "serve"
-	if len(os.Args) > 1 {
-		cmd = os.Args[1]
-	}
-	if cmd == "version" || cmd == "--version" || cmd == "-v" {
-		fmt.Println("luther", protocol.Version)
-		return
-	}
-	cfg, err := config.Load()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "luther:", err)
-		os.Exit(1)
-	}
-	c := cli.New(cfg)
-	args := os.Args[min(2, len(os.Args)):]
-	switch cmd {
-	case "start":
-		err = c.Start()
-	case "stop":
-		err = c.Stop()
-	case "status":
-		c.Status()
-	case "serve":
-		api.Serve(cfg)
-	case "pair":
-		err = c.Pair(args)
-	case "tailscale":
-		err = c.Tailscale(args)
-	case "tunnel":
-		err = c.Tunnel(args)
-	case "service":
-		err = c.Service(args)
-	case "remote":
-		err = c.Remote(args)
-	case "doctor":
-		c.Doctor()
-	default:
-		fmt.Fprint(os.Stderr, usage)
-		os.Exit(2)
-	}
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "luther:", err)
+	if err := cli.Execute(os.Args[1:], os.Stdout, os.Stderr, api.Serve); err != nil {
 		os.Exit(1)
 	}
 }

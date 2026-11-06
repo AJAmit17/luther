@@ -16,6 +16,7 @@ import type { Command, Prompt } from '@/lib/protocol';
 import { setWatching } from '@/lib/feed';
 import { useThread } from '@/lib/socket';
 import { useVoice } from '@/lib/voice';
+import { formatTokens as fmt } from '@/lib/usage';
 import { Banner, Empty, Icon, ProviderMark, PulsingDot, c, card, mono, providerName, type, useHex } from '@/components/ui';
 
 function useKeyboardShown() {
@@ -158,7 +159,6 @@ export default function ThreadScreen() {
   const mode = st?.mode ?? 'ask';
   const model = st?.model ?? '';
   const usage = st?.usage;
-  const fmt = (n: number) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(n));
   const conn = ev.status === 'connecting' ? 'Connecting…' : ev.status === 'closed' ? 'Reconnecting…' : '';
 
   // Memoized: a new headerTitle each render would redraw the native header on every streamed token.
