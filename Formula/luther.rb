@@ -6,7 +6,7 @@ class Luther < Formula
   desc "Drive the coding agents on your Mac (Claude Code, Codex, more) from your phone"
   homepage "https://github.com/AJAmit17/luther"
   url "https://github.com/AJAmit17/luther.git", tag: "v0.1.0", revision: "0000000000000000000000000000000000000000"
-  license :cannot_represent
+  license "Apache-2.0"
   head "https://github.com/AJAmit17/luther.git", branch: "main"
 
   depends_on "go" => :build
@@ -17,6 +17,7 @@ class Luther < Formula
       ldflags = "-s -w -X github.com/AJAmit17/luther/server/internal/protocol.Version=#{version}"
       system "go", "build", *std_go_args(ldflags:, output: bin/"luther")
     end
+    prefix.install "LICENSE", "NOTICE"
   end
 
   # `brew services start luther`, or Luther's own `luther service install`.

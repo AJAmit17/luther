@@ -9,8 +9,8 @@ import { Button, Icon, MODES, Note, c, home, mono, useLoad, ProviderMark } from 
 
 const Chip = ({ label, on, onPress, icon, mark }: { label: string; on: boolean; onPress: () => void; icon?: string; mark?: React.ReactNode }) => (
   <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: on ? c.accent : c.card }}>
-    {mark ?? (!!icon && <Icon name={icon} size={13} color={on ? '#fff' : c.text} />)}
-    <Text style={{ color: on ? '#fff' : c.text, fontWeight: '500' }}>{label}</Text>
+    {mark ?? (!!icon && <Icon name={icon} size={13} color={on ? c.onAccent : c.text} />)}
+    <Text style={{ color: on ? c.onAccent : c.text, fontWeight: '500' }}>{label}</Text>
   </Pressable>
 );
 const Label = ({ children }: { children: string }) => <Text style={{ color: c.dim, fontWeight: '600', fontSize: 13 }}>{children}</Text>;
@@ -87,7 +87,7 @@ export default function ScheduleEditor() {
 
       <Label>AGENT</Label>
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-        {installed.map((p) => <Chip key={p.id} label={p.name} mark={<ProviderMark p={p.id} size={14} color={agent === p.id ? '#FFFFFF' : undefined} />} on={agent === p.id} onPress={() => setProvider(p.id)} />)}
+        {installed.map((p) => <Chip key={p.id} label={p.name} mark={<ProviderMark p={p.id} size={14} color={agent === p.id ? c.onAccent : undefined} />} on={agent === p.id} onPress={() => setProvider(p.id)} />)}
       </View>
 
       <Label>PERMISSIONS</Label>

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AnsiText } from '@/components/ansi';
 import { useTerm } from '@/lib/socket';
 import { Banner, mono } from '@/components/ui';
+import { PALETTE } from '@/lib/palette';
 
 const FS = 11;
 const KEYS: [string, string][] = [
@@ -48,8 +49,8 @@ export default function Terminal() {
         </ScrollView>
       </ScrollView>
       <ScrollView horizontal keyboardShouldPersistTaps="always" showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 6, padding: 6 }}>
-        <Pressable onPress={() => setCtrl(!ctrl)} style={[key, { backgroundColor: ctrl ? '#d97757' : '#222' }]}>
-          <Text style={{ color: '#eee', fontFamily: mono }}>ctrl</Text>
+        <Pressable onPress={() => setCtrl(!ctrl)} style={[key, { backgroundColor: ctrl ? PALETTE.accent[1] : '#222' }]}>
+          <Text style={{ color: ctrl ? PALETTE.onAccent[1] : '#eee', fontFamily: mono }}>ctrl</Text>
         </Pressable>
         {KEYS.map(([label, seq]) => (
           <Pressable key={label} onPress={() => term.input(seq)} style={({ pressed }) => [key, { backgroundColor: pressed ? '#444' : '#222' }]}>

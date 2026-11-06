@@ -37,6 +37,7 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 | Codex wire types generated from `codex app-server generate-json-schema` | The protocol is large and versioned; generate, don't hand-write. |
 | Reuse Burrow's Go engine (Claude stream-json, verified wire facts, session indexer, pairing, push) | Same author, already verified against the real CLI. |
 | Never write to `~/.claude` or `~/.codex` | Those are the CLIs' stores; Luther only reads them. |
+| Visual identity: Relay mark, mineral neutrals, deep teal / pale sea glass | User-approved direction. `app/src/lib/palette.ts` owns semantic colors; `scripts/generate-brand.swift` generates repo/mobile artwork. Filled actions use `onAccent`; attention remains distinct from the brand. |
 
 ## Phases
 
@@ -124,7 +125,7 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [x] Automated regression tests, `go test -race ./...`, Go vet/build, app tests/typecheck/lint; iOS bundle export; isolated-home native-server smoke (auth, history, repositories, idempotent start, caffeinate PID); Linux amd64 cross-build. Device, installed launchd/systemd, real agent-turn and network checks remain explicitly separate.
 - [x] Dynamic token units in Usage and thread summaries: shared, deterministic base-1,000 scaling (K/M/B/T), up to two decimals, including rounding across unit boundaries. One billion is 1,000 million; 100 million stays 100M. Do not depend on Intl compact notation: Hermes iOS ignores it. Usage defaults to Compact and offers a persisted Compact/Full toggle that controls totals, daily details, cache counts and provider/model rows; Full preserves exact grouped counts.
 - [x] Daily chart scroll discovery: subtle Swipe/arrow cue and native horizontal scroll indicator when measured content overflows; no extra cue when all days fit.
-- [ ] Publish the feature branch and PR after resolving whether to include the four pre-existing commits on local main that are not on origin/main.
+- [x] Publish the daily-driver feature branch and PR; PR #1 merged into `main` as `2a717de`.
 
 ### Phase 9e: Terminal CLI experience
 - [x] Cobra command tree: grouped help/examples, strict argument/flag validation, typo suggestions, bash/zsh/fish/PowerShell completion. Help/version/completion do not initialize config or start the server.
@@ -132,6 +133,13 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [x] Lip Gloss presentation: restrained orange branding, responsive terminal status panel, pairing instructions and diagnostic rows. Plain piped/dumb-terminal output; `NO_COLOR` and `--no-color`; preserve undecorated `pair --json` and add safe `status --json` without credentials.
 - [x] Preserve all existing lifecycle, route, service and remote commands; Cobra owns parsing, feature handlers receive typed values. Keep runtime behavior and the phone wire protocol unchanged. `config.Read` serves read-only commands without generating or saving keys.
 - [x] Regression tests for side-effect-free help/validation, compatibility/JSON, typed route/remote flags and terminal rendering; Go race tests, vet/build, isolated binary/PTY smoke (true color, no-color, narrow/dumb terminals, read-only overview, status JSON, explicit serve), bash/zsh completion syntax and Linux amd64 cross-build. Live service-manager mutations, new real SSH provisioning and physical QR rescans were not exercised in this CLI-only pass.
+
+### Phase 9f: Relay identity and project documentation
+- [x] Approved Relay geometry: reusable vectors, outlined light/dark wordmarks, social artwork, mobile bitmaps, and Icon Composer source. Discard the visual experiments.
+- [x] Shared Relay palette without screen-layout changes; readable filled-action foregrounds and separate attention states. Match widget and Live Activity colors.
+- [x] Detailed README, native-only iPhone setup, contribution guide, contributor credit, and reproducible artwork instructions.
+- [x] Apache-2.0 with project `NOTICE`, approved by the maintainer. Preserve project notices in server archives, installer and Homebrew; align app metadata and contribution terms. No mandatory UI badge or added advertising condition.
+- [x] Verification: 21 app tests, typecheck/lint, Go race tests/vet/build, 66 solid-palette contrast pairs, repeatable asset generation, Apple asset compilation and compiled-silhouette check, Android safe-circle check, and isolated notice-copy/archive checks. Full native app rebuild, phone installation, and public release remain separate.
 
 ### Phase 10: End-to-end tests
 - [ ] Pair over tailnet and over Cloudflare
@@ -144,4 +152,6 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [ ] Mac reboot: service comes back; phone reconnects
 
 ### Phase 11: Publish (later)
-- [ ] License choice, first tagged release, TestFlight (push on iOS needs a paid Apple account)
+- [x] Licence choice: Apache-2.0 with attribution in `NOTICE`.
+- [ ] First tagged release and verified installation.
+- [ ] TestFlight (push on iOS needs a paid Apple account).

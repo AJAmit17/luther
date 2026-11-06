@@ -5,30 +5,15 @@ import { Image } from 'expo-image';
 import { MenuView, type MenuAction } from '@expo/ui/community/menu';
 import type { Mode, Provider } from '@/lib/protocol';
 import { keep, peek } from '@/lib/cache';
+import { PALETTE as P } from '@/lib/palette';
 
-// Luther's look: a warm graphite (dark) / paper (light) neutral ramp and one
-// accent, Luther orange, for what's live or needs you — the working dot, a
-// waiting prompt, the send button. Never for plain actions, so it never reads
-// as an error. Colours follow the phone's appearance by themselves (iOS dynamic
+// Luther's look: mineral neutrals and Relay teal, with a separate foreground
+// for filled actions. Amber marks what needs you; red remains destructive.
+// The approved Relay geometry and palette also drive the generated assets.
+// Colours follow the phone's appearance by themselves (iOS dynamic
 // colours), so nothing re-renders on a switch.
 
 type Pair = readonly [light: string, dark: string];
-const P = {
-  bg: ['#F6F6F3', '#0E0F11'],
-  surface: ['#FFFFFF', '#141518'],
-  card: ['#FFFFFF', '#1B1C20'],
-  muted: ['#EEEEEA', '#24252A'],
-  fill: ['#EEEEEA', '#24252A'], // = muted (older name)
-  line: ['#E3E2DD', '#2C2E33'],
-  text: ['#16171A', '#F3F3F1'],
-  dim: ['#5E6067', '#A3A5AB'],
-  faint: ['#8D8F95', '#6B6E75'],
-  accent: ['#E35A12', '#FF7B32'],
-  blue: ['#0B5CD6', '#6EA8FE'],
-  green: ['#1E8A54', '#4CC38A'],
-  red: ['#C3272D', '#F2555A'],
-  warn: ['#A8670D', '#E5A84B'],
-} satisfies Record<string, Pair>;
 
 const ios = process.env.EXPO_OS === 'ios';
 const dyn = ([light, dark]: Pair): ColorValue => (ios ? DynamicColorIOS({ light, dark }) : dark);
@@ -201,7 +186,7 @@ export function GroupRow({ label, value, icon, iconColor, onPress, right, first,
 export function Button({ label, onPress, kind = 'plain', icon, disabled, busy }: {
   label: string; onPress: () => void; kind?: 'plain' | 'accent' | 'danger'; icon?: string; disabled?: boolean; busy?: boolean;
 }) {
-  const fg = kind === 'accent' ? '#FFFFFF' : kind === 'danger' ? c.red : c.text;
+  const fg = kind === 'accent' ? c.onAccent : kind === 'danger' ? c.red : c.text;
   return (
     <Pressable
       onPress={onPress}

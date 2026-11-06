@@ -15,7 +15,7 @@ export type RunActivityProps = {
 const RunActivity = (props: RunActivityProps) => {
   'widget';
   const live = props.phase === 'working' || props.phase === 'waiting';
-  const color = { working: '#FF9F0A', waiting: '#0A84FF', finished: '#30D158', failed: '#FF453A' }[props.phase];
+  const color = { working: '#89D5C7', waiting: '#FFD184', finished: '#8AD6A6', failed: '#FFA3AA' }[props.phase];
   const label = { working: 'Working', waiting: 'Needs you', finished: 'Finished', failed: 'Failed' }[props.phase];
   const timer = (style: 'subheadline' | 'caption2', dim: boolean) =>
     live ? (
@@ -46,7 +46,7 @@ const RunActivity = (props: RunActivityProps) => {
   );
   return {
     banner: (
-      <VStack alignment="leading" spacing={8} modifiers={[padding({ horizontal: 18, vertical: 16 }), foregroundStyle('#FFFFFF'), activityBackgroundTint('#000000')]}>
+      <VStack alignment="leading" spacing={8} modifiers={[padding({ horizontal: 18, vertical: 16 }), foregroundStyle('#FFFFFF'), activityBackgroundTint('#101716')]}>
         <HStack alignment="firstTextBaseline">
           <Text modifiers={[font({ textStyle: 'headline' }), lineLimit(1)]}>{props.title}</Text>
           <Spacer />

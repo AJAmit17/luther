@@ -1,6 +1,7 @@
 {
   "name": "luther-app",
   "version": "1.0.0",
+  "license": "Apache-2.0",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/ui": "~58.0.27",
