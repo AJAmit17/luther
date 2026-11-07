@@ -22,9 +22,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/AJAmit17/luther/server/internal/auth"
 	"github.com/AJAmit17/luther/server/internal/config"
 	"github.com/AJAmit17/luther/server/internal/env"
 	"github.com/AJAmit17/luther/server/internal/httpx"
@@ -252,6 +254,11 @@ func relay(w http.ResponseWriter, r *http.Request) {
 			pr.SetURL(target)
 			pr.Out.URL.Path, pr.Out.URL.RawPath = rest, ""
 			pr.Out.Host = target.Host
+			// The phone's token for the remote passes; this Mac's own internal
+			// token (a sealed request re-dispatched here) must never leave it.
+			if strings.HasPrefix(pr.Out.Header.Get("Authorization"), "Bearer "+auth.InternalPrefix) {
+				pr.Out.Header.Del("Authorization")
+			}
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			http.Error(w, fmt.Sprintf("remote %s is unreachable (ssh forward down?)", st.Name), http.StatusBadGateway)

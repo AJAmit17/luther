@@ -1,5 +1,5 @@
 // Package preview: your dev server (localhost:3000…) on the phone. The phone
-// asks for a preview of a port and gets a one-time path; opening it in a
+// asks for a preview of a listening port and gets a one-time path; opening it in a
 // browser sets a cookie and redirects to "/", and from then on every request
 // that carries the cookie and isn't one of Luther's own routes is proxied to
 // that port. A browser can't send the bearer token, so the random path and
@@ -28,7 +28,7 @@ import (
 
 const (
 	cookie = "luther_preview"
-	ttl    = 12 * time.Hour
+	ttl    = time.Hour
 )
 
 type grant struct {
@@ -52,8 +52,10 @@ func Routes(mux *http.ServeMux, wrap httpx.Wrap, self int) {
 		if !httpx.ReadJSON(w, r, &req) {
 			return
 		}
-		if req.Port <= 0 || req.Port > 65535 || req.Port == self {
-			http.Error(w, "pick a dev server's port", http.StatusBadRequest)
+		// Only a dev server that's listening now (what GET /ports lists): never a
+		// system service, an SSH forward, or a port nothing answers on yet.
+		if !listed(req.Port, self) {
+			http.Error(w, "pick a dev server's port from the list", http.StatusBadRequest)
 			return
 		}
 		tok := text.RandHex(16)
@@ -63,13 +65,20 @@ func Routes(mux *http.ServeMux, wrap httpx.Wrap, self int) {
 		httpx.WriteJSON(w, map[string]string{"path": "/p/" + tok + "/"})
 	}))
 	mux.HandleFunc("/p/{token}/{rest...}", func(w http.ResponseWriter, r *http.Request) {
-		tok := r.PathValue("token")
-		if _, ok := lookup(tok); !ok {
-			http.Error(w, "This preview link expired. Open it again from Luther.", http.StatusGone)
+		// The link works once: it's swapped for a cookie of its own, so a link
+		// seen later (history, a proxy's logs) opens nothing.
+		port, ok := take(r.PathValue("token"))
+		if !ok {
+			http.Error(w, "This preview link was used or expired. Open it again from Luther.", http.StatusGone)
 			return
 		}
-		http.SetCookie(w, &http.Cookie{Name: cookie, Value: tok, Path: "/", HttpOnly: true, Secure: r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https", SameSite: http.SameSiteLaxMode, MaxAge: int(ttl.Seconds())})
-		to := "/" + r.PathValue("rest")
+		session := text.RandHex(16)
+		grants.Lock()
+		grants.m[session] = grant{port, time.Now().Add(ttl)}
+		grants.Unlock()
+		http.SetCookie(w, &http.Cookie{Name: cookie, Value: session, Path: "/", HttpOnly: true, Secure: r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https", SameSite: http.SameSiteLaxMode, MaxAge: int(ttl.Seconds())})
+		// One leading slash only: "//x" or "/\x" would send the browser to another site.
+		to := "/" + strings.TrimLeft(r.PathValue("rest"), `/\`)
 		if r.URL.RawQuery != "" {
 			to += "?" + r.URL.RawQuery
 		}
@@ -88,6 +97,24 @@ func Routes(mux *http.ServeMux, wrap httpx.Wrap, self int) {
 		}
 		proxy(port).ServeHTTP(w, r)
 	})
+}
+
+// take: a link's port, once (the link is gone after).
+func take(tok string) (int, bool) {
+	port, ok := lookup(tok)
+	grants.Lock()
+	delete(grants.m, tok)
+	grants.Unlock()
+	return port, ok
+}
+
+func listed(port, self int) bool {
+	for _, p := range Ports(self) {
+		if p.Port == port {
+			return true
+		}
+	}
+	return false
 }
 
 func lookup(tok string) (int, bool) {
@@ -132,8 +159,8 @@ func proxy(port int) http.Handler {
 }
 
 // Ports: TCP ports your processes listen on, with the command and its folder.
-// System listeners (ports below 1024, AirPlay's 5000/7000) and Luther itself
-// are left out.
+// System listeners (ports below 1024, AirPlay's 5000/7000), SSH forwards (to
+// remote Macs, among others) and Luther itself are left out.
 func Ports(self int) []protocol.Port {
 	out, _ := exec.Command("lsof", "-nP", "-iTCP", "-sTCP:LISTEN", "-Fpcn").Output()
 	seen := map[int]bool{self: true}
@@ -153,7 +180,7 @@ func Ports(self int) []protocol.Port {
 		case 'n':
 			i := strings.LastIndex(l, ":")
 			port, err := strconv.Atoi(l[i+1:])
-			if err != nil || port < 1024 || seen[port] || cmd == "ControlCenter" || cmd == "rapportd" {
+			if err != nil || port < 1024 || seen[port] || cmd == "ControlCenter" || cmd == "rapportd" || cmd == "ssh" {
 				continue
 			}
 			seen[port] = true

@@ -101,7 +101,7 @@ func TestEndToEnd(t *testing.T) {
 		t.Fatalf("nested /e answered %d", s)
 	}
 
-	// plain requests with its token: fine locally / on the tailnet, refused via Cloudflare
+	// plain requests with a keyed phone's token: refused on every route
 	plainGet := func(cf bool) int {
 		req, _ := http.NewRequest("GET", base+"/devices", nil)
 		req.Header.Set("Authorization", "Bearer "+dev.Token)
@@ -111,8 +111,8 @@ func TestEndToEnd(t *testing.T) {
 		res, _ := http.DefaultClient.Do(req)
 		return res.StatusCode
 	}
-	if plainGet(false) != 200 || plainGet(true) != 403 {
-		t.Fatal("Cloudflare plaintext rule")
+	if plainGet(false) != 403 || plainGet(true) != 403 {
+		t.Fatal("a keyed phone's plain token must be refused")
 	}
 
 	// a sealed WebSocket: the run feed (an open thread list would need agents)

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/AJAmit17/luther/server/internal/paths"
 )
@@ -66,5 +67,28 @@ func TestSplitAttached(t *testing.T) {
 	// Paths outside the uploads folder are left alone.
 	if _, images := SplitAttached("x\n\nAttached files: /etc/passwd.png"); images != nil {
 		t.Fatal("outside path taken")
+	}
+}
+
+// Phone uploads go after three days, transcript copies after one unused day.
+func TestSweep(t *testing.T) {
+	paths.Home = t.TempDir()
+	os.MkdirAll(Dir(), 0o700)
+	at := func(name string, age time.Duration) string {
+		p := filepath.Join(Dir(), name)
+		os.WriteFile(p, []byte("x"), 0o600)
+		old := time.Now().Add(-age)
+		os.Chtimes(p, old, old)
+		return p
+	}
+	fresh := at("aaaa1111-new.jpg", time.Hour)
+	stale := at("bbbb2222-old.jpg", 4*24*time.Hour)
+	copyFresh := at("img-0000000000000001.png", time.Hour)
+	copyStale := at("img-0000000000000002.png", 2*24*time.Hour)
+	Sweep()
+	for p, want := range map[string]bool{fresh: true, stale: false, copyFresh: true, copyStale: false} {
+		if _, err := os.Stat(p); (err == nil) != want {
+			t.Errorf("%s: kept=%v want %v", filepath.Base(p), err == nil, want)
+		}
 	}
 }

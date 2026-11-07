@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/AJAmit17/luther/server/internal/acp"
 	"github.com/AJAmit17/luther/server/internal/auth"
@@ -33,6 +34,7 @@ import (
 	"github.com/AJAmit17/luther/server/internal/sessions"
 	"github.com/AJAmit17/luther/server/internal/terminal"
 	"github.com/AJAmit17/luther/server/internal/text"
+	"github.com/AJAmit17/luther/server/internal/tunnel"
 	"github.com/AJAmit17/luther/server/internal/uploads"
 	"github.com/AJAmit17/luther/server/internal/usage"
 	"github.com/AJAmit17/luther/server/internal/workspace"
@@ -45,8 +47,17 @@ func Handler(cfg *config.Config) http.Handler {
 	wrap := httpx.Wrap(a.Wrap)
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		// Name and version only to this Mac (the CLI): from outside they'd
+		// fingerprint the server and often name its owner.
+		if !auth.Direct(r) {
+			httpx.WriteJSON(w, map[string]any{"ok": true})
+			return
+		}
 		httpx.WriteJSON(w, map[string]any{"ok": true, "name": cfg.DisplayName(), "version": protocol.Version})
 	})
+	// The addresses this Mac answers on now: the phone refreshes its list from
+	// it, so a quick tunnel's new address reaches it.
+	mux.HandleFunc("GET /routes", wrap(func(w http.ResponseWriter, r *http.Request) { httpx.WriteJSON(w, httpx.OrEmpty(cfg.Routes())) }))
 	a.Routes(mux)
 	hub.Routes(mux, wrap)
 	sessions.Routes(mux, wrap)
@@ -81,9 +92,17 @@ func Serve(cfg *config.Config) {
 	go hub.ReapIdle()
 	go claude.WatchDups()
 	go warmModels()
+	go housekeeping()
+	go tunnel.KeepQuick(fmt.Sprintf("http://127.0.0.1:%d", cfg.Port))
+	// A named tunnel on your own domain, if one is configured (read fresh: the
+	// CLI sets it while this runs).
+	go tunnel.KeepNamed(func() bool { c, err := config.Load(); return err == nil && c.Tunnel != "" })
 	addr := fmt.Sprintf("127.0.0.1:%d", cfg.Port)
 	log.Printf("luther %s listening on http://%s", protocol.Version, addr)
-	log.Fatal(http.ListenAndServe(addr, Handler(cfg)))
+	// Header and idle timeouts against slow or idle connections from the
+	// internet; no read/write timeout, which would cut WebSockets.
+	srv := &http.Server{Addr: addr, Handler: Handler(cfg), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
+	log.Fatal(srv.ListenAndServe())
 }
 
 // openThread: POST /threads OpenReq → {id}. Attaches to the thread already
@@ -225,4 +244,14 @@ func limits(w http.ResponseWriter, r *http.Request) {
 		log.Print(err) // the last reported numbers still show
 	}
 	httpx.WriteJSON(w, usage.All())
+}
+
+// housekeeping, at start and hourly: old uploads go, and the service log
+// (launchd writes ~/.luther/serve.log) stays under 5 MB.
+func housekeeping() {
+	for {
+		uploads.Sweep()
+		env.CapLog(filepath.Join(config.Dir(), "serve.log"), 5<<20)
+		time.Sleep(time.Hour)
+	}
 }

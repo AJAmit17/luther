@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/AJAmit17/luther/server/internal/lifecycle"
+	"github.com/AJAmit17/luther/server/internal/tunnel"
 )
 
 type serverHealth struct {
@@ -101,17 +102,21 @@ func (c *CLI) Status(asJSON bool) error {
 			wake = "Not configured on this platform"
 		}
 	}
-	tailnet, tunnel := c.cfg.Tailnet, c.cfg.Tunnel
+	tailnet, named := c.cfg.Tailnet, c.cfg.Tunnel
 	if tailnet == "" {
-		tailnet = "Not configured · luther tailscale"
+		tailnet = "Not configured · luther funnel or luther tailscale"
 	}
-	if tunnel == "" {
-		tunnel = "Not configured · luther tunnel"
+	if named == "" {
+		named = "Not configured · luther tunnel"
+	}
+	q := tunnel.QuickURL()
+	if q == "" {
+		q = "Off · luther tunnel --quick"
 	}
 	c.view.panel("LUTHER / status", [][2]string{
 		{"Machine", status.Name}, {"Server", state}, {"Local", status.URL},
 		{"Sleep guard", wake}, {"Phones", strconv.Itoa(status.Devices) + " paired"},
-		{"Tailnet", tailnet}, {"Cloudflare", tunnel}, {"Logs", "~/.luther/serve.log"},
+		{"Tailnet", tailnet}, {"Cloudflare", named}, {"Quick tunnel", q}, {"Logs", "~/.luther/serve.log"},
 	})
 	return nil
 }
