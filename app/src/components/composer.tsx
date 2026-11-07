@@ -6,6 +6,7 @@ import { AttachmentStrip, type useAttachments } from '@/components/attachments';
 import { Icon, MODES, c, mono, tint, type, useHex, useScheme } from '@/components/ui';
 import type { Mode, Model, Provider } from '@/lib/protocol';
 import { ModelPicker, modelName } from '@/components/model-picker';
+import { ThinkingSheet, effortLabel } from '@/components/thinking-sheet';
 import type { useVoice } from '@/lib/voice';
 
 const Chip = ({ icon, mark, label, color = c.dim, bg }: { icon?: string; mark?: React.ReactNode; label: string; color?: any; bg?: any }) => {
@@ -49,6 +50,8 @@ export function Composer(p: {
   setModel: (m: string) => void;
   mode: Mode;
   setMode: (m: Mode) => void;
+  /** Effort and fast mode, in a thread (absent: no Thinking chip). */
+  think?: { efforts: string[]; effort: string; setEffort: (e: string) => void; fast: string; fastNote: string; setFast: (on: boolean) => void };
   canSend: boolean;
   send: () => void;
   canStop: boolean;
@@ -59,6 +62,9 @@ export function Composer(p: {
   const input = useRef<ComponentRef<typeof TextInput>>(null);
   const [focused, setFocused] = useState(false);
   const [picking, setPicking] = useState(false);
+  const [thinking, setThinking] = useState(false);
+  const t = p.think;
+  const showThink = !!t && (t.efforts.length > 0 || !!t.fast);
   const m = MODES.find((x) => x.id === p.mode) ?? MODES[0];
   const empty = !p.text.trim() && !p.att.items.length;
   const modeColor = p.mode === 'full' ? c.red : p.mode === 'ask' ? c.dim : c.accent;
@@ -97,6 +103,11 @@ export function Composer(p: {
           <Pressable onPress={() => setPicking(true)} accessibilityRole="button" accessibilityLabel="Model">
             <Chip icon="cpu" label={modelName(p.models, p.model) || 'Default model'} />
           </Pressable>
+          {showThink && (
+            <Pressable onPress={() => setThinking(true)} accessibilityRole="button" accessibilityLabel="Thinking">
+              <Chip icon="brain" label={(t.effort ? effortLabel(t.effort) : 'Effort') + (t.fast === 'on' ? ' · Fast' : '')} />
+            </Pressable>
+          )}
           <MenuView
             colorScheme={scheme}
             title="Permissions"
@@ -131,6 +142,7 @@ export function Composer(p: {
           <Round icon="arrow.up" label="Send" onPress={p.send} disabled={!p.canSend} />
         )}
       </View>
+      {showThink && <ThinkingSheet open={thinking} onClose={() => setThinking(false)} {...t} />}
       <ModelPicker open={picking} models={p.models} selected={p.model} onPick={p.setModel} onClose={() => setPicking(false)} />
     </View>
   );

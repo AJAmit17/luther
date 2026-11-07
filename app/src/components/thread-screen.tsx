@@ -11,6 +11,7 @@ import { Composer } from '@/components/composer';
 import { PromptCard } from '@/components/prompt-card';
 import { useAttachments } from '@/components/attachments';
 import { useModels } from '@/components/model-picker';
+import { knobs } from '@/components/thinking-sheet';
 import { TaskPanel } from '@/components/task-panel';
 import { toBlocks, type Block } from '@/lib/blocks';
 import type { Command, Prompt } from '@/lib/protocol';
@@ -279,6 +280,7 @@ export default function ThreadScreen() {
             setModel={ev.setModel}
             mode={mode}
             setMode={ev.setMode}
+            think={{ ...knobs(st, models), setEffort: ev.setEffort, setFast: ev.setFast }}
             canSend={canSend}
             send={submit}
             canStop={busy && !top}

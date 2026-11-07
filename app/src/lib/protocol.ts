@@ -4,7 +4,7 @@ export type Provider = 'claude' | 'codex' | 'opencode' | 'gemini' | 'cursor' | '
 export type Mode = 'ask' | 'edits' | 'plan' | 'full';
 
 /** A model as its agent lists it; `resolved` is the full ID an alias runs (Claude). */
-export type Model = { id: string; name: string; desc?: string; resolved?: string; group?: string };
+export type Model = { id: string; name: string; desc?: string; resolved?: string; group?: string; efforts?: string[]; effort?: string; fast?: boolean };
 export type ProviderInfo = { id: Provider; name: string; installed: boolean; version?: string; modes: Mode[] };
 
 export type Project = { cwd: string; name: string; sessions: number; lastActive: string; live: number };
@@ -39,6 +39,10 @@ export type State = {
   activity: string;
   model: string;
   mode: Mode;
+  effort?: string;
+  efforts?: string[];
+  fast?: 'on' | 'off';
+  fastNote?: string;
   commands?: string[];
   usage?: Usage;
   contextTokens?: number;
@@ -81,7 +85,9 @@ export type ClientFrame =
   | ({ type: 'answer' } & Answer)
   | { type: 'interrupt' }
   | { type: 'mode'; mode: Mode }
-  | { type: 'model'; model: string };
+  | { type: 'model'; model: string }
+  | { type: 'effort'; effort: string }
+  | { type: 'fast'; fast: boolean };
 
 export type Run = {
   thread: string;
