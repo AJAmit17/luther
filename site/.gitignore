@@ -1,0 +1,5 @@
+.taste-skill/
+shots/
+node_modules/
+dist/
+.astro/

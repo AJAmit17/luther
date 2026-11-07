@@ -1,0 +1,14 @@
+---
+// The Mac's terminal running the luther CLI. Lines: "$ cmd" is a prompt, anything else is output.
+interface Props {
+  label: string;
+  lines: string[];
+  title?: string;
+  class?: string;
+}
+const { label, lines, title = 'zsh', class: cls = '' } = Astro.props;
+---
+<div class:list={['ui', 'ui-device', 'tm', cls]} role="img" aria-label={label}>
+  <div class="tm__bar" aria-hidden="true"><i></i><i></i><i></i><b>{title}</b></div>
+  <pre>{lines.map((l) => (l.startsWith('$ ') ? <span><b>$</b> {l.slice(2)}</span> : <span><i>{l}</i></span>))}</pre>
+</div>

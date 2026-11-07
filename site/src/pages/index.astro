@@ -1,0 +1,294 @@
+---
+import Phone from '../components/Phone.astro';
+import Terminal from '../components/Terminal.astro';
+const ic = (n: string) => `assets/icons/${n}.svg`;
+---
+<!doctype html>
+<html lang="en" data-type="software" data-radius="sharp" data-ground="sage" data-buttons="arrow" data-motion>
+<head>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Luther: a phone remote for the coding agents on your Mac</title>
+<meta name="description" content="Start, steer and approve Claude Code, Codex, Devin and four more agents on your Mac from your phone, end-to-end encrypted and self-hosted.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Luther: a phone remote for the coding agents on your Mac">
+<meta property="og:description" content="Start, steer and approve the coding agents on your Mac from your phone.">
+<meta property="og:image" content="share.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#101716">
+<!-- <link rel="canonical" href="https://ajamit17.github.io/luther/"> once Pages is on -->
+<meta name="site-kind" content="software">
+<meta name="page-type" content="software">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400..700&family=JetBrains+Mono:wght@400..500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/system.css">
+<link rel="stylesheet" href="assets/ui/cards.css">
+<link rel="stylesheet" href="assets/motion/motion.css">
+<link rel="stylesheet" href="assets/backgrounds/backgrounds.css">
+<link rel="stylesheet" href="assets/layout/layout.css">
+<link rel="stylesheet" href="assets/icons/icon.css">
+<style is:inline>
+:root {
+  --p-bg: #101716; --p-surface: #192321; --p-ink: #edf4f1; --p-muted: #a3b5ae;
+  --p-accent: #89d5c7; --p-accent-ink: #101716; --p-action: #89d5c7; --p-action-ink: #101716;
+  --p-inv-bg: #edf4f1; --p-inv-surface: #dbe2df; --p-inv-ink: #101716; --p-inv-muted: #5a6260;
+  --p-inv-accent: #101716; --p-inv-accent-ink: #edf4f1; --p-inv-action: #101716; --p-inv-action-ink: #edf4f1;
+  --font-display: "Onest", system-ui, sans-serif;
+  --font-text: "Onest", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --display-weight: 400;
+  --display-tracking: -0.035em;
+  --display-tracking-xl: -0.04em;
+}
+</style>
+<link rel="stylesheet" href="assets/ui/base.css">
+<link rel="stylesheet" href="assets/diagrams/diagram.css">
+<script is:inline>document.documentElement.classList.add('m-enter');setTimeout(()=>document.documentElement.classList.add('m-enter-done'),700)</script>
+<script is:inline src="assets/backgrounds/backgrounds.js"></script>
+<script is:inline>document.documentElement.classList.add('mo-js');setTimeout(()=>document.documentElement.classList.add('mo-safe'),2500)</script>
+<link rel="modulepreload" href="assets/moments/moments.js">
+<link rel="modulepreload" href="assets/moments/lib.js">
+<link rel="modulepreload" href="assets/moments/iris-opens/moment.js">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<!-- type: software (a developer tool: a Mac server and phone apps that drive coding agents)
+     deal: hero collage, nav nav-centre (nav-cards dealt; no photographs, so dealt again without cards),
+     close close-word, footer footer-columns, rhythm dark-band, buttons arrow, mark: the client's own (the Luther relay mark),
+     palette: the client's own (start.mjs brand: Luther's app colours, a dark terminal ground and its mint accent),
+     type onest (Onest + JetBrains Mono), radius sharp, lit ground sage,
+     hero frame on the kit's CSS lit ground (sage); card ground gradient-mesh, still; card ground gradient-mesh, still, sage
+     moments: iris-opens on #agents (the inverse band) -->
+<header class="nav nav--centre">
+  <div class="wrap nav__bar">
+    <a class="skip-link" href="#top">Skip to content</a>
+    <a class="nav__logo" href="#top"><svg class="lu-mark" viewBox="0 0 80 80" aria-hidden="true"><path d="M20 14 L20 43 Q20 55 32 55 L47 55 M60 66 L60 37 Q60 25 48 25 L33 25" fill="none" stroke="currentColor" stroke-width="12"/></svg>Luther</a>
+    <nav class="nav__links" aria-label="Main">
+      <div class="nav__item"><a class="nav__link" href="#threads">Threads</a></div>
+      <div class="nav__item"><a class="nav__link" href="#agents">Agents</a></div>
+      <div class="nav__item"><a class="nav__link" href="#security">Security</a></div>
+      <div class="nav__item"><a class="nav__link" href="#phone">Phone</a></div>
+      <div class="nav__item"><a class="nav__link" href="#faq">Questions</a></div>
+    </nav>
+    <div class="nav__actions">
+      <a class="btn btn--primary" href="#setup">Set up Luther</a>
+    </div>
+    <button class="nav__toggle" type="button" aria-expanded="false" aria-label="Menu">
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 5h14M2 13h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero hero--collage" data-enter aria-labelledby="hero-h">
+    <div class="wrap"><div class="hero-text grid hero__grid">
+      <div class="hero__text span-5">
+        <h1 id="hero-h">Your coding agents, on your phone</h1>
+        <p class="hero__lead">Run <code>luther</code> on your Mac, pair your phone, and start, steer and approve Claude Code, Codex and five more agents from anywhere. End-to-end encrypted.</p>
+        <div class="btn-row"><a class="btn btn--primary" href="#setup">Set up Luther<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a><a class="btn btn--secondary" href="https://github.com/AJAmit17/luther">Read the code</a></div>
+        <p class="hero__proof">Free and open source under Apache 2.0.</p>
+      </div>
+      <div class="hero__art span-6 start-7">
+        <img class="shot" src="screens/ask.webp" width="438" height="910" fetchpriority="high" alt="Luther on an iPhone: Claude Code asks to edit tests/login.spec.ts, with Yes, Yes and don't ask again, and No">
+      </div>
+    </div></div>
+  </section>
+
+  <section class="section" id="threads" aria-labelledby="threads-h">
+    <div class="wrap">
+      <div class="grid">
+        <h2 id="threads-h" class="span-5">Every agent’s threads in one list</h2>
+        <p class="span-6 start-7 muted">Threads from every agent and project sit together. Open one to read the reply, answer what it asks or queue the next task. <a class="link" href="#agents">See the seven agents</a></p>
+      </div>
+      <div class="shots">
+        <img class="shot" src="screens/home.webp" width="438" height="910" loading="lazy" alt="Luther's home screen: four running threads from Claude, Codex, Devin and Oh My Pi, one needing you, then the projects on the Mac">
+        <img class="shot" src="screens/done.webp" width="438" height="910" loading="lazy" alt="An open Codex thread: it added retries to the payment webhook, ran the tests, and is opening a pull request">
+      </div>
+    </div>
+  </section>
+
+  <section class="section ground-inverse" id="agents" aria-labelledby="agents-h" data-moment="iris-opens" data-moment-opts='{"from": "base"}'>
+    <div class="wrap">
+      <div class="grid">
+        <h2 id="agents-h" class="span-5">Works with seven coding agents</h2>
+        <p class="span-6 start-7">Luther starts each agent’s own CLI with the login, plan and limits you already have, and shows the models and effort levels that agent lists.</p>
+      </div>
+      <div class="frame frame--diagram" data-visual>
+        <div class="dg" data-diagram><script is:inline type="application/json">{"layout": "hub", "alt": "Luther on the Mac connects your phone to Claude Code, Codex, Devin, OpenCode, Oh My Pi, Gemini CLI and Cursor.", "ground": "glow", "center": {"label": "Luther"}, "spokes": [{"label": "Claude Code", "icon": "claude-code"}, {"label": "Codex", "icon": "openai"}, {"label": "Devin", "icon": "devin"}, {"label": "OpenCode", "icon": "opencode"}, {"label": "Oh My Pi", "icon": "omp"}, {"label": "Gemini CLI", "icon": "gemini"}, {"label": "Cursor", "icon": "cursor"}], "motion": {"cycle": 3.2}}</script></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="security" aria-labelledby="security-h">
+    <div class="wrap">
+      <div class="grid">
+        <div class="span-5 stack-4">
+          <h2 id="security-h">Your code stays on your Mac</h2>
+          <p class="t-lead">Every way in ends at Luther on 127.0.0.1. A paired phone seals each request with X25519 and AES-256-GCM, so a tunnel carries only ciphertext.</p>
+          <p>No relay or database of ours sits in between.</p>
+          <p>The admin token works only on the Mac itself.</p>
+          <p>Remove a phone and its connections close within seconds.</p>
+          <p><a class="link" href="https://github.com/AJAmit17/luther#security-and-trust">Read the security notes</a></p>
+        </div>
+        <div class="frame frame--split span-6 start-7">
+          <div class="dg" data-diagram><script is:inline type="application/json">{"layout": "fanin", "alt": "Tailscale Funnel, a Cloudflare quick tunnel, your own domain and your tailnet all lead to Luther on 127.0.0.1, which runs your agents.", "sources": [{"label": "Tailscale Funnel", "icon": "tailscale", "sub": "Any network"}, {"label": "Quick tunnel", "icon": "cloudflare", "sub": "No account"}, {"label": "Your domain", "icon": "cloudflare", "sub": "Named tunnel"}, {"label": "Tailnet", "icon": "tailscale", "sub": "Phone on Tailscale"}], "target": {"label": "Luther", "icon": "ui:lock", "meta": "127.0.0.1"}, "then": {"label": "Your agents", "icon": "ui:terminal", "meta": "on the Mac"}, "motion": {"cycle": 3.2, "pulse": "none"}}</script></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section g2" id="phone" aria-labelledby="phone-h">
+    <div class="wrap">
+      <div class="group">
+        <div class="section-head">
+          <h2 id="phone-h">What you can do from the phone. <span class="muted">The same sessions you have at the desk.</span></h2>
+        </div>
+        <div class="grid">
+          <article class="card card--row span-6">
+            <h3>Answer what the agent asks</h3>
+            <p>Approve a command, answer a question or accept a plan, and the agent carries on.</p>
+            <div class="panel panel--flush" data-fx="gradient-mesh" data-fx-palette='{"bg":"#cdd6c6","surface":"#dce3d6","ink":"#262d24","accent":"#6c8e63"}' data-fx-seed="41" data-fx-params='{"drift":0}'><div class="stage stage--fade-b"><div class="rise">
+              <Phone label="Luther notifications on the phone's lock screen" theme="lock">
+                <div class="lock"><strong>9:41</strong><span>Saturday 8 November</span></div>
+                <div class="note"><b><img loading="lazy" width="24" height="24" src={ic('claude-code')} alt="" />Claude Code needs you</b><span>Run npm test -- login --repeat 20?</span></div>
+                <div class="note"><b><img loading="lazy" width="24" height="24" src={ic('openai')} alt="" />Codex finished</b><span>3 files changed in luther, tests pass</span></div>
+                <div class="note"><b><img loading="lazy" width="24" height="24" src={ic('devin')} alt="" />Devin’s plan is ready</b><span>Retry settle jobs, 4 steps</span></div>
+              </Phone>
+            </div></div></div>
+          </article>
+          <article class="card card--row span-6">
+            <h3>Review each turn’s changes</h3>
+            <p>Read the diff of every turn, then commit, push and open the pull request.</p>
+            <div class="panel panel--flush" data-fx="gradient-mesh" data-fx-palette='{"bg":"#cdd6c6","surface":"#dce3d6","ink":"#262d24","accent":"#6c8e63"}' data-fx-seed="43" data-fx-params='{"drift":0}'><div class="stage stage--fade-b"><div class="rise">
+              <Phone label="A turn's diff with Commit and push" title="Changes" right="3 files">
+                <p class="k">Turn 3 · src/auth/session.ts · +3 −2</p>
+                <div class="diff"><span>  await fill(page, email);</span><span class="r">− await sleep(500);</span><span class="a">+ await waitForCookie(page);</span><span class="r">− const c = await page.cookie();</span><span class="a">+ const c = await readCookie(page);</span><span>  expect(c).toBeDefined();</span><span class="a">+ return c;</span><span>&#125;</span></div>
+                <div class="btns"><span class="on">Commit and push</span><span>Revert turn</span></div>
+              </Phone>
+            </div></div></div>
+          </article>
+        </div>
+      </div>
+      <div class="grid">
+        <article class="card card--row span-6">
+          <h3>Pick the model and effort</h3>
+          <p>Each agent lists its own models, from Opus 5.5 to the hundreds Oh My Pi offers.</p>
+          <div class="panel panel--flush" data-fx="gradient-mesh" data-fx-palette='{"bg":"#cdd6c6","surface":"#dce3d6","ink":"#262d24","accent":"#6c8e63"}' data-fx-seed="47" data-fx-params='{"drift":0}'><div class="stage stage--fade-b"><div class="rise">
+            <Phone label="The model and effort sheet" title="Fix the flaky login test" right="⋯">
+              <div class="sheet"><b>Model</b><div class="opt on">Opus 5.5<small>Claude Code’s default</small></div><div class="opt">Sonnet 5.5<small>Faster, lighter</small></div><div class="opt">Fable 5.1<small>For the hardest work</small></div><b>Effort</b><div class="seg"><span>Low</span><span>Med</span><span class="on">High</span><span>XHigh</span><span>Max</span></div></div>
+            </Phone>
+          </div></div></div>
+        </article>
+        <article class="card card--row span-6">
+          <h3>Open a terminal on the Mac</h3>
+          <p>A tmux terminal that survives a dropped connection; pick it up later at the desk.</p>
+          <div class="panel panel--flush" data-fx="gradient-mesh" data-fx-palette='{"bg":"#cdd6c6","surface":"#dce3d6","ink":"#262d24","accent":"#6c8e63"}' data-fx-seed="53" data-fx-params='{"drift":0}'><div class="stage stage--fade-b"><div class="rise">
+            <Phone label="The Mac's terminal on the phone running the Go tests" title="Terminal" right="tmux" theme="dark">
+              <div class="tmx"><span class="p">~/luther/server $ go test ./...</span><span>ok  internal/acp      1.61s</span><span>ok  internal/claude   1.40s</span><span>ok  internal/seal     1.40s</span><span>ok  internal/uploads 14.5s</span><span class="p">~/luther/server $ ▍</span></div>
+              <div class="keys"><span>esc</span><span>tab</span><span>ctrl</span><span>↑</span><span>↓</span></div>
+            </Phone>
+          </div></div></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="setup" style="--hm: 2" aria-labelledby="setup-h">
+    <div class="wrap">
+      <div class="section-head"><h2 id="setup-h">Set up Luther in 3 steps</h2></div>
+      <div class="grid">
+        <article class="card card--row span-4">
+          <span class="step-num">1</span>
+          <h3>Build the server</h3>
+          <p>One Go binary; <code>luther doctor</code> lists what is missing.</p>
+          <div class="panel panel--flush"><div class="stage stage--fade-b"><div class="rise rise--term">
+            <Terminal label="luther doctor finding every tool" lines={['$ luther doctor', '✓ Go 1.26.10', '✓ Claude Code, logged in', '✓ Codex 0.165.0', '✓ tmux for terminals', '✓ cloudflared']} />
+          </div></div></div>
+        </article>
+        <article class="card card--row span-4">
+          <span class="step-num">2</span>
+          <h3>Choose a way in</h3>
+          <p>Tailscale Funnel or a Cloudflare tunnel; nothing to install on the phone.</p>
+          <div class="panel panel--flush"><div class="stage stage--fade-b"><div class="rise rise--term">
+            <Terminal label="luther funnel publishing Luther" lines={['$ luther funnel', 'Funnel ready,', 'end-to-end encrypted', '$ luther tunnel --quick', 'Quick tunnel ready']} />
+          </div></div></div>
+        </article>
+        <article class="card card--row span-4">
+          <span class="step-num">3</span>
+          <h3>Pair your phone</h3>
+          <p>Scan the code <code>luther pair</code> shows; it works once and expires in minutes.</p>
+          <div class="panel panel--flush"><div class="stage stage--fade-b"><div class="rise">
+            <Phone label="Pairing the phone with the Mac" title="Add a Mac">
+              <div class="scan"><i></i><i></i><i></i><i></i></div>
+              <p class="center"><b>Pair with your Mac</b><br />Point the camera at the code <code>luther pair</code> shows.</p>
+            </Phone>
+          </div></div></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="faq" aria-labelledby="faq-h">
+    <div class="wrap">
+      <div class="grid">
+        <div class="span-5 stack-4">
+          <h2 id="faq-h">Questions</h2>
+          <p class="muted">The rest is in the README on GitHub.</p>
+          <ul class="lu-plat ic-dark" aria-label="Runs on">
+            <li><img loading="lazy" width="24" height="24" data-icon="apple" class="ic-ink" src="assets/icons/apple.svg" alt="">macOS and iPhone</li>
+            <li><img loading="lazy" width="24" height="24" data-icon="android" src="assets/icons/android.svg" alt="">Android</li>
+            <li><img loading="lazy" width="24" height="24" data-icon="github" class="ic-ink" src="assets/icons/github.svg" alt="">Source on GitHub</li>
+          </ul>
+          <div class="faq-term"><Terminal label="luther status listing the routes to this Mac" title="zsh" lines={["$ luther status", "Running   pid 81244, port 47900", "Funnel    https://mac.tailnet.ts.net:8443", "Quick     https://….trycloudflare.com", "Tunnel    https://luther.your-domain", "Phones    2 paired"]} /></div>
+          <p><a class="link" href="https://github.com/AJAmit17/luther#readme">Read the README</a></p>
+        </div>
+        <div class="faq span-6 start-7">
+          <div class="faq__item"><h3>What does Luther cost?</h3><p>Nothing. It is open source under the Apache License 2.0; you build it from source.</p></div>
+          <div class="faq__item"><h3>Does my code leave the Mac?</h3><p>No. The agents run on the Mac with their own logins; the phone sends prompts and reads sealed replies.</p></div>
+          <div class="faq__item"><h3>Do I need Tailscale on my phone?</h3><p>Only for the tailnet-only route. Funnel and both Cloudflare tunnels reach the Mac from any network.</p></div>
+          <div class="faq__item"><h3>Which phones does it run on?</h3><p>iPhone and Android, both built from source for now. Widgets and Live Activities are iPhone-only.</p></div>
+          <div class="faq__item"><h3>What happens when the Mac sleeps?</h3><p>The agents stop until it wakes. Luther keeps the Mac awake while it runs, but closing the lid still sleeps it.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer closing" id="contact" aria-labelledby="close-h">
+  <div class="wrap">
+    <div class="closing__cta close--word">
+      <div class="section-head--split">
+        <div><h2 id="close-h">Run your agents from anywhere</h2><p class="t-lead">Free and open source, for macOS and Linux.</p></div>
+        <a class="btn btn--primary" href="#setup">Set up Luther<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a>
+      </div>
+      <p class="close__word" aria-hidden="true">Luther</p>
+    </div>
+    <div class="closing__links">
+      <div class="grid">
+        <div class="span-4 stack-4">
+          <a class="nav__logo" href="#top"><svg class="lu-mark" viewBox="0 0 80 80" aria-hidden="true"><path d="M20 14 L20 43 Q20 55 32 55 L47 55 M60 66 L60 37 Q60 25 48 25 L33 25" fill="none" stroke="currentColor" stroke-width="12"/></svg>Luther</a>
+          <p class="footer__lede">A phone remote for coding agents.</p>
+        </div>
+        <div class="span-2 footer__col"><h3>Product</h3><ul><li><a href="#threads">Threads</a></li><li><a href="#agents">Agents</a></li><li><a href="#phone">Phone</a></li></ul></div>
+        <div class="span-2 footer__col"><h3>Trust</h3><ul><li><a href="#security">Security</a></li><li><a href="#faq">Questions</a></li></ul></div>
+        <div class="span-2 footer__col"><h3>Start</h3><ul><li><a href="#setup">Setup</a></li></ul></div>
+        <div class="span-2 footer__col"><h3>Source</h3><ul><li><a href="https://github.com/AJAmit17/luther">GitHub</a></li><li><a href="https://github.com/AJAmit17/luther/issues">Issues</a></li></ul></div>
+      </div>
+      <div class="footer__legal">
+        <span>&copy; 2026 Luther &nbsp; <a href="https://github.com/AJAmit17/luther/blob/main/LICENSE">Apache License 2.0</a></span>
+        <div class="socials"></div>
+        <span>Product names and logos are trademarks of their owners</span>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script is:inline type="module" src="assets/system.js"></script>
+<script is:inline type="module" src="assets/motion/motion.js"></script>
+<script is:inline type="module" src="assets/layout/layout.js"></script>
+<script is:inline type="module" src="assets/diagrams/mount.js"></script>
+</body>
+</html>

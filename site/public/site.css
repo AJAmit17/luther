@@ -1,0 +1,119 @@
+/* Page CSS: only what sits inside a visual (the phone, the terminal and where they stand), the logo
+   mark and one --p-h per card group. Everything else is the kit's (assets/system.css and friends). */
+
+.nav__logo svg.lu-mark { width: 24px; height: 24px; color: var(--p-accent); flex: none; }
+
+/* ---------- the phone (src/components/Phone.astro) ---------- */
+.ph { --ph-w: 270px; width: var(--ph-w); flex: none; container-type: inline-size; }
+.ph__frame { aspect-ratio: 270 / 560; padding: 3.33cqw; border-radius: 17cqw; background: #0a0e0d;
+             box-shadow: 0 0 0 1px #2c3935, 0 30px 60px -28px rgb(0 0 0 / .7); }
+.ph__screen { height: 100%; border-radius: 13.7cqw; overflow: hidden; display: flex; flex-direction: column;
+              font: 400 4.815cqw/1.4 var(--font-text); background: #f2f5f4; color: #16201e; }
+.ph__sb { display: flex; justify-content: space-between; align-items: center; padding: .92em 1.85em .46em; font-size: .92em; font-weight: 600; }
+.ph__sb i { width: 5.7em; height: 1.7em; border-radius: .92em; background: #0a0e0d; }
+.ph__nav { display: flex; align-items: center; justify-content: space-between; gap: .6em; padding: .46em 1.08em .77em; color: #086b64; }
+.ph__nav b { color: #16201e; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ph__body { flex: 1; min-height: 0; padding: .3em .92em .92em; display: flex; flex-direction: column; gap: .77em; overflow: hidden; }
+.ph__tabs { display: flex; justify-content: space-around; padding: .77em .6em 1.7em; background: #fff; border-top: 1px solid #e6ece9; font-size: .81em; color: #52635e; }
+.ph__tabs .on { color: #086b64; font-weight: 600; }
+.ph--dark .ph__screen { background: #101716; color: #edf4f1; }
+.ph--dark .ph__nav { color: #89d5c7; } .ph--dark .ph__nav b { color: #edf4f1; }
+.ph--lock .ph__screen { background: linear-gradient(#2c4a44, #101716); color: #fff; }
+
+/* what the app shows */
+.ph .bub { align-self: flex-end; max-width: 84%; padding: .6em .85em; border-radius: 1.23em 1.23em .3em 1.23em; background: #086b64; color: #fff; }
+.ph .msg { margin: 0; }
+.ph .k { margin: 0; color: #52635e; font-size: .92em; }
+.ph .sheet { display: flex; flex-direction: column; gap: .6em; padding: .92em; border-radius: 1.23em; background: #fff; box-shadow: 0 1px 0 #ccd9d3; }
+.ph .sheet b { font-weight: 600; }
+.ph code { font: .88em var(--font-mono); background: #e6ece9; padding: .23em .46em; border-radius: .46em; }
+.ph .btns { display: flex; gap: .6em; }
+.ph .btns span { flex: 1; text-align: center; padding: .7em 0; border-radius: .92em; background: #e6ece9; font-weight: 600; }
+.ph .btns span.on { background: #086b64; color: #fff; }
+.ph .comp { margin-top: auto; padding: .77em .92em; border-radius: 1.4em; background: #fff; box-shadow: 0 1px 0 #ccd9d3; color: #52635e; }
+.ph .chips { display: flex; flex-wrap: wrap; gap: .46em; margin-top: .6em; }
+.ph .chips em, .ph .seg span { font: 500 .85em var(--font-mono); font-style: normal; padding: .3em .6em; border-radius: 99em; background: #e6ece9; color: #16201e; }
+.ph .chips em.on, .ph .seg span.on { background: #086b64; color: #fff; }
+.ph .diff { display: flex; flex-direction: column; font: .81em/1.7 var(--font-mono); background: #fff; border-radius: .92em; padding: .6em 0; overflow: hidden; }
+.ph .diff span { padding: 0 .77em; white-space: pre; }
+.ph .diff .a { background: #d8efe0; } .ph .diff .r { background: #f6dadc; }
+.ph .lt { margin: 0; font-size: 2em; font-weight: 700; letter-spacing: -0.02em; }
+.ph .list { display: flex; flex-direction: column; border-radius: 1.08em; overflow: hidden; background: #fff; }
+.ph .li { display: flex; align-items: center; gap: .77em; padding: .7em .92em; border-bottom: 1px solid #e6ece9; }
+.ph .li img { width: 1.7em; height: 1.7em; flex: none; }
+.ph .li span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ph .li b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ph .li small, .ph .li em { font-size: .85em; color: #52635e; font-style: normal; }
+.ph .li em.you { color: #086b64; font-weight: 600; } .ph .li em.work { color: #16201e; }
+.ph .opt { display: flex; flex-direction: column; padding: .6em .77em; border-radius: .77em; background: #f2f5f4; font-weight: 500; }
+.ph .opt small { font-weight: 400; color: #52635e; font-size: .85em; }
+.ph .opt.on { box-shadow: inset 0 0 0 .15em #086b64; }
+.ph .seg { display: flex; flex-wrap: wrap; gap: .3em; }
+.ph .lock { display: flex; flex-direction: column; align-items: center; padding: 1.4em 0 .9em; }
+.ph .lock strong { font-size: 4.4em; font-weight: 600; line-height: 1; letter-spacing: -0.03em; }
+.ph .lock span { font-size: 1em; opacity: .85; }
+.note { display: flex; flex-direction: column; gap: .15em; padding: .77em .92em; border-radius: 1.23em; background: rgb(255 255 255 / .92); color: #16201e; font-size: .96em; }
+.note b { display: flex; align-items: center; gap: .6em; font-weight: 600; }
+.note img { width: 1.4em; height: 1.4em; }
+.note span { padding-left: 2em; color: #2b3835; }
+.ph .tmx { display: flex; flex-direction: column; font: .85em/1.75 var(--font-mono); color: #a3b5ae; white-space: pre; }
+.ph .tmx .p { color: #89d5c7; }
+.ph .keys { margin-top: auto; display: flex; gap: .46em; }
+.ph .keys span { flex: 1; text-align: center; padding: .55em 0; border-radius: .6em; background: #23332d; font: .85em var(--font-mono); color: #edf4f1; }
+.ph .scan { position: relative; width: 13em; aspect-ratio: 1; margin: 2.3em auto .5em; border-radius: 1.7em; background: #1d2a27; }
+.ph .scan i { position: absolute; width: 2.6em; height: 2.6em; border: .3em solid #89d5c7; }
+.ph .scan i:nth-child(1) { left: 1.4em; top: 1.4em; border-right: 0; border-bottom: 0; border-radius: .77em 0 0 0; }
+.ph .scan i:nth-child(2) { right: 1.4em; top: 1.4em; border-left: 0; border-bottom: 0; border-radius: 0 .77em 0 0; }
+.ph .scan i:nth-child(3) { left: 1.4em; bottom: 1.4em; border-right: 0; border-top: 0; border-radius: 0 0 0 .77em; }
+.ph .scan i:nth-child(4) { right: 1.4em; bottom: 1.4em; border-left: 0; border-top: 0; border-radius: 0 0 .77em 0; }
+.ph .center { margin: 0; text-align: center; }
+
+/* ---------- the Mac's terminal (src/components/Terminal.astro) ---------- */
+.tm { border-radius: 12px; background: #0a100f; color: #edf4f1; box-shadow: 0 0 0 1px #2c3935, 0 24px 50px -24px #000; overflow: hidden; }
+.tm__bar { display: flex; align-items: center; gap: 6px; padding: 10px 12px; background: #192321; }
+.tm__bar i { width: 10px; height: 10px; border-radius: 50%; background: #354740; }
+.tm__bar b { margin-left: 8px; font: 500 13px var(--font-text); color: #a3b5ae; }
+.tm pre { margin: 0; padding: 12px 14px 16px; display: flex; flex-direction: column; font: 13px/1.75 var(--font-mono); white-space: pre; overflow: hidden; }
+.tm pre b { color: #89d5c7; font-weight: 400; } .tm pre i { font-style: normal; color: #a3b5ae; }
+
+/* ---------- where they stand ---------- */
+/* The app's real screens (public/screens, drawn 1:1 from the iPhone with demo content), frame included.
+   Each stands on the dark ground with a faint mint glow, sized by the height it is given. */
+.shot { display: block; height: 100%; width: auto; max-width: 100%; object-fit: contain; filter: drop-shadow(0 40px 60px rgb(0 0 0 / .45)); }
+.hero__art { position: relative; display: flex; justify-content: center; align-items: center; background: none; overflow: visible; border-radius: 0; }
+.hero__art::before, .shots::before { content: ""; position: absolute; inset: 8% 4%; background: radial-gradient(closest-side, rgb(137 213 199 / .16), transparent); pointer-events: none; }
+.hero__art > .shot { position: relative; height: min(100%, 700px); }
+.hero__proof { font-size: var(--t-small); color: var(--muted); }
+
+/* threads: the home list and an open thread, side by side; one on a phone */
+.shots { position: relative; display: flex; justify-content: center; gap: clamp(24px, 6vw, 96px); margin-top: var(--s-7); height: clamp(480px, 70svh, 760px); }
+.shots > .shot { position: relative; }
+@media (max-width: 639px) {
+  .shots { height: auto; }
+  .shots > .shot { height: auto; width: min(100%, 340px); }
+  .shots > .shot + .shot { display: none; }
+}
+
+/* card panels: the phone or terminal rises from 32px down, centred, cut by the panel's foot */
+.rise { position: absolute; left: 50%; top: 32px; translate: -50% 0; }
+.rise > .ph { --ph-w: clamp(200px, 46cqw, 270px); }
+.panel:has(> .stage > .rise) { container-type: inline-size; }
+.rise--term { width: min(400px, 100cqw - 48px); }
+#phone .panel { --p-h: 276px; }
+#setup .panel { --p-h: 300px; }
+@media (min-width: 1280px) { #setup .panel { --p-h: clamp(400px, 100svh - 500px, 560px); } }
+@media (max-width: 639px) { #phone .panel { --p-h: 188px; } #setup .panel { --p-h: 300px; } }
+
+/* the diagrams and the lists */
+#agents .frame--diagram { aspect-ratio: auto; height: 470px; margin-top: var(--s-7); }
+@media (max-width: 639px) { #agents .frame--diagram { height: 440px; } }
+#security .frame--split { background: #cdd6c6; }
+@media (min-width: 1024px) { #security .frame--split { min-height: calc(100svh - var(--padt) - var(--padb)); } }
+#faq .faq-term { display: none; }
+@media (min-width: 1024px) and (min-height: 1100px) { #faq .faq-term { display: block; } }
+#security .dg { --ink: #262d24; --muted: #3d4840; --frag: #ffffff; }
+#faq .lu-plat { display: flex; flex-wrap: wrap; gap: var(--s-4); margin: 0; padding: 0; list-style: none; }
+#faq .lu-plat li { display: flex; align-items: center; gap: var(--s-2); }
+#faq .lu-plat img { width: 24px; height: 24px; }
+.close__word { line-height: 1.02; padding-top: 0.04em; }
+@media (min-width: 640px) and (max-width: 1279px) and (max-height: 1300px) { #setup { --h: 2; } }
