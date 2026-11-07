@@ -1,8 +1,7 @@
 import { defineConfig } from 'astro/config';
 
-// Published by .github/workflows/pages.yml at https://ajamit17.github.io/luther/
+// Published on Cloudflare Pages at https://getluther.pages.dev (root: site, build: npm run build, output: dist)
 export default defineConfig({
-  site: 'https://ajamit17.github.io',
-  base: '/luther',
+  site: 'https://getluther.pages.dev',
   build: { inlineStylesheets: 'never' },
 });
