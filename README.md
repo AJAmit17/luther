@@ -7,11 +7,12 @@
 </p>
 
 <p align="center"><strong>Your agents. Your Mac. Anywhere.</strong></p>
-<p align="center">A self-hosted control plane for coding agents, steered from your iPhone.</p>
+<p align="center">A self-hosted control plane for coding agents, steered from your iPhone or Android phone.</p>
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#agents">Agents</a> ·
   <a href="#build-the-iphone-app">iPhone app</a> ·
+  <a href="app/README.md#build-the-android-apk">Android app</a> ·
   <a href="#security-and-trust">Security</a> ·
   <a href="CONTRIBUTING.md">Contributing</a> ·
   <a href="LICENSE">Apache 2.0</a>
@@ -21,32 +22,37 @@
 
 Luther connects your phone to the coding agents running on your own machine. Start a task, leave your desk, review its progress, answer an approval, or open a terminal without moving the repository or the agent's login to a hosted service.
 
-The Mac keeps the files and runs the agents. The phone is the controller. Connect over **Tailscale**, **Cloudflare Tunnel**, or a remote machine reached through **SSH**.
+The Mac keeps the files and runs the agents. The phone is the controller. Reach the Mac through **Tailscale Funnel**, a **Cloudflare quick tunnel** (no account), your own **Cloudflare Tunnel** domain, or plain **Tailscale**; reach further machines through **SSH**.
 
-**Status:** pre-release. macOS and iPhone are the primary experience; the server also supports Linux. The iOS app is built from source and installed as a signed native app. There is no published App Store/TestFlight installation flow yet. Device/network end-to-end checks and release work are tracked in [the project plan](docs/PLAN.md).
+Agents: **Claude Code**, **Codex**, **Devin**, **OpenCode**, **Oh My Pi**, **Gemini CLI** and **Cursor**.
+
+**Status:** pre-release. The server runs on macOS (primary) and Linux. The iPhone and Android apps are built from source and installed as native apps (signed Release build on iPhone, standalone APK on Android). There is no published App Store/TestFlight installation flow yet. Device/network end-to-end checks and release work are tracked in [the project plan](docs/PLAN.md).
 
 ## What you can do
 
 | Capability | What it means |
 | --- | --- |
-| Continue real agent sessions | Stream responses, switch models and permission modes, interrupt work, and resume supported sessions. |
+| Continue real agent sessions | Stream responses, switch permission modes, interrupt work, and resume supported sessions. |
+| Pick the real model | Each agent's own model list with real names ("Opus 5.5", not "Default"), grouped and searchable when an agent offers hundreds. |
+| Send photos | Take a photo or pick images and files; images show in the conversation, and large ones are shrunk before the agent sees them. |
 | Stay in control | Answer permission requests, questions, and plans from the phone. Concurrent clients share a thread; the first accepted answer wins. |
 | Work across repositories | Open a parent workspace containing several Git checkouts. Select the specific checkout before a Git mutation or worktree operation. |
 | Inspect the work | Browse files, review changes and per-turn checkpoints, commit, push, and create pull requests using the Mac's own tools. |
 | Use a persistent terminal | Open a tmux-backed terminal that can survive a phone disconnect and be attached to on the Mac. |
 | See usage honestly | Daily 7/30/90-day token charts, input/output/cache breakdowns, provider/model totals, plan limits, and reported costs. Compact K/M/B/T or exact counts. |
 | Reach other machines | Relay another Luther server through a maintained SSH forward instead of exposing that host directly. |
-| Keep tasks moving | Schedule prompts, attach files, dictate messages, inspect local dev-server previews, and use widgets or Live Activities. |
+| Keep tasks moving | Schedule prompts, dictate messages, inspect local dev-server previews, and use widgets or Live Activities (iPhone). |
 
 Luther invokes the providers' own CLIs. It does not replace their subscriptions, logins, limits, sandboxes, or permission models.
 
 ## How it works
 
 ```text
-iPhone
-  │
-  ├── Tailscale HTTPS route ──────────┐
-  └── Cloudflare HTTPS tunnel ────────┤
+Phone (iPhone or Android)
+  │   end-to-end encrypted on every route
+  ├── Tailscale Funnel / Serve ───────┐
+  ├── Cloudflare quick tunnel ────────┤
+  └── Cloudflare named tunnel ────────┤
                                      ▼
                          Luther on 127.0.0.1
                          ├── agent CLI processes
@@ -55,7 +61,7 @@ iPhone
 ```
 
 - **One Go server** runs on the machine with your repositories.
-- **One Expo/React Native app** controls it from the iPhone.
+- **One Expo/React Native app** controls it from iPhone or Android, with native controls on each (SF Symbols and menus on iOS, Material Symbols and bottom sheets on Android).
 - **No Luther-hosted relay or database.** Provider CLIs retain their session histories; Luther owns configuration, device records, and supporting local state.
 - **Existing agent logins stay on their machine.** Provider API keys do not need to be entered into the phone.
 
@@ -75,6 +81,10 @@ The agent process runs with the server user's permissions. Use an account and wo
 ### iPhone build
 
 A Mac with compatible Xcode, CocoaPods, Node **24.3+ within 24.x** or **26.x**, and Apple signing configured. Tests use Node's native TypeScript support. The app uses Expo **58**, React Native **0.88**, and React **19.3**. Use the lockfile rather than upgrading them independently.
+
+### Android build
+
+JDK **17**, the Android SDK (Build Tools 37, NDK 27.1, CMake 3.22), the same Node versions as above, and an arm64 phone with USB debugging enabled. Steps are in [Build the Android APK](app/README.md#build-the-android-apk).
 
 ## Quick start
 
@@ -196,8 +206,9 @@ This uses key-based SSH and forwards the remote server through this Mac. The rem
 | OpenCode | `opencode acp` | ACP capabilities determine models, modes, and session operations. |
 | Gemini CLI | `gemini --acp` | Requires a CLI version exposing the ACP interface. |
 | Cursor | `cursor-agent acp` or `agent acp` | Requires a compatible installed command. |
+| Oh My Pi | `omp acp` | Lists the models of every provider it is set up with (often hundreds; the app makes them searchable). |
 
-ACP adapters share a protocol, not a guarantee of identical capabilities. Models and permissions depend on the agent. Devin handshake/session/model/mode behavior has been checked; fake-peer tests cover protocol flows. Live model turns and all providers' real permission paths are not universally verified. See the [end-to-end checklist](docs/PLAN.md#phase-10-end-to-end-tests).
+ACP adapters share a protocol, not a guarantee of identical capabilities. Models and permissions depend on the agent. Model lists come from the agents themselves (Claude's `initialize`, Codex's `model/list`, ACP's `session/new`) and are cached in `~/.luther/models.json`. `luther doctor` shows which agents are installed. Devin handshake/session/model/mode behavior has been checked; fake-peer tests cover protocol flows. Live model turns and all providers' real permission paths are not universally verified. See the [end-to-end checklist](docs/PLAN.md#phase-10-end-to-end-tests).
 
 ## Usage and notifications
 
@@ -251,7 +262,7 @@ If you changed the bundle identifier, use it for launch. Apple controls signing,
 
 Luther can run commands and change files. Pair only devices and people you trust with that power.
 
-- The server binds to **`127.0.0.1`**, not a public interface. Tailscale Serve and Cloudflare Tunnel proxy to it.
+- The server binds to **`127.0.0.1`**, not a public interface. Tailscale (Funnel or Serve) and Cloudflare tunnels proxy to it.
 - Protected operations require authentication. Pairing uses a short-lived code; devices can be revoked in Settings.
 - Key-paired phones seal API requests and event streams using X25519, HKDF-SHA256, and AES-256-GCM, with freshness/replay checks.
 - Browser dev-server previews use a separate token/cookie proxy and are **not** covered by the sealed app protocol. Relays still see connection metadata. Static device/server keys do not provide forward secrecy.
@@ -290,9 +301,11 @@ For a suspected vulnerability, contact the maintainer privately through their [G
 | `server/internal/claude`, `codex`, `acp` | Provider process/protocol handling. |
 | `server/internal/workspace` | Files, repositories, Git, and worktrees. |
 | `server/internal/auth`, `seal`, `e2e` | Authentication and sealed transport. |
+| `server/internal/tunnel` | Cloudflare quick and named tunnels: start, keep alive, close. |
+| `server/internal/uploads` | Phone uploads, chat image copies, and their cleanup. |
 | `server/internal/lifecycle`, `cli` | Background operation and Cobra/Lip Gloss commands. |
 | `app/src/app` | Expo Router routes, mostly screen re-exports. |
-| `app/src/components` | Screens, chat controls, and shared UI. |
+| `app/src/components` | Screens, chat controls, and shared UI. `ios/` and `android/` hold per-platform versions; `@/components/<name>` resolves to the right one. |
 | `app/src/lib` | Protocol, client logic, state, palette, and pure tests. |
 | `app/src/widgets` | Separate-runtime widgets and Live Activities. |
 | `assets/brand` | Relay vectors, outlined wordmarks, and social artwork. |
@@ -331,7 +344,7 @@ The generator reads the shared palette and creates repository SVGs/PNGs and Icon
 ## Current limits
 
 - Pre-release; no completed public-release/TestFlight workflow is claimed.
-- iPhone-first; Android is not at feature parity and iPad is not validated.
+- Widgets and Live Activities are iPhone-only; iPad is not validated.
 - Provider protocols and capabilities vary and can change independently.
 - Initial usage-history scans can be slow; subsequent requests use caching.
 - An asleep, powered-off, or lid-closed Mac cannot reliably continue work or accept requests.
