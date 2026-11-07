@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/AJAmit17/luther/server/internal/lifecycle"
+	"github.com/AJAmit17/luther/server/internal/tunnel"
 )
 
 type serverHealth struct {
@@ -51,7 +54,44 @@ func (c *CLI) Start() error {
 	if err := lifecycle.Start(bin); err != nil {
 		return err
 	}
-	return c.waitUp()
+	if err := c.waitUp(); err != nil {
+		return err
+	}
+	c.reopen()
+	return nil
+}
+
+// tailnetPort: the HTTPS port of the tailnet route, 0 if there's none.
+func (c *CLI) tailnetPort() int {
+	if c.cfg.Tailnet == "" {
+		return 0
+	}
+	if _, p, ok := strings.Cut(strings.TrimPrefix(c.cfg.Tailnet, "https://"), ":"); ok {
+		n, _ := strconv.Atoi(p)
+		return n
+	}
+	return 443
+}
+
+// reopen: after a start, the tailnet route again (Funnel or Serve, as it was);
+// luther serve starts the Cloudflare tunnels by itself.
+func (c *CLI) reopen() {
+	if port := c.tailnetPort(); port != 0 {
+		if err := c.Tailscale(port, true, c.cfg.Funnel); err != nil {
+			fmt.Fprintln(c.out, "  tailnet route not reopened:", err)
+		}
+	}
+}
+
+// closeRoutes: on stop, every way in is closed: the tailnet route is taken
+// off its port (Luther's port only) and both cloudflared processes end. The
+// named tunnel and its DNS record stay; luther start opens them all again.
+func (c *CLI) closeRoutes() {
+	if port := c.tailnetPort(); port != 0 {
+		exec.Command("tailscale", "serve", "--https="+strconv.Itoa(port), "off").Run()
+	}
+	tunnel.CloseQuick()
+	tunnel.CloseNamed()
 }
 
 func (c *CLI) Stop() error {
@@ -63,7 +103,8 @@ func (c *CLI) Stop() error {
 	}
 	for range 40 {
 		if !c.running() {
-			c.view.message("Luther stopped", "Idle sleep is allowed again. Run luther start when you're ready.")
+			c.closeRoutes()
+			c.view.message("Luther stopped", "Tailnet route and Cloudflare tunnels closed; idle sleep is allowed again. Run luther start when you're ready.")
 			return nil
 		}
 		time.Sleep(250 * time.Millisecond)
@@ -101,17 +142,21 @@ func (c *CLI) Status(asJSON bool) error {
 			wake = "Not configured on this platform"
 		}
 	}
-	tailnet, tunnel := c.cfg.Tailnet, c.cfg.Tunnel
+	tailnet, named := c.cfg.Tailnet, c.cfg.Tunnel
 	if tailnet == "" {
-		tailnet = "Not configured · luther tailscale"
+		tailnet = "Not configured · luther funnel or luther tailscale"
 	}
-	if tunnel == "" {
-		tunnel = "Not configured · luther tunnel"
+	if named == "" {
+		named = "Not configured · luther tunnel"
+	}
+	q := tunnel.QuickURL()
+	if q == "" {
+		q = "Off · luther tunnel --quick"
 	}
 	c.view.panel("LUTHER / status", [][2]string{
 		{"Machine", status.Name}, {"Server", state}, {"Local", status.URL},
 		{"Sleep guard", wake}, {"Phones", strconv.Itoa(status.Devices) + " paired"},
-		{"Tailnet", tailnet}, {"Cloudflare", tunnel}, {"Logs", "~/.luther/serve.log"},
+		{"Tailnet", tailnet}, {"Cloudflare", named}, {"Quick tunnel", q}, {"Logs", "~/.luther/serve.log"},
 	})
 	return nil
 }

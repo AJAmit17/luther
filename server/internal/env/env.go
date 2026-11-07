@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/AJAmit17/luther/server/internal/text"
@@ -52,8 +53,45 @@ func (l *LogTail) Write(p []byte) (int, error) {
 		if i < 0 {
 			break
 		}
-		log.Print(l.Prefix + text.Clip(string(l.buf[:i]), 500))
+		if line := string(l.buf[:i]); !chatter(line) {
+			log.Print(l.Prefix + text.Clip(line, 500))
+		}
 		l.buf = l.buf[i+1:]
 	}
 	return len(p), nil
+}
+
+var ansiCodes = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// chatter: an agent's own INFO/DEBUG/TRACE log line. Left out of the server
+// log, which keeps warnings, errors and anything unstructured.
+func chatter(line string) bool {
+	line = ansiCodes.ReplaceAllString(line, "")
+	for _, lvl := range []string{" INFO ", " DEBUG ", " TRACE ", "[INFO]", "[DEBUG]", "level=info", "level=debug"} {
+		if strings.Contains(line, lvl) {
+			return true
+		}
+	}
+	return false
+}
+
+// CapLog keeps a log file under max bytes: past it, its last quarter moves to
+// <path>.1 (replacing the previous one) and the file starts over. Safe while
+// launchd appends to it (O_APPEND writes land at the new end).
+func CapLog(path string, max int64) {
+	info, err := os.Stat(path)
+	if err != nil || info.Size() <= max {
+		return
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	keep := max / 4
+	tail := make([]byte, keep)
+	n, _ := f.ReadAt(tail, info.Size()-keep)
+	f.Close()
+	if os.WriteFile(path+".1", tail[:n], 0o600) == nil {
+		os.Truncate(path, 0)
+	}
 }

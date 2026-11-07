@@ -81,6 +81,20 @@ export async function upsertHost(h: Host) {
   await save();
 }
 
+/** Take the current Mac's addresses from it (GET /routes): a Cloudflare quick
+ *  tunnel's address changes when it restarts, and this is how the phone learns
+ *  the new one while any route still reaches the Mac. */
+export async function refreshRoutes() {
+  const h = await currentHost();
+  if (!h) return;
+  const routes = await api<string[]>('/routes').catch(() => null);
+  if (!routes?.length || routes.join() === h.routes.join()) return;
+  const s = await load();
+  s.hosts = s.hosts.map((x) => (x.id === h.id ? { ...x, routes } : x));
+  base.delete(h.id);
+  await save();
+}
+
 export async function removeHost(id: string) {
   const s = await load();
   s.hosts = s.hosts.filter((h) => h.id !== id);

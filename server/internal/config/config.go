@@ -16,6 +16,7 @@ import (
 	"github.com/AJAmit17/luther/server/internal/protocol"
 	"github.com/AJAmit17/luther/server/internal/seal"
 	"github.com/AJAmit17/luther/server/internal/text"
+	"github.com/AJAmit17/luther/server/internal/tunnel"
 )
 
 const DefaultPort = 47900
@@ -25,7 +26,8 @@ type Config struct {
 	Port       int      `json:"port"`
 	Name       string   `json:"name,omitempty"`    // shown on the phone; default hostname
 	Tailnet    string   `json:"tailnet,omitempty"` // https://mac.tailnet.ts.net[:port]
-	Tunnel     string   `json:"tunnel,omitempty"`  // https://luther.example.com
+	Funnel     bool     `json:"funnel,omitempty"`  // Tailnet is published with Funnel (public), not Serve
+	Tunnel     string   `json:"tunnel,omitempty"`  // https://luther.example.com (a named Cloudflare tunnel; a quick one is in quick.json)
 	AdminToken string   `json:"adminToken"`        // for the local CLI (pair, doctor)
 	SecretKey  string   `json:"secretKey"`         // X25519, for end-to-end encryption with phones
 	Devices    []Device `json:"devices,omitempty"`
@@ -101,7 +103,7 @@ func (c *Config) Routes() []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	var out []string
-	for _, u := range []string{c.Tailnet, c.Tunnel} {
+	for _, u := range []string{c.Tailnet, c.Tunnel, tunnel.QuickURL()} {
 		if u != "" {
 			out = append(out, u)
 		}

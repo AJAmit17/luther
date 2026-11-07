@@ -19,6 +19,7 @@ import (
 	"github.com/AJAmit17/luther/server/internal/config"
 	"github.com/AJAmit17/luther/server/internal/env"
 	"github.com/AJAmit17/luther/server/internal/paths"
+	"github.com/AJAmit17/luther/server/internal/tunnel"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -49,7 +50,7 @@ func (c *CLI) adminPost(path string) (*http.Response, error) {
 // --json it prints only the payload (for `luther remote pair` over ssh).
 func (c *CLI) Pair(asJSON bool) error {
 	if len(c.cfg.Routes()) == 0 && !asJSON {
-		c.view.message("No routes configured", "Run luther tailscale or luther tunnel first; the phone needs a reachable URL.")
+		c.view.message("No routes configured", "Run luther funnel (Tailscale on this Mac) or luther tunnel --quick (no account) first; the phone needs a reachable URL.")
 	}
 	res, err := c.adminPost("/pair/code")
 	if err != nil {
@@ -80,9 +81,14 @@ func (c *CLI) payload(routes []string, code string) map[string]any {
 	return map[string]any{"v": 2, "name": c.cfg.DisplayName(), "routes": routes, "code": code, "pub": c.cfg.PublicKey()}
 }
 
-// tailscaleCmd: `tailscale serve` HTTPS on the tailnet → this server. Refuses to
-// take a port already proxied elsewhere unless --force.
-func (c *CLI) Tailscale(port int, force bool) error {
+// tailscaleCmd: `tailscale serve` HTTPS on the tailnet → this server; with
+// funnel, `tailscale funnel` (the same address, reachable from the internet,
+// so the phone needs no Tailscale). Refuses to take a port already proxied
+// elsewhere unless --force.
+func (c *CLI) Tailscale(port int, force, funnel bool) error {
+	if funnel && port != 443 && port != 8443 && port != 10000 {
+		return fmt.Errorf("Funnel only serves ports 443, 8443 and 10000")
+	}
 	out, err := exec.Command("tailscale", "status", "--json").Output()
 	if err != nil {
 		return fmt.Errorf("tailscale not running or not installed: %v", err)
@@ -111,42 +117,72 @@ func (c *CLI) Tailscale(port int, force bool) error {
 			}
 		}
 	}
-	if b, err := exec.Command("tailscale", "serve", "--bg", "--https="+strconv.Itoa(port), target).CombinedOutput(); err != nil {
-		return fmt.Errorf("tailscale serve: %v: %s", err, strings.TrimSpace(string(b)))
+	verb := "serve"
+	if funnel {
+		verb = "funnel"
+	}
+	if b, err := exec.Command("tailscale", verb, "--bg", "--https="+strconv.Itoa(port), target).CombinedOutput(); err != nil {
+		// Funnel off in the tailnet policy: tailscale prints the admin link to allow it.
+		return fmt.Errorf("tailscale %s: %v: %s", verb, err, strings.TrimSpace(string(b)))
 	}
 	url := "https://" + host
 	if port != 443 {
 		url += ":" + strconv.Itoa(port)
 	}
-	if err := c.cfg.Set(func(cf *config.Config) { cf.Tailnet = url }); err != nil {
+	if err := c.cfg.Set(func(cf *config.Config) { cf.Tailnet, cf.Funnel = url, funnel }); err != nil {
 		return err
 	}
-	c.view.message("Tailnet route ready", url+" -> "+target)
-	fmt.Fprintf(c.out, "  Undo: tailscale serve --https=%d off\n", port)
+	if funnel {
+		c.view.message("Funnel ready: reachable from anywhere, end-to-end encrypted", url+" -> "+target)
+	} else {
+		c.view.message("Tailnet route ready", url+" -> "+target)
+	}
+	fmt.Fprintf(c.out, "  Undo: tailscale %s --https=%d off\n", verb, port)
 	return nil
 }
 
 // tunnelCmd records the Cloudflare route and writes ~/.cloudflared/luther.yml
 // for an existing tunnel. Creating the tunnel needs your Cloudflare login, so
 // that part stays with you (printed below).
+// QuickTunnel: a Cloudflare quick tunnel (no account; random address), kept
+// running by luther serve; off stops it.
+func (c *CLI) QuickTunnel(off bool) error {
+	if off {
+		if err := tunnel.QuickOff(); err != nil {
+			return err
+		}
+		c.view.message("Quick tunnel off", "")
+		return nil
+	}
+	u, err := tunnel.QuickOn(c.localURL())
+	if err != nil {
+		return err
+	}
+	c.view.message("Quick tunnel ready: reachable from anywhere, end-to-end encrypted", u+" -> "+c.localURL())
+	fmt.Fprintln(c.out, "  The address changes if cloudflared restarts (e.g. after a reboot); a phone that")
+	fmt.Fprintln(c.out, "  still reaches this Mac picks it up by itself, otherwise run luther pair again.")
+	fmt.Fprintln(c.out, "  Off: luther tunnel --quick-off")
+	return nil
+}
+
 func (c *CLI) Tunnel(url, id string) error {
 	if !strings.HasPrefix(url, "https://") {
-		fmt.Fprintln(c.out, `Set up a Cloudflare tunnel (once):
+		fmt.Fprintln(c.out, `Set up a Cloudflare route (once):
   cloudflared tunnel login
   cloudflared tunnel create luther                 # prints the tunnel UUID
   luther tunnel --url https://luther.example.com --id <UUID>
-  cloudflared tunnel --config ~/.cloudflared/luther.yml route dns --overwrite-dns <UUID> luther.example.com
-  luther service install                           # runs the tunnel at login too
+  cloudflared tunnel --config ~/.cloudflared/luther.yml route dns <UUID> luther.example.com
+  luther start                                     # luther serve keeps the tunnel running
 Optional: protect it with Cloudflare Access (service token) and enter that token in the app.`)
 		return nil
 	}
-	tunnel := strings.TrimSuffix(url, "/")
-	if err := c.cfg.Set(func(cf *config.Config) { cf.Tunnel = tunnel }); err != nil {
+	route := strings.TrimSuffix(url, "/")
+	if err := c.cfg.Set(func(cf *config.Config) { cf.Tunnel = route }); err != nil {
 		return err
 	}
-	c.view.message("Cloudflare route configured", tunnel)
+	c.view.message("Cloudflare route configured", route)
 	if id != "" {
-		host := strings.TrimPrefix(tunnel, "https://")
+		host := strings.TrimPrefix(route, "https://")
 		yml := fmt.Sprintf("tunnel: %s\ncredentials-file: %s\ningress:\n  - hostname: %s\n    service: %s\n  - service: http_status:404\n",
 			id, filepath.Join(paths.Home, ".cloudflared", id+".json"), host, c.localURL())
 		p := filepath.Join(paths.Home, ".cloudflared", "luther.yml")
@@ -306,7 +342,7 @@ func (c *CLI) Doctor() {
 	ok := c.view.check
 	c.view.message("Luther doctor", "CHECK means attention may be needed; install only the agents you use.")
 	env.LoginPath()
-	for _, bin := range []string{"claude", "codex", "opencode", "gemini", "cursor-agent", "devin", "tmux", "git", "gh", "tailscale", "cloudflared"} {
+	for _, bin := range []string{"claude", "codex", "opencode", "gemini", "cursor-agent", "devin", "omp", "tmux", "git", "gh", "tailscale", "cloudflared"} {
 		args := []string{"--version"}
 		if bin == "tmux" {
 			args = []string{"-V"}
@@ -341,7 +377,7 @@ func (c *CLI) Doctor() {
 		}
 	}
 	if len(c.cfg.Routes()) == 0 {
-		ok(false, "route", "none: run `luther tailscale` or `luther tunnel`")
+		ok(false, "route", "none: run `luther funnel` or `luther tunnel --quick`")
 	}
 	n := len(c.cfg.ListDevices())
 	ok(n > 0, "devices", fmt.Sprintf("%d paired (`luther pair` adds one)", n))

@@ -88,7 +88,7 @@ func Record(id string, provider protocol.Provider, model string, at time.Time, u
 	}
 	m[id] = entry{ID: id, Provider: provider, Model: model, At: at, Usage: u}
 	for key, e := range m {
-		if e.At.Before(at.AddDate(-1, 0, 0)) {
+		if e.At.Before(at.AddDate(0, 0, -90)) { // the app shows at most 90 days
 			delete(m, key)
 		}
 	}

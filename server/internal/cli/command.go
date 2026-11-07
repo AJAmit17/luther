@@ -96,15 +96,27 @@ func command(serve func(*config.Config)) *cobra.Command {
 	pair := add("pair", "Print a QR code to pair your phone", "connect", false, func(c *CLI, _ []string) error { return c.Pair(pairJSON) })
 	pair.Flags().BoolVar(&pairJSON, "json", false, "print only the pairing payload (for remote pairing)")
 	https, force := 443, false
-	tailscale := add("tailscale", "Publish Luther on your tailnet", "connect", false, func(c *CLI, _ []string) error { return c.Tailscale(https, force) })
+	tailscale := add("tailscale", "Publish Luther on your tailnet", "connect", false, func(c *CLI, _ []string) error { return c.Tailscale(https, force, false) })
 	tailscale.Flags().IntVar(&https, "https", 443, "HTTPS port on the tailnet")
 	tailscale.Flags().BoolVar(&force, "force", false, "replace an existing mapping on that port")
 	tailscale.Args = validPort("https", cobra.NoArgs)
+	funnelPort := 8443
+	funnel := add("funnel", "Publish Luther on the internet with Tailscale Funnel (the phone needs no Tailscale)", "connect", false, func(c *CLI, _ []string) error { return c.Tailscale(funnelPort, true, true) })
+	funnel.Flags().IntVar(&funnelPort, "https", 8443, "HTTPS port: 443, 8443 or 10000")
+	funnel.Args = validPort("https", cobra.NoArgs)
 	url, tunnelID := "", ""
-	tunnel := add("tunnel", "Configure a Cloudflare tunnel route", "connect", false, func(c *CLI, _ []string) error { return c.Tunnel(url, tunnelID) })
+	quickOn, quickOff := false, false
+	tunnel := add("tunnel", "Configure a Cloudflare tunnel route (--quick: no account needed)", "connect", false, func(c *CLI, _ []string) error {
+		if quickOn || quickOff {
+			return c.QuickTunnel(quickOff)
+		}
+		return c.Tunnel(url, tunnelID)
+	})
+	tunnel.Flags().BoolVar(&quickOn, "quick", false, "start a Cloudflare quick tunnel: no account, a random trycloudflare.com address")
+	tunnel.Flags().BoolVar(&quickOff, "quick-off", false, "stop the quick tunnel")
 	tunnel.Flags().StringVar(&url, "url", "", "public HTTPS URL")
 	tunnel.Flags().StringVar(&tunnelID, "id", "", "existing Cloudflare tunnel UUID")
-	tunnel.Example = "  luther tunnel\n  luther tunnel --url https://luther.example.com --id <UUID>"
+	tunnel.Example = "  luther tunnel --quick\n  luther tunnel --url https://luther.example.com --id <UUID>"
 	groupHelp := func(cmd *cobra.Command, _ []string) error { return cmd.Help() }
 	service := &cobra.Command{Use: "service", Short: "Manage startup at login", GroupID: "manage", Args: root.Args, RunE: groupHelp, SuggestionsMinimumDistance: 2}
 	for _, action := range []string{"install", "uninstall"} {

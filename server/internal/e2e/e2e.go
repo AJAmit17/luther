@@ -70,7 +70,9 @@ type server struct {
 
 // fresh: t is recent and n unseen (then remembered).
 func (s *server) fresh(h head) bool {
-	if h.N == "" || time.Since(time.UnixMilli(h.T)).Abs() > window {
+	// Not before this process started: the seen-list is lost on a restart, so
+	// a box recorded earlier must not replay into the new one.
+	if h.N == "" || time.Since(time.UnixMilli(h.T)).Abs() > window || time.UnixMilli(h.T).Before(started) {
 		return false
 	}
 	s.mu.Lock()
@@ -108,9 +110,19 @@ func (s *server) open(device, aad string, box []byte) (head, []byte, []byte, err
 	return h, body, key, nil
 }
 
+// reading caps how many request bodies are read at once (each up to maxBody).
+var reading = make(chan struct{}, 8)
+
 func (s *server) request(w http.ResponseWriter, r *http.Request) {
 	device := r.Header.Get("X-Luther-Device")
+	// Who's asking first: nothing is read for a device that isn't paired.
+	if _, err := s.keys.Key(device); err != nil {
+		http.Error(w, "unknown device", http.StatusUnauthorized)
+		return
+	}
+	reading <- struct{}{}
 	box, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
+	<-reading
 	if err != nil {
 		http.Error(w, "too large", http.StatusRequestEntityTooLarge)
 		return
@@ -168,14 +180,24 @@ func (s *server) socket(w http.ResponseWriter, r *http.Request) {
 	defer phone.CloseNow()
 	phone.SetReadLimit(16 << 20)
 
-	go func() { // keep the phone's leg alive through tunnels and mobile NATs
-		t := time.NewTicker(25 * time.Second)
+	// Every 5 s: a revoked phone loses the socket (a terminal included); every
+	// 25 s a ping keeps the leg alive through tunnels and mobile NATs.
+	go func() {
+		t := time.NewTicker(5 * time.Second)
 		defer t.Stop()
-		for {
+		for tick := 1; ; tick++ {
 			select {
 			case <-ctx.Done():
 				return
 			case <-t.C:
+				if _, err := s.keys.Key(device); err != nil {
+					phone.Close(websocket.StatusPolicyViolation, "this phone was removed")
+					cancel()
+					return
+				}
+				if tick%5 != 0 {
+					continue
+				}
 				pctx, done := context.WithTimeout(ctx, 10*time.Second)
 				err := phone.Ping(pctx)
 				done()
@@ -211,8 +233,11 @@ func (s *server) socket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ours: e2e's own paths (never re-dispatched into itself).
+// ours: paths a box may not name: /e itself, and /r/ (a relay to another
+// machine, which must never receive this one's internal token).
 func ours(p string) bool {
 	p, _, _ = strings.Cut(p, "?")
-	return p == "/e" || strings.HasPrefix(p, "/e/")
+	return p == "/e" || strings.HasPrefix(p, "/e/") || strings.HasPrefix(p, "/r/")
 }
+
+var started = time.Now().Add(-time.Second) // the clock check's own slack

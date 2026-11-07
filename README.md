@@ -66,9 +66,9 @@ iPhone
 - macOS, or Linux with a working systemd user session for background lifecycle commands.
 - At least one supported agent CLI, installed and logged in as the user who runs Luther.
 - Git for repository operations; tmux for terminals.
-- Tailscale with Serve enabled, or an existing Cloudflare Tunnel setup.
+- One way in: Tailscale (Funnel, or Serve with Tailscale on the phone too), or `cloudflared` for a quick tunnel (no account), or an existing Cloudflare Tunnel.
 - GitHub CLI (`gh`) logged in on the agent machine for pull-request creation.
-- Go **1.26.7 or newer** when building from source, as specified in [`server/go.mod`](server/go.mod).
+- Go **1.26.10 or newer** when building from source, as specified in [`server/go.mod`](server/go.mod).
 
 The agent process runs with the server user's permissions. Use an account and workspace you trust.
 
@@ -113,13 +113,22 @@ The installer, release workflow, and formula are not a claim that a tagged relea
 ```sh
 luther doctor
 luther start
-luther tailscale
+luther funnel          # or: luther tunnel --quick
 luther status
 ```
 
+Pick one way for the phone to reach this Mac. Everything is end-to-end encrypted on all of them, and the phone needs nothing installed:
+
+| Command | Needs on the Mac | Address |
+|---|---|---|
+| `luther funnel` | Tailscale, with Funnel allowed in the tailnet policy (the command prints the link if it isn't) | Stable: `https://<mac>.<tailnet>.ts.net:8443` |
+| `luther tunnel --quick` | `cloudflared` (`brew install cloudflared`), no account | Random `https://….trycloudflare.com`; changes when cloudflared restarts (e.g. a reboot). A phone that still reaches the Mac picks the new one up by itself; otherwise run `luther pair` again. |
+| `luther tunnel --url … --id …` | `cloudflared`, a Cloudflare account and your own domain (steps below) | Stable: `https://luther.<your-domain>` |
+| `luther tailscale` | Tailscale, on the phone as well | Tailnet only |
+
 `start` returns your terminal immediately. On macOS, `caffeinate` prevents idle sleep while the server runs, on battery or AC. It **does not override lid-close sleep**.
 
-For Cloudflare instead, run `luther tunnel` for setup instructions. After creating the tunnel and configuring credentials/DNS, register its real URL and ID:
+For a named Cloudflare tunnel on your own domain, run `luther tunnel` for setup instructions. After creating the tunnel and configuring credentials/DNS, register its real URL and ID:
 
 ```sh
 luther tunnel --url https://luther.example.com --id <TUNNEL_UUID>
@@ -127,7 +136,7 @@ luther tunnel --url https://luther.example.com --id <TUNNEL_UUID>
 
 The example hostname is a placeholder. The command configures Luther's route and tunnel file; it does not create your Cloudflare account, DNS, or tunnel credentials. If using Cloudflare Access, configure its service-token headers in the app's route settings.
 
-The route also requires a running `cloudflared` process. On macOS, `luther service install` manages the configured tunnel at login when `cloudflared` is installed. Alternatively, run `cloudflared tunnel --config "$HOME/.cloudflared/luther.yml" run` through your own service manager.
+Once set up, `luther serve` keeps the tunnel running (and both Cloudflare tunnels outlive Luther's own restarts). If something else already runs `cloudflared` with `luther.yml`, such as the login service, Luther leaves that one alone. Use a hostname of its own: `route dns` adds a CNAME for it, which takes precedence over a wildcard record without changing it.
 
 ### 3. Install the app and pair
 
@@ -152,8 +161,10 @@ Pick a folder, select an installed agent, and send a task. A parent folder does 
 | `luther status --json` | Undecorated, credential-free status data. |
 | `luther serve` | Explicit foreground mode, also used by service managers. |
 | `luther pair` | Generate pairing instructions and a QR code. |
-| `luther tailscale` | Configure Tailscale Serve for the local listener. |
-| `luther tunnel` | Show Cloudflare setup instructions. |
+| `luther funnel` | Publish Luther with Tailscale Funnel: reachable from anywhere, no Tailscale on the phone. |
+| `luther tunnel --quick` | Start a Cloudflare quick tunnel (no account); `--quick-off` stops it. |
+| `luther tailscale` | Configure Tailscale Serve for the local listener (tailnet only). |
+| `luther tunnel` | Show named Cloudflare tunnel setup instructions. |
 | `luther doctor` | Diagnose installed tools, server, and routes. |
 | `luther service install` / `uninstall` | Install or remove startup-at-login behavior. |
 | `luther remote add\|pair\|list\|remove` | Manage SSH-relayed agent machines. |
@@ -161,7 +172,7 @@ Pick a folder, select an installed agent, and send a task. A parent folder does 
 
 Use `luther <command> --help` for arguments and examples. Styling is disabled for pipes and dumb terminals; `NO_COLOR=1` or `--no-color` also disables colors.
 
-`start` is on-demand; `service install` separately enables startup at login. With the login service installed, `stop` stops it now but does not remove its next-login behavior. Logs are under `~/.luther/`, including `serve.log`.
+`start` is on-demand and opens every configured way in again (the tailnet route as Funnel or Serve, and both Cloudflare tunnels); `stop` closes them all: the tailnet route comes off Luther's port and both `cloudflared` processes end, while the named tunnel and its DNS record stay. A quick tunnel gets a new address on each start. `service install` separately enables startup at login. With the login service installed, `stop` stops it now but does not remove its next-login behavior. Logs are under `~/.luther/`, including `serve.log`.
 
 ### Other machines over SSH
 
@@ -246,6 +257,25 @@ Luther can run commands and change files. Pair only devices and people you trust
 - Browser dev-server previews use a separate token/cookie proxy and are **not** covered by the sealed app protocol. Relays still see connection metadata. Static device/server keys do not provide forward secrecy.
 - Provider-owned stores are read-only to Luther; it does not write configuration or credentials into `~/.claude` or `~/.codex`.
 - File confinement and explicit repository selection reduce mistakes; they do not make an agent with full access safe against malicious instructions.
+
+- A phone paired with a key only talks end-to-end encrypted: its bearer token sent in plain text is refused on every route, so a leaked token alone can't drive the Mac. Removing a phone closes its open sockets within seconds.
+- The admin token (`~/.luther/config.json`) works only from the Mac itself, never through Tailscale, Cloudflare or another proxy.
+- Luther's file, git and terminal routes stay inside your home folder, also through symlinks, and never reach `~/.luther`, `~/.ssh`, `~/.gnupg`, `~/.aws` or your keychains. An agent you run still acts with your own rights.
+- A preview link opens once and lasts an hour, and only for a dev server listening now on port 1024 or higher.
+- Unauthenticated callers get `{ok: true}` from `/healthz` and nothing else.
+
+### What `~/.luther` keeps
+
+| File | What | How long |
+|---|---|---|
+| `config.json` | Keys, admin token, paired phones (token hashes only) | Until you change it |
+| `uploads/` | Photos and files from the phone; copies of chat images for the phone to show | Phone uploads 3 days; image copies 1 day after last use (made again on demand) |
+| `serve.log` | The server's log (agents' warnings and errors, not their INFO chatter) | Capped at 5 MB; the last part moves to `serve.log.1` |
+| `tokens.json` | Token counts per day, for Usage | 90 days |
+| `models.json` | Each agent's model list | Refreshed every 6 hours |
+| `quick.json`, `quick.log` | The quick tunnel's address and its cloudflared log | While the tunnel is on |
+| `tunnel.log` | The named tunnel's cloudflared log | Since its last start |
+| `schedules.json`, `usage.json` | Scheduled runs; plan usage | Until you change them |
 
 Never commit pairing payloads, tokens, private keys, Cloudflare credentials, or `~/.luther` contents. Review logs before sharing. Automated cryptographic tests are not a claim of independent security audit.
 

@@ -66,7 +66,8 @@ func findTerm(name string) bool {
 
 func createTerm(cwd string) (string, error) {
 	name := unsafeRe.ReplaceAllString(filepath.Base(cwd), "_") + "-" + text.RandHex(2)
-	_, err := tmux("new-session", "-d", "-s", name, "-c", cwd,
+	// tmux expands #{…} and #(command) in -c: a folder named like one must not run it.
+	_, err := tmux("new-session", "-d", "-s", name, "-c", strings.ReplaceAll(cwd, "#", "##"),
 		";", "set-option", "-t", "="+name+":", "@luther_cwd", cwd,
 		";", "set-option", "-g", "status", "off",
 		";", "set-option", "-g", "history-limit", "50000",

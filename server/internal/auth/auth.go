@@ -15,6 +15,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -46,11 +47,11 @@ func New(cfg *config.Config) *Auth {
 	return &Auth{cfg: cfg, internal: text.RandHex(32), codes: map[string]time.Time{}}
 }
 
-const internalPrefix = "luther-internal."
+const InternalPrefix = "luther-internal."
 
 // Internal: a bearer token that authenticates as device id, valid only inside
 // this process (package e2e uses it after decrypting a device's request).
-func (a *Auth) Internal(id string) string { return internalPrefix + a.internal + "." + id }
+func (a *Auth) Internal(id string) string { return InternalPrefix + a.internal + "." + id }
 
 // Key: the end-to-end key shared with a device.
 func (a *Auth) Key(id string) ([]byte, error) { return a.cfg.Shared(id) }
@@ -62,9 +63,10 @@ func (a *Auth) deviceFor(tok string) (id string, internal bool) {
 	if tok == "" {
 		return "", false
 	}
-	if rest, ok := strings.CutPrefix(tok, internalPrefix); ok {
+	if rest, ok := strings.CutPrefix(tok, InternalPrefix); ok {
 		secret, id, _ := strings.Cut(rest, ".")
-		if subtle.ConstantTimeCompare([]byte(secret), []byte(a.internal)) == 1 && id != "" {
+		// Only for a paired, keyed device: never Admin, never an id that isn't one.
+		if subtle.ConstantTimeCompare([]byte(secret), []byte(a.internal)) == 1 && id != "" && id != Admin && a.cfg.DevicePub(id) != "" {
 			return id, true
 		}
 		return "", false
@@ -84,8 +86,17 @@ func (a *Auth) Wrap(h http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !internal && id != Admin && r.Header.Get("Cf-Ray") != "" && a.cfg.DevicePub(id) != "" {
-			http.Error(w, "this phone talks end-to-end encrypted; plain requests through Cloudflare are refused", http.StatusForbidden)
+		// A phone paired with a key only ever talks sealed (POST /e), so its bearer
+		// token in plain text is refused on every route: a leaked token alone
+		// can't drive this Mac.
+		if !internal && id != Admin && a.cfg.DevicePub(id) != "" {
+			http.Error(w, "this phone talks end-to-end encrypted; plain requests are refused", http.StatusForbidden)
+			return
+		}
+		// The admin token is the local CLI's: only straight from this Mac, never
+		// through Tailscale Serve/Funnel, Cloudflare or another proxy.
+		if id == Admin && !Direct(r) {
+			http.Error(w, "the admin token only works on this Mac", http.StatusForbidden)
 			return
 		}
 		if id != Admin {
@@ -93,6 +104,22 @@ func (a *Auth) Wrap(h http.HandlerFunc) http.HandlerFunc {
 		}
 		h(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, id)))
 	}
+}
+
+// Direct: r came straight from this machine, not through a proxy (Tailscale
+// Serve and Funnel, cloudflared and relays all forward from 127.0.0.1 too, but
+// add their headers).
+func Direct(r *http.Request) bool {
+	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
+		return false
+	}
+	for k := range r.Header {
+		if k == "X-Forwarded-For" || k == "Forwarded" || k == "X-Real-Ip" || k == "Cf-Ray" || k == "Cf-Connecting-Ip" || strings.HasPrefix(k, "Tailscale-") {
+			return false
+		}
+	}
+	return true
 }
 
 func DeviceID(r *http.Request) string { id, _ := r.Context().Value(ctxKey{}).(string); return id }

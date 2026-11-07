@@ -7,7 +7,8 @@ import "time"
 // source of truth; app/src/lib/protocol.ts mirrors them (change both together).
 //
 // HTTP (JSON, bearer device token on everything except /healthz and POST /pair):
-//   GET  /healthz                         → {ok, name, version}
+//   GET  /healthz                         → {ok} ({ok, name, version} on this Mac)
+//   GET  /routes                          → [url] (where this Mac answers now)
 //   POST /pair {pub, box}                 → {box}  box = sealed {code, name, t} → sealed {deviceId, token} (package seal)
 //   POST /e  (X-Luther-Device, sealed)    → sealed response: any other request, end-to-end encrypted (package e2e)
 //   GET  /e/ws?d=&b=  (WS)                → any WebSocket above, each frame sealed

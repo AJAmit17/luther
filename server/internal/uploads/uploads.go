@@ -72,6 +72,11 @@ func ForAgent(p string) (data []byte, mediaType string, ok bool) {
 	if len(b) <= 3<<20 {
 		return b, MediaType(p), true
 	}
+	// The size it declares first: a small file can claim a huge picture and
+	// take gigabytes to decode.
+	if cfg, _, err := image.DecodeConfig(bytes.NewReader(b)); err != nil || cfg.Width*cfg.Height > 50_000_000 {
+		return nil, "", false
+	}
 	img, _, err := image.Decode(bytes.NewReader(b))
 	if err != nil {
 		return nil, "", false
@@ -180,7 +185,12 @@ func serveImage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no such image", http.StatusNotFound)
 		return
 	}
-	b, err := os.ReadFile(filepath.Join(Dir(), name))
+	p := filepath.Join(Dir(), name)
+	if info, err := os.Stat(p); err == nil && info.Size() > 15<<20 {
+		http.Error(w, "image too large to show", http.StatusRequestEntityTooLarge) // it's buffered and sealed whole
+		return
+	}
+	b, err := os.ReadFile(p)
 	if err != nil {
 		http.Error(w, "no such image", http.StatusNotFound)
 		return
@@ -194,7 +204,7 @@ func save(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	sweep()
+	Sweep()
 	p := filepath.Join(Dir(), text.RandHex(4)+"-"+name)
 	f, err := os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
@@ -211,11 +221,28 @@ func save(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]string{"path": p})
 }
 
-func sweep() {
+// Sweep deletes what's past keeping: photos from the phone after
+// uploadsKeep (by then the agent has long read them), and images kept from
+// transcripts after copiesKeep unused (Keep writes them again on demand).
+// Run on every upload and hourly (api).
+func Sweep() {
 	ents, _ := os.ReadDir(Dir())
 	for _, e := range ents {
-		if info, err := e.Info(); err == nil && time.Since(info.ModTime()) > 7*24*time.Hour {
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		keep := uploadsKeep
+		if strings.HasPrefix(e.Name(), "img-") {
+			keep = copiesKeep
+		}
+		if time.Since(info.ModTime()) > keep {
 			os.Remove(filepath.Join(Dir(), e.Name()))
 		}
 	}
 }
+
+const (
+	uploadsKeep = 3 * 24 * time.Hour
+	copiesKeep  = 24 * time.Hour
+)

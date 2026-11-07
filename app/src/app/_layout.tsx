@@ -10,7 +10,7 @@ import '@/lib/theme'; // applies the saved appearance before the first render
 import { onActivityStop } from '@/lib/activities';
 import { scheduleBackgroundRefresh } from '@/lib/background'; // also defines the task at import
 import { useFeed } from '@/lib/feed';
-import { currentHost, onHostsChange, post, setCurrent } from '@/lib/hosts';
+import { currentHost, onHostsChange, post, refreshRoutes, setCurrent } from '@/lib/hosts';
 import { onNotificationResponse } from '@/lib/notifier';
 import { openThread } from '@/lib/threads';
 import { setQuickActions } from '@/lib/quick-actions';
@@ -26,9 +26,13 @@ export default function Layout() {
     void restorePick();
     const sync = () => void currentHost().then((h) => setHost(h?.id ?? null));
     sync();
+    void refreshRoutes();
     const hosts = onHostsChange(sync);
     const app = AppState.addEventListener('change', (s) => {
-      if (s === 'active') sync();
+      if (s === 'active') {
+        sync();
+        void refreshRoutes();
+      }
       if (s === 'background') scheduleBackgroundRefresh();
     });
     // A tap opens the thread on the Mac that sent it (resuming it if it stopped);
