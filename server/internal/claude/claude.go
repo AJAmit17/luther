@@ -117,7 +117,13 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	t := hub.New(sid, protocol.State{Provider: protocol.Claude, Session: sid, Cwd: r.Cwd, Mode: mode, Model: r.Model})
+	// A resumed session's effort is the one its last reply used (Claude keeps
+	// it there, not in what it streams).
+	effort := ""
+	if r.Resume != "" {
+		effort = lastEffort(r.Resume)
+	}
+	t := hub.New(sid, protocol.State{Provider: protocol.Claude, Session: sid, Cwd: r.Cwd, Mode: mode, Model: r.Model, Effort: effort})
 	rt := &runtime{t: t, cmd: cmd, in: in}
 	t.SetRuntime(rt)
 	if r.Resume != "" {
@@ -145,6 +151,8 @@ type streamRec struct {
 		RequestID string `json:"request_id"`
 	} `json:"response"`
 	RateLimit    json.RawMessage `json:"rate_limit_info"`
+	FastState    string          `json:"fast_mode_state"`
+	FastOff      string          `json:"fast_mode_disabled_reason"`
 	TotalCostUSD float64         `json:"total_cost_usd"`
 	Usage        struct {
 		InputTokens      int64 `json:"input_tokens"`
@@ -175,6 +183,10 @@ func (c *runtime) handle(line []byte) {
 		return
 	}
 	t := c.t
+	effort := ""
+	if r.Type == "result" { // the effort the reply used: Claude writes it only to its transcript
+		effort = lastEffort(t.State().Session)
+	}
 	t.Do(func(st *protocol.State) {
 		sub := r.ParentToolUseID != nil && *r.ParentToolUseID != "" // a subagent's events
 		switch r.Type {
@@ -186,6 +198,7 @@ func (c *runtime) handle(line []byte) {
 					t.Reset([]protocol.Msg{{ID: "clear-" + r.SessionID, Role: "system", Text: "Conversation cleared"}})
 				}
 				st.Model, st.Mode = r.Model, fromMode(r.PermissionMode)
+				fastState(st, r.FastState, r.FastOff)
 				if r.SlashCommands != nil {
 					st.Commands = r.SlashCommands
 				}
@@ -268,6 +281,9 @@ func (c *runtime) handle(line []byte) {
 				if model := modelSet(m); model != "" {
 					st.Model = model // a typed /model: Claude only says so in its output
 				}
+				if e := effortSet(m); e != "" {
+					st.Effort = e // a typed /effort, likewise
+				}
 				t.Add(m)
 			}
 
@@ -292,6 +308,10 @@ func (c *runtime) handle(line []byte) {
 			u.CostUSD += r.TotalCostUSD
 			u.CostReported = true
 			st.Usage = u
+			fastState(st, r.FastState, r.FastOff)
+			if effort != "" {
+				st.Effort = effort
+			}
 			t.TurnEnd()
 		}
 	})
@@ -462,6 +482,68 @@ func (c *runtime) SetModel(m string) error {
 	}
 	c.t.Do(func(st *protocol.State) { st.Model = m })
 	return nil
+}
+
+// SetEffort / SetFast: session-only flag settings (what /effort and /fast
+// change), applied from the next request; nothing is saved to Claude's settings.
+func (c *runtime) SetEffort(e string) error {
+	if !effortRe.MatchString(e) {
+		return fmt.Errorf("bad effort %q", e)
+	}
+	if err := c.control(map[string]any{"subtype": "apply_flag_settings", "settings": map[string]any{"effortLevel": e}}); err != nil {
+		return err
+	}
+	c.t.Do(func(st *protocol.State) { st.Effort = e })
+	return nil
+}
+
+// ponytail: Claude reports fast mode only with each turn, so the tile shows the
+// state Claude reports after the next turn; an account without fast mode then reads n/a.
+func (c *runtime) SetFast(on bool) error {
+	if err := c.control(map[string]any{"subtype": "apply_flag_settings", "settings": map[string]any{"fastMode": on}}); err != nil {
+		return err
+	}
+	c.t.Do(func(st *protocol.State) { st.Fast = map[bool]string{true: "on", false: "off"}[on] })
+	return nil
+}
+
+var effortRe = regexp.MustCompile(`^[a-z]{1,16}$`)
+
+// fastState: Claude's fast_mode_state and why it can't serve; "" (n/a) when
+// the account or model can't have it. Until Luther turns fast mode on, Claude
+// says only that nobody asked (sdk_opt_in_required): that tells nothing, so
+// the model list's answer stands.
+func fastState(st *protocol.State, state, off string) {
+	switch {
+	case state == "" || off == "sdk_opt_in_required":
+	case off == "":
+		st.Fast, st.FastNote = map[bool]string{true: "on", false: "off"}[state == "on"], ""
+	default:
+		st.Fast, st.FastNote = "", fastWhy[off]
+	}
+}
+
+var fastWhy = map[string]string{
+	"free":                 "Needs a paid plan",
+	"preference":           "Off for your organization",
+	"extra_usage_disabled": "Needs usage credits",
+	"network_error":        "Unreachable right now",
+	"not_first_party":      "Anthropic API only",
+	"disabled_by_env":      "Turned off on the Mac",
+	"model_not_allowed":    "Not for this model",
+}
+
+// effortSet: the level a typed "/effort" set, from "Set effort level to low
+// (this session only): …"; "" for any other message.
+func effortSet(m protocol.Msg) string {
+	rest, ok := strings.CutPrefix(m.Text, "Set effort level to ")
+	if m.Role != "system" || !ok {
+		return ""
+	}
+	if f := strings.Fields(rest); len(f) > 0 && effortRe.MatchString(f[0]) {
+		return f[0]
+	}
+	return ""
 }
 
 func (c *runtime) Answer(p *protocol.Prompt, a protocol.Answer) error {

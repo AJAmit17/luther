@@ -314,7 +314,47 @@ func modelsOf(r sessionResp) []protocol.Model {
 			out = append(out, protocol.Model{ID: m.ID, Name: text.OrDefault(m.Name, m.ID), Desc: m.Desc})
 		}
 	}
+	// The session's effort and speed options hold for every model it lists.
+	k := knobsOf(r.Config)
+	for i := range out {
+		out[i].Efforts, out[i].Effort, out[i].Fast = k.efforts, k.effort, k.fastID != ""
+	}
 	return out
+}
+
+// knobs: a session's reasoning-effort option ("thought_level") and its fast
+// option (Devin's "speed": standard | fast), when it has them.
+type knobs struct {
+	effortID, effort string
+	efforts          []string
+	fastID, fast     string // fast: "on" | "off"
+	fastOn, fastOff  string // the option's values for each
+}
+
+func knobsOf(cfg []option) knobs {
+	var k knobs
+	for _, o := range cfg {
+		if o.Category == "thought_level" && k.effortID == "" {
+			k.effortID, k.effort = o.ID, o.Current
+			for _, x := range choices(o.Options) {
+				k.efforts = append(k.efforts, x.Value)
+			}
+			continue
+		}
+		var on, off string
+		for _, x := range choices(o.Options) {
+			if x.Value == "fast" {
+				on = x.Value
+			} else if off == "" {
+				off = x.Value
+			}
+		}
+		if on != "" && off != "" && o.Category != "model" && k.fastID == "" {
+			k.fastID, k.fastOn, k.fastOff = o.ID, on, off
+			k.fast = map[bool]string{true: "on", false: "off"}[o.Current == on]
+		}
+	}
+	return k
 }
 
 // ---- one open session ----
@@ -483,7 +523,10 @@ func (c *runtime) configure(r sessionResp) {
 		c.agentDef = r.Modes.Current
 	}
 	c.mu.Unlock()
-	c.t.Do(func(st *protocol.State) { st.Model = model })
+	c.t.Do(func(st *protocol.State) {
+		st.Model = model
+		c.showKnobs(st)
+	})
 	if models != nil {
 		c.s.mu.Lock()
 		c.s.models = models
@@ -904,6 +947,46 @@ func (c *runtime) SetModel(m string) error {
 		}
 	}
 	return fmt.Errorf("%s doesn't offer a model choice here", c.s.agent.Name)
+}
+
+// showKnobs: effort and fast mode into the state. Hub lock held.
+func (c *runtime) showKnobs(st *protocol.State) {
+	c.mu.Lock()
+	k := knobsOf(c.config)
+	c.mu.Unlock()
+	st.Effort, st.Efforts, st.Fast = k.effort, k.efforts, k.fast
+}
+
+func (c *runtime) SetEffort(e string) error {
+	c.mu.Lock()
+	k := knobsOf(c.config)
+	c.mu.Unlock()
+	if k.effortID == "" {
+		return fmt.Errorf("%s doesn't offer an effort choice here", c.s.agent.Name)
+	}
+	if err := c.setOption(k.effortID, e); err != nil {
+		return err
+	}
+	c.t.Do(c.showKnobs)
+	return nil
+}
+
+func (c *runtime) SetFast(on bool) error {
+	c.mu.Lock()
+	k := knobsOf(c.config)
+	c.mu.Unlock()
+	if k.fastID == "" {
+		return fmt.Errorf("%s doesn't offer a fast mode here", c.s.agent.Name)
+	}
+	v := k.fastOff
+	if on {
+		v = k.fastOn
+	}
+	if err := c.setOption(k.fastID, v); err != nil {
+		return err
+	}
+	c.t.Do(c.showKnobs)
+	return nil
 }
 
 func (c *runtime) setOption(id, value string) error {

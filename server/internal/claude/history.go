@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -179,3 +180,36 @@ func toolSummary(name string, in map[string]any) string {
 
 // isAgentTool: the tool that starts a subagent ("Task", newer CLIs "Agent").
 func isAgentTool(name string) bool { return name == "Task" || name == "Agent" }
+
+// lastEffort: the reasoning effort of the session's latest reply, from the end
+// of its transcript ("" when it has none yet).
+func lastEffort(sid string) string {
+	paths, _ := filepath.Glob(filepath.Join(root(), "*", sid+".jsonl"))
+	if len(paths) == 0 {
+		return ""
+	}
+	f, err := os.Open(paths[0])
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	const tail = 512 << 10
+	if fi, err := f.Stat(); err == nil && fi.Size() > tail {
+		f.Seek(fi.Size()-tail, io.SeekStart)
+	}
+	b, _ := io.ReadAll(f)
+	lines := bytes.Split(b, []byte("\n"))
+	for i := len(lines) - 1; i >= 0; i-- {
+		if !bytes.Contains(lines[i], []byte(`"effort"`)) {
+			continue
+		}
+		var r struct {
+			Type   string `json:"type"`
+			Effort string `json:"effort"`
+		}
+		if json.Unmarshal(lines[i], &r) == nil && r.Type == "assistant" && effortRe.MatchString(r.Effort) {
+			return r.Effort
+		}
+	}
+	return ""
+}

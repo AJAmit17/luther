@@ -27,7 +27,8 @@ func Models() ([]protocol.Model, error) {
 		return nil, err
 	}
 	defer os.RemoveAll(dir)
-	cmd := exec.CommandContext(ctx, Bin, "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose")
+	// --fast-mode on only asks; this process never sends a prompt.
+	cmd := exec.CommandContext(ctx, Bin, "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--fast-mode", "on")
 	cmd.Dir = dir
 	in, err := cmd.StdinPipe()
 	if err != nil {
@@ -45,19 +46,62 @@ func Models() ([]protocol.Model, error) {
 		cmd.Process.Kill()
 		cmd.Wait()
 	}()
-	req, _ := json.Marshal(map[string]any{"type": "control_request", "request_id": "luther-models", "request": map[string]any{"subtype": "initialize"}})
-	if _, err := in.Write(append(req, '\n')); err != nil {
+	ask := func(id string) error {
+		req, _ := json.Marshal(map[string]any{"type": "control_request", "request_id": id, "request": map[string]any{"subtype": "initialize"}})
+		_, err := in.Write(append(req, '\n'))
+		return err
+	}
+	if err := ask("luther-models"); err != nil {
 		return nil, err
 	}
 	sc := bufio.NewScanner(out)
 	sc.Buffer(make([]byte, 1<<20), 16<<20)
+	var ms []protocol.Model
 	for sc.Scan() {
-		ms, ok := parseInitModels(sc.Bytes())
-		if ok {
+		if got, ok := parseInitModels(sc.Bytes()); ok {
+			// Whether the account may use fast mode is known only once Claude
+			// has asked the organization's settings, a moment after it starts;
+			// so ask again then.
+			ms = got
+			go func() {
+				time.Sleep(fastCheck)
+				ask("luther-fast")
+			}()
+			continue
+		}
+		if why, ok := parseInitFast(sc.Bytes()); ok {
+			if why != "" {
+				for i := range ms {
+					ms[i].Fast = false // the account can't have it
+				}
+			}
 			return ms, nil
 		}
 	}
+	if ms != nil {
+		return ms, nil
+	}
 	return nil, fmt.Errorf("claude models: no answer (%v)", ctx.Err())
+}
+
+const fastCheck = 6 * time.Second
+
+// parseInitFast: why fast mode can't serve, from the second initialize's
+// answer ("" when it can); ok is false for any other line.
+func parseInitFast(line []byte) (string, bool) {
+	var r struct {
+		Type     string `json:"type"`
+		Response struct {
+			ID       string `json:"request_id"`
+			Response struct {
+				Why string `json:"fast_mode_disabled_reason"`
+			} `json:"response"`
+		} `json:"response"`
+	}
+	if json.Unmarshal(line, &r) != nil || r.Type != "control_response" || r.Response.ID != "luther-fast" {
+		return "", false
+	}
+	return r.Response.Response.Why, true
 }
 
 // parseInitModels: the models in Claude Code's answer to initialize; ok is
@@ -69,10 +113,12 @@ func parseInitModels(line []byte) ([]protocol.Model, bool) {
 			ID       string `json:"request_id"`
 			Response struct {
 				Models []struct {
-					Value       string `json:"value"`
-					Resolved    string `json:"resolvedModel"`
-					DisplayName string `json:"displayName"`
-					Description string `json:"description"`
+					Value       string   `json:"value"`
+					Resolved    string   `json:"resolvedModel"`
+					DisplayName string   `json:"displayName"`
+					Description string   `json:"description"`
+					Efforts     []string `json:"supportedEffortLevels"`
+					Fast        bool     `json:"supportsFastMode"`
 				} `json:"models"`
 			} `json:"response"`
 		} `json:"response"`
@@ -85,7 +131,7 @@ func parseInitModels(line []byte) ([]protocol.Model, bool) {
 		if m.Value == "default" {
 			continue // the app's own "Default" covers it
 		}
-		ms = append(ms, protocol.Model{ID: m.Value, Name: m.DisplayName, Desc: m.Description, Resolved: m.Resolved})
+		ms = append(ms, protocol.Model{ID: m.Value, Name: m.DisplayName, Desc: m.Description, Resolved: m.Resolved, Efforts: m.Efforts, Fast: m.Fast})
 	}
 	return ms, true
 }

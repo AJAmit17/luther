@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -196,7 +197,7 @@ func TestModelsOf(t *testing.T) {
 		t.Fatalf("got %+v", got)
 	}
 	for i := range want {
-		if got[i] != want[i] {
+		if !reflect.DeepEqual(got[i], want[i]) {
 			t.Errorf("%d: got %+v want %+v", i, got[i], want[i])
 		}
 	}
@@ -204,5 +205,25 @@ func TestModelsOf(t *testing.T) {
 	json.Unmarshal([]byte(`{"models":{"availableModels":[{"modelId":"m1","name":"Model One"}]}}`), &old)
 	if ms := modelsOf(old); len(ms) != 1 || ms[0].Name != "Model One" {
 		t.Fatalf("availableModels: %+v", ms)
+	}
+}
+
+// Devin and Oh My Pi offer effort as a "thought_level" option; Devin's
+// "speed" option is its fast mode.
+func TestKnobs(t *testing.T) {
+	var r sessionResp
+	json.Unmarshal([]byte(`{"configOptions":[
+		{"id":"model","category":"model","currentValue":"m","options":[{"value":"m","name":"M"},{"value":"fast","name":"not speed"}]},
+		{"id":"thought_level","category":"thought_level","currentValue":"high","options":[{"value":"low"},{"value":"high"},{"value":"max"}]},
+		{"id":"speed","category":"model_config","currentValue":"standard","options":[{"value":"standard"},{"value":"fast"}]}]}`), &r)
+	k := knobsOf(r.Config)
+	if k.effortID != "thought_level" || k.effort != "high" || !reflect.DeepEqual(k.efforts, []string{"low", "high", "max"}) {
+		t.Errorf("effort: %+v", k)
+	}
+	if k.fastID != "speed" || k.fast != "off" || k.fastOn != "fast" || k.fastOff != "standard" {
+		t.Errorf("fast: %+v", k)
+	}
+	if ms := modelsOf(r); len(ms) != 2 || ms[0].Effort != "high" || !ms[0].Fast {
+		t.Errorf("models: %+v", ms)
 	}
 }

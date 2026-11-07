@@ -144,6 +144,10 @@ func Models() []protocol.Model {
 			DisplayName string `json:"displayName"`
 			Description string `json:"description"`
 			Hidden      bool   `json:"hidden"`
+			Efforts     []struct {
+				Effort string `json:"reasoningEffort"`
+			} `json:"supportedReasoningEfforts"`
+			Default string `json:"defaultReasoningEffort"`
 		} `json:"data"`
 	}
 	json.Unmarshal(raw, &out)
@@ -153,7 +157,11 @@ func Models() []protocol.Model {
 			continue
 		}
 		id := text.OrDefault(m.ID, m.Model)
-		ms = append(ms, protocol.Model{ID: id, Name: text.OrDefault(m.DisplayName, id), Desc: m.Description})
+		md := protocol.Model{ID: id, Name: text.OrDefault(m.DisplayName, id), Desc: m.Description, Effort: m.Default}
+		for _, e := range m.Efforts {
+			md.Efforts = append(md.Efforts, e.Effort)
+		}
+		ms = append(ms, md)
 	}
 	return ms
 }
