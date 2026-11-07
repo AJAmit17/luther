@@ -55,3 +55,9 @@ func startNamed() error {
 	go cmd.Wait()
 	return nil
 }
+
+// CloseNamed stops the cloudflared running luther.yml (the tunnel itself and
+// its DNS record stay; luther serve starts it again).
+func CloseNamed() {
+	exec.Command("pkill", "-f", "cloudflared.*"+NamedConfig()).Run()
+}

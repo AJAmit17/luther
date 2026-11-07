@@ -80,7 +80,15 @@ func QuickOff() error {
 	return save(QuickTunnel{})
 }
 
-// Keep, in `luther serve`: every minute, a tunnel that's on but not running is
+// CloseQuick stops the quick tunnel's cloudflared but leaves it on, so
+// luther serve starts it again (with a new address).
+func CloseQuick() {
+	if s := QuickState(); alive(s.PID) {
+		syscall.Kill(s.PID, syscall.SIGTERM)
+	}
+}
+
+// KeepQuick, in `luther serve`: every minute, a tunnel that's on but not running is
 // started again (its address then changes).
 func KeepQuick(target string) {
 	for {
@@ -110,7 +118,7 @@ func start(target string) (string, error) {
 	// ~/.cloudflared/config.yml, whose ingress rules (another tunnel's) would
 	// answer this one's requests with their catch-all 404.
 	empty := filepath.Join(dir(), "quick.yml")
-	if err := os.WriteFile(empty, nil, 0o600); err != nil {
+	if err := os.WriteFile(empty, []byte("no-autoupdate: true\n"), 0o600); err != nil { // not empty: cloudflared logs an error for that
 		return "", err
 	}
 	cmd := exec.Command(bin, "tunnel", "--config", empty, "--no-autoupdate", "--url", target)

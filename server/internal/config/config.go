@@ -26,6 +26,7 @@ type Config struct {
 	Port       int      `json:"port"`
 	Name       string   `json:"name,omitempty"`    // shown on the phone; default hostname
 	Tailnet    string   `json:"tailnet,omitempty"` // https://mac.tailnet.ts.net[:port]
+	Funnel     bool     `json:"funnel,omitempty"`  // Tailnet is published with Funnel (public), not Serve
 	Tunnel     string   `json:"tunnel,omitempty"`  // https://luther.example.com (a named Cloudflare tunnel; a quick one is in quick.json)
 	AdminToken string   `json:"adminToken"`        // for the local CLI (pair, doctor)
 	SecretKey  string   `json:"secretKey"`         // X25519, for end-to-end encryption with phones

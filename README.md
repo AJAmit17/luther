@@ -172,7 +172,7 @@ Pick a folder, select an installed agent, and send a task. A parent folder does 
 
 Use `luther <command> --help` for arguments and examples. Styling is disabled for pipes and dumb terminals; `NO_COLOR=1` or `--no-color` also disables colors.
 
-`start` is on-demand; `service install` separately enables startup at login. With the login service installed, `stop` stops it now but does not remove its next-login behavior. Logs are under `~/.luther/`, including `serve.log`.
+`start` is on-demand and opens every configured way in again (the tailnet route as Funnel or Serve, and both Cloudflare tunnels); `stop` closes them all: the tailnet route comes off Luther's port and both `cloudflared` processes end, while the named tunnel and its DNS record stay. A quick tunnel gets a new address on each start. `service install` separately enables startup at login. With the login service installed, `stop` stops it now but does not remove its next-login behavior. Logs are under `~/.luther/`, including `serve.log`.
 
 ### Other machines over SSH
 

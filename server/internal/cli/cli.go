@@ -129,7 +129,7 @@ func (c *CLI) Tailscale(port int, force, funnel bool) error {
 	if port != 443 {
 		url += ":" + strconv.Itoa(port)
 	}
-	if err := c.cfg.Set(func(cf *config.Config) { cf.Tailnet = url }); err != nil {
+	if err := c.cfg.Set(func(cf *config.Config) { cf.Tailnet, cf.Funnel = url, funnel }); err != nil {
 		return err
 	}
 	if funnel {
