@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://luther.pages.dev/sitemap.xml
