@@ -34,6 +34,7 @@ Agents: **Claude Code**, **Codex**, **Devin**, **OpenCode**, **Oh My Pi**, **Gem
 | --- | --- |
 | Continue real agent sessions | Stream responses, switch permission modes, interrupt work, and resume supported sessions. |
 | Pick the real model | Each agent's own model list with real names ("Opus 5.5", not "Default"), grouped and searchable when an agent offers hundreds. |
+| Set the effort | Each agent's own effort levels (Low to Max, Ultra on some Codex models, thinking off on Oh My Pi) and its fast mode where the account has one. A session shows the effort it last ran at, also when it was set on the Mac. |
 | Send photos | Take a photo or pick images and files; images show in the conversation, and large ones are shrunk before the agent sees them. |
 | Stay in control | Answer permission requests, questions, and plans from the phone. Concurrent clients share a thread; the first accepted answer wins. |
 | Work across repositories | Open a parent workspace containing several Git checkouts. Select the specific checkout before a Git mutation or worktree operation. |
@@ -283,7 +284,7 @@ Luther can run commands and change files. Pair only devices and people you trust
 | `uploads/` | Photos and files from the phone; copies of chat images for the phone to show | Phone uploads 3 days; image copies 1 day after last use (made again on demand) |
 | `serve.log` | The server's log (agents' warnings and errors, not their INFO chatter) | Capped at 5 MB; the last part moves to `serve.log.1` |
 | `tokens.json` | Token counts per day, for Usage | 90 days |
-| `models.json` | Each agent's model list | Refreshed every 6 hours |
+| `models.json` | Each agent's model list, with its effort levels | Refreshed every 6 hours |
 | `quick.json`, `quick.log` | The quick tunnel's address and its cloudflared log | While the tunnel is on |
 | `tunnel.log` | The named tunnel's cloudflared log | Since its last start |
 | `schedules.json`, `usage.json` | Scheduled runs; plan usage | Until you change them |
