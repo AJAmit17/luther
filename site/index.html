@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Luther</title>
+<meta name="description" content="Luther lets your phone drive the coding agents on your Mac: Claude Code, Codex, Devin, OpenCode, Oh My Pi, Gemini CLI and Cursor. End-to-end encrypted, self-hosted.">
+<meta property="og:title" content="Luther">
+<meta property="og:description" content="Your agents. Your Mac. Anywhere.">
+<meta property="og:image" content="social-preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' rx='18' fill='%23086B64'/%3E%3Cpath d='M20 14 L20 43 Q20 55 32 55 L47 55 M60 66 L60 37 Q60 25 48 25 L33 25' fill='none' stroke='%23fff' stroke-width='10'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --sage: #F2F5F4; --paper: #FFFFFF; --ink: #16201E; --dim: #52635E; --line: #CCD9D3; --fill: #E6ECE9;
+  --teal: #086B64; --mint: #89D5C7; --on-teal: #FFFFFF; --red: #AF2932;
+  --term: #101716; --term-text: #EDF4F1; --term-dim: #8FA59B;
+  --sans: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sage: #101716; --paper: #192321; --ink: #EDF4F1; --dim: #A3B5AE; --line: #354740; --fill: #23332D;
+    --teal: #89D5C7; --mint: #086B64; --on-teal: #102B26; --red: #FFA3AA;
+    --term: #0A100F; --term-text: #EDF4F1; --term-dim: #8FA59B;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--sage); color: var(--ink); font: 400 18px/1.55 var(--sans); font-optical-sizing: auto; }
+a { color: var(--teal); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--teal); outline-offset: 3px; border-radius: 6px; }
+code, pre { font-family: var(--mono); }
+.wrap { width: min(1120px, 100% - 32px); margin-inline: auto; }
+
+/* Header */
+.top { display: flex; align-items: center; justify-content: space-between; padding-block: 22px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 22px; letter-spacing: -0.01em; }
+.brand svg { width: 30px; height: 30px; color: var(--teal); }
+.top nav { display: flex; gap: 22px; font-size: 16px; }
+.top nav a { color: var(--dim); text-decoration: none; }
+.top nav a:hover { color: var(--ink); }
+
+/* Hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px; padding-block: 40px 72px; }
+.hero h1 { margin: 0; font-weight: 700; font-stretch: 94%; font-size: clamp(48px, 7.4vw, 96px); line-height: 0.98; letter-spacing: -0.018em; max-width: 12ch; text-wrap: balance; }
+.hero-text { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 24px 56px; align-items: end; }
+.hero-text .lede { margin-top: 0; }
+.lede { margin: 24px 0 0; max-width: 34em; font-size: 20px; color: var(--dim); }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.btn { display: inline-flex; align-items: center; min-height: 48px; padding: 0 22px; border-radius: 999px; font-weight: 600; font-size: 17px; text-decoration: none; }
+.btn.primary { background: var(--teal); color: var(--on-teal); }
+.btn.quiet { color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line); }
+.btn.quiet:hover { box-shadow: inset 0 0 0 1.5px var(--dim); }
+
+/* The scene: phone, relay, Mac */
+.scene { display: grid; grid-template-columns: 300px 140px minmax(0, 1fr); align-items: center; }
+.relay { position: relative; height: 60px; }
+.relay i { position: absolute; left: 0; right: 0; height: 6px; border-radius: 3px; background: var(--teal); transform-origin: left; }
+.relay i:first-child { top: 18px; }
+.relay i:nth-child(2) { top: 36px; background: var(--mint); transform-origin: right; }
+.relay b { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 16px; display: grid; place-items: center; background: var(--teal); box-shadow: 0 0 0 6px var(--sage); }
+.relay b svg { width: 30px; height: 30px; color: var(--on-teal); }
+@media (prefers-reduced-motion: no-preference) {
+  .relay i { transform: scaleX(0); animation: draw 0.7s 0.5s cubic-bezier(.6,.1,.2,1) forwards; }
+  .relay i:nth-child(2) { animation-delay: 1.1s; }
+  .relay b { opacity: 0; transform: scale(0.6); animation: pop 0.35s 0.9s ease-out forwards; }
+  @keyframes draw { to { transform: scaleX(1); } }
+  @keyframes pop { to { opacity: 1; transform: none; } }
+}
+.phone { position: relative; z-index: 1; width: 300px; padding: 12px; border-radius: 46px; background: var(--ink); box-shadow: 0 30px 60px -30px rgb(22 32 30 / 0.45); }
+.screen { border-radius: 36px; overflow: hidden; background: var(--sage); color: var(--ink); font-size: 14px; line-height: 1.4; }
+.bar { display: flex; justify-content: center; padding: 14px 16px 6px; font-weight: 650; font-size: 15px; }
+.chat { display: grid; gap: 10px; padding: 8px 14px 12px; }
+.you { justify-self: end; max-width: 85%; padding: 9px 12px; border-radius: 16px 16px 4px 16px; background: var(--teal); color: var(--on-teal); }
+.agent { max-width: 92%; }
+.ask { padding: 12px; border-radius: 16px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); }
+.ask p { margin: 0 0 8px; font-weight: 600; }
+.ask code { display: block; padding: 7px 9px; border-radius: 8px; background: var(--fill); font-size: 12px; }
+.ask .choices { display: flex; gap: 8px; margin-top: 10px; }
+.ask .choices span { flex: 1; padding: 8px 0; border-radius: 10px; text-align: center; font-weight: 600; background: var(--fill); }
+.ask .choices span:first-child { background: var(--teal); color: var(--on-teal); }
+.composer { margin: 4px 10px 12px; padding: 10px 12px; border-radius: 20px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: var(--dim); }
+.chips { display: flex; gap: 6px; margin-top: 8px; font: 500 11px var(--mono); }
+.chips span { padding: 3px 8px; border-radius: 999px; background: var(--fill); color: var(--ink); }
+.mac { position: relative; z-index: 1; border-radius: 14px; background: var(--term); color: var(--term-text); box-shadow: 0 30px 60px -34px rgb(22 32 30 / 0.5); overflow: hidden; }
+.mac .dots { display: flex; gap: 7px; padding: 12px 14px; }
+.mac .dots i { width: 11px; height: 11px; border-radius: 50%; background: #354740; }
+.mac pre { margin: 0; padding: 4px 22px 24px; font-size: 14px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mac .p { color: var(--mint); }
+@media (prefers-color-scheme: dark) { .mac .p { color: #89D5C7; } }
+.mac .d { color: var(--term-dim); }
+
+/* Sections */
+section { padding-block: 64px; border-top: 1px solid var(--line); }
+h2 { margin: 0 0 12px; font-weight: 720; font-stretch: 85%; font-size: clamp(32px, 4.4vw, 48px); line-height: 1.02; letter-spacing: -0.02em; }
+.intro { margin: 0 0 32px; max-width: 36em; color: var(--dim); }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); gap: 48px; }
+
+/* Ways in */
+table { width: 100%; border-collapse: collapse; font-size: 16px; }
+th, td { text-align: left; vertical-align: top; padding: 16px 16px 16px 0; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; color: var(--dim); font-size: 15px; }
+td code { font-size: 14px; white-space: nowrap; color: var(--ink); background: var(--fill); padding: 2px 7px; border-radius: 6px; }
+td:first-child { width: 30%; }
+
+/* Steps */
+ol.steps { list-style: none; counter-reset: s; margin: 0; padding: 0; display: grid; gap: 28px; }
+ol.steps li { counter-increment: s; display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 0 18px; }
+ol.steps li::before { content: counter(s); grid-row: span 3; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--teal); color: var(--on-teal); font-weight: 700; }
+ol.steps h3 { margin: 6px 0 6px; font-size: 21px; font-weight: 650; }
+ol.steps p { margin: 0 0 10px; color: var(--dim); max-width: 38em; }
+pre.cmd { margin: 0; padding: 14px 18px; border-radius: 12px; background: var(--term); color: var(--term-text); font-size: 14.5px; line-height: 1.65; overflow-x: auto; }
+pre.cmd .d { color: var(--term-dim); }
+
+/* Agents */
+.agents { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 28px 20px; margin: 0; padding: 0; list-style: none; }
+.agents li { display: grid; gap: 10px; justify-items: start; }
+.agents .logo { width: 52px; height: 52px; border-radius: 15px; display: grid; place-items: center; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); font-weight: 700; color: var(--dim); }
+.agents img, .agents .ink { width: 26px; height: 26px; }
+.agents .ink { background: var(--ink); -webkit-mask: var(--src) center / contain no-repeat; mask: var(--src) center / contain no-repeat; }
+@media (min-width: 1000px) { .agents { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+.agents strong { font-weight: 650; }
+.agents span { display: block; font-size: 15px; color: var(--dim); }
+
+/* Lists */
+dl.can { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px 48px; margin: 0; }
+dl.can div { padding-top: 14px; border-top: 2px solid var(--teal); }
+dl.can dt { font-weight: 650; font-size: 19px; margin-bottom: 4px; }
+dl.can dd { margin: 0; color: var(--dim); }
+ul.facts { margin: 0; padding: 0 0 0 1.1em; display: grid; gap: 12px; max-width: 40em; }
+ul.facts li::marker { color: var(--teal); }
+
+footer { padding-block: 48px 64px; border-top: 1px solid var(--line); color: var(--dim); font-size: 15px; }
+footer p { margin: 0 0 6px; }
+
+@media (max-width: 900px) {
+  .scene { grid-template-columns: minmax(0, 1fr); gap: 28px; justify-items: center; }
+  .relay { display: none; }
+  .hero-text { grid-template-columns: minmax(0, 1fr); }
+  .mac { width: 100%; }
+  .split { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  dl.can { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  body { font-size: 17px; }
+  .top nav a:not(:last-child) { display: none; }
+  .phone { width: min(300px, 100%); }
+  table, tbody, tr, td { display: block; width: 100%; }
+  thead { display: none; }
+  tr { padding-block: 14px; border-bottom: 1px solid var(--line); }
+  td { border: 0; padding: 2px 0; }
+  td:first-child { width: 100%; }
+}
+</style>
+</head>
+<body>
+<header class="wrap top">
+  <a class="brand" href="#" aria-label="Luther home">
+    <svg viewBox="0 0 80 80" aria-hidden="true"><path d="M20 14 L20 43 Q20 55 32 55 L47 55 M60 66 L60 37 Q60 25 48 25 L33 25" fill="none" stroke="currentColor" stroke-width="12"/></svg>
+    Luther
+  </a>
+  <nav aria-label="Page">
+    <a href="#ways-in">Ways in</a>
+    <a href="#start">Set up</a>
+    <a href="#agents">Agents</a>
+    <a href="https://github.com/AJAmit17/luther">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div class="hero-text">
+      <h1>Your agents. Your Mac. Anywhere.</h1>
+      <div>
+      <p class="lede">Luther lets your phone drive the coding agents on your Mac. Start a task, answer what it asks, review the changes, and open the pull request from wherever you are. The code and the agents’ logins stay on the Mac.</p>
+      <div class="actions">
+        <a class="btn primary" href="#start">Set up Luther</a>
+        <a class="btn quiet" href="https://github.com/AJAmit17/luther">View the code on GitHub</a>
+      </div>
+      </div>
+    </div>
+
+    <div class="scene" aria-label="A phone answering a Claude Code question while Luther runs on the Mac">
+      <div class="phone">
+        <div class="screen">
+          <div class="bar">Fix the flaky login test</div>
+          <div class="chat">
+            <div class="you">The login test fails about one run in five. Find out why.</div>
+            <div class="agent">It times out waiting for the session cookie. I’ll run it twenty times to confirm.</div>
+            <div class="ask">
+              <p>Claude wants to run a command</p>
+              <code>npm test -- login --repeat 20</code>
+              <div class="choices"><span>Allow</span><span>Deny</span></div>
+            </div>
+          </div>
+          <div class="composer">Queue a message…
+            <div class="chips"><span>Opus 5.5</span><span>High</span><span>Ask first</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="relay" aria-hidden="true"><i></i><i></i>
+        <b><svg viewBox="0 0 80 80"><path d="M20 14 L20 43 Q20 55 32 55 L47 55 M60 66 L60 37 Q60 25 48 25 L33 25" fill="none" stroke="currentColor" stroke-width="12"/></svg></b>
+      </div>
+      <div class="mac" role="img" aria-label="Terminal on the Mac">
+        <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+<pre><span class="p">$</span> luther start
+<span class="d">Luther is running on 127.0.0.1</span>
+<span class="p">$</span> luther funnel
+<span class="d">Funnel ready: reachable from anywhere, end-to-end encrypted</span>
+  https://your-mac.your-tailnet.ts.net:8443
+<span class="p">$</span> luther pair
+<span class="d">Scan this code in Luther on your phone.</span></pre>
+      </div>
+    </div>
+  </div>
+
+  <section id="ways-in">
+    <div class="wrap split">
+      <div>
+        <h2>Reach your Mac from any phone</h2>
+        <p class="intro">Pick one. Every request between the phone and the Mac is end-to-end encrypted on all of them, and the phone needs nothing else installed.</p>
+      </div>
+      <table>
+        <thead><tr><th scope="col">Command</th><th scope="col">What you need on the Mac</th><th scope="col">Address</th></tr></thead>
+        <tbody>
+          <tr><td><code>luther funnel</code></td><td>Tailscale, with Funnel allowed for your tailnet</td><td>Stays the same</td></tr>
+          <tr><td><code>luther tunnel --quick</code></td><td><code>cloudflared</code>, no account</td><td>A new random address on each start; paired phones follow it</td></tr>
+          <tr><td><code>luther tunnel --url</code></td><td><code>cloudflared</code>, a Cloudflare account and your own domain</td><td>Stays the same, on your domain</td></tr>
+          <tr><td><code>luther tailscale</code></td><td>Tailscale, on the phone as well</td><td>Only inside your tailnet</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="start">
+    <div class="wrap split">
+      <div>
+        <h2>Set it up in three steps</h2>
+        <p class="intro">Luther is pre-release: the server and the apps are built from source. You need Go 1.26 and at least one agent CLI, logged in on the Mac.</p>
+      </div>
+      <ol class="steps">
+        <li>
+          <h3>Build the server</h3>
+          <p>Or use the install script in the repository.</p>
+<pre class="cmd">git clone https://github.com/AJAmit17/luther.git
+cd luther/server && go build -o luther .</pre>
+        </li>
+        <li>
+          <h3>Start it and choose a way in</h3>
+          <p><code>luther stop</code> closes every way in again; <code>luther doctor</code> says what’s missing.</p>
+<pre class="cmd">luther start
+luther funnel          <span class="d"># or: luther tunnel --quick</span></pre>
+        </li>
+        <li>
+          <h3>Install the app and pair</h3>
+          <p>Build the iPhone app with Xcode or the Android APK with Gradle, then scan the code Luther shows. The code works once and expires in minutes.</p>
+<pre class="cmd">luther pair</pre>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="agents">
+    <div class="wrap">
+      <h2>Works with the agents you already use</h2>
+      <p class="intro">Luther runs each agent’s own CLI with your existing login, subscription and limits. Each one lists its own models and effort levels.</p>
+      <ul class="agents">
+        <li><span class="logo"><img src="agents/claude.png" alt=""></span><div><strong>Claude Code</strong><span>stream-json</span></div></li>
+        <li><span class="logo"><i class="ink" style="--src: url(agents/codex.png)"></i></span><div><strong>Codex</strong><span>app-server</span></div></li>
+        <li><span class="logo"><i class="ink" style="--src: url(agents/devin.png)"></i></span><div><strong>Devin</strong><span>ACP</span></div></li>
+        <li><span class="logo"><i class="ink" style="--src: url(agents/opencode.png)"></i></span><div><strong>OpenCode</strong><span>ACP</span></div></li>
+        <li><span class="logo"><img src="agents/omp.png" alt=""></span><div><strong>Oh My Pi</strong><span>ACP</span></div></li>
+        <li><span class="logo" aria-hidden="true">G</span><div><strong>Gemini CLI</strong><span>ACP</span></div></li>
+        <li><span class="logo" aria-hidden="true">C</span><div><strong>Cursor</strong><span>ACP</span></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>What you can do from the phone</h2>
+      <p class="intro">The same sessions you’d have at the desk, not a copy of them.</p>
+      <dl class="can">
+        <div><dt>Keep a session going</dt><dd>Stream the answer, queue the next message, stop a turn, or resume a session you started at the Mac.</dd></div>
+        <div><dt>Answer what the agent asks</dt><dd>Approve a command, answer its questions, accept a plan. Change permissions, model and effort at any time.</dd></div>
+        <div><dt>Review the work</dt><dd>Browse files, read each turn’s changes, then commit, push and open a pull request with the Mac’s own tools.</dd></div>
+        <div><dt>Open a terminal</dt><dd>A tmux terminal that survives a dropped connection and that you can pick up on the Mac.</dd></div>
+        <div><dt>Send photos and speak</dt><dd>Take a picture of the bug or dictate the task. Large photos are shrunk before the agent sees them.</dd></div>
+        <div><dt>See what it costs</dt><dd>Token use over 7, 30 and 90 days, per agent and model, with the costs the agents report.</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section id="security">
+    <div class="wrap split">
+      <div>
+        <h2>Your Mac stays yours</h2>
+        <p class="intro">No Luther-hosted relay and no database in the cloud. Pair only phones and people you trust: an agent can run commands and change files.</p>
+      </div>
+      <ul class="facts">
+        <li>Luther listens only on 127.0.0.1; tunnels and Tailscale pass traffic to it.</li>
+        <li>A paired phone seals every request and event with X25519, HKDF-SHA256 and AES-256-GCM, so a leaked token alone can’t drive the Mac.</li>
+        <li>Removing a phone in Settings closes its connections within seconds.</li>
+        <li>File, Git and terminal routes stay inside your home folder and never reach <code>~/.ssh</code>, <code>~/.aws</code>, <code>~/.gnupg</code> or your keychains.</li>
+        <li>Photos and logs on the Mac clean themselves up: uploads after three days, the server log capped at 5 MB.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Luther is open source under the Apache License 2.0, made by <a href="https://github.com/AJAmit17">Amit Acharya</a>.</p>
+    <p>It is independent of the agent makers; their names and logos identify their products.</p>
+  </div>
+</footer>
+</body>
+</html>
