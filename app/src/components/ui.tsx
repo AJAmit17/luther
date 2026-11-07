@@ -277,23 +277,22 @@ export const providerName = (p: Provider) => info(p).name;
 export const providerColor = (p: Provider) => info(p).color;
 
 // The agents' own marks. Claude's and OpenAI's (for Codex) from Simple Icons
-// (CC0); OpenCode's and Devin's from their desktop apps; Oh My Pi's from its
-// repository (assets/icon.svg). Monochrome ones are tinted to the text colour;
-// Oh My Pi keeps its orange, with dark bars on a light theme. Others get an SF Symbol.
-const MARKS: Partial<Record<Provider, { src: number; dark?: number; tint?: boolean }>> = {
+// (CC0); OpenCode's and Devin's from their desktop apps; Oh My Pi's gradient π.
+// Monochrome ones are tinted to the text colour. Others get an SF Symbol.
+const MARKS: Partial<Record<Provider, { src: number; tint?: boolean }>> = {
   claude: { src: require('../../assets/agents/claude.png') },
   codex: { src: require('../../assets/agents/codex.png'), tint: true },
   opencode: { src: require('../../assets/agents/opencode.png'), tint: true },
   devin: { src: require('../../assets/agents/devin.png'), tint: true },
-  omp: { src: require('../../assets/agents/omp.png'), dark: require('../../assets/agents/omp-dark.png') },
+  omp: { src: require('../../assets/agents/omp.png') },
 };
 
 /** An agent's logo at `size`, or its symbol. */
 export function ProviderMark({ p, size = 16, color }: { p: Provider; size?: number; color?: ColorValue }) {
-  const h = useHex();
+  useHex();
   const m = MARKS[p];
   if (!m) return <Icon name={providerIcon(p)} size={size} color={color ?? info(p).color} />;
-  return <Image source={h.dark && m.dark ? m.dark : m.src} style={{ width: size, height: size }} tintColor={m.tint ? ((color ?? c.text) as string) : undefined} contentFit="contain" />;
+  return <Image source={m.src} style={{ width: size, height: size }} tintColor={m.tint ? ((color ?? c.text) as string) : undefined} contentFit="contain" />;
 }
 
 export const ProviderIcon = ({ p, size = 34 }: { p: Provider; size?: number }) => {
