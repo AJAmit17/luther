@@ -31,6 +31,8 @@ type Runtime interface {
 	Answer(p *protocol.Prompt, a protocol.Answer) error
 	SetMode(mode string) error
 	SetModel(model string) error
+	SetEffort(level string) error
+	SetFast(on bool) error
 	Stop() // async; the adapter calls End when its process is gone
 }
 

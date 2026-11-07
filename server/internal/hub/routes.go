@@ -104,6 +104,10 @@ func events(w http.ResponseWriter, r *http.Request, t *Thread) {
 				err2 = t.SetMode(f.Mode)
 			case "model":
 				err2 = t.rt.SetModel(f.Model)
+			case "effort":
+				err2 = t.rt.SetEffort(f.Effort)
+			case "fast":
+				err2 = t.rt.SetFast(f.Fast)
 			default:
 				err2 = fmt.Errorf("unknown frame %q", f.Type)
 			}

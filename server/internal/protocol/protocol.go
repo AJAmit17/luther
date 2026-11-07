@@ -113,13 +113,22 @@ type ThreadInfo struct {
 
 // State of one open thread; sent in snapshot and on every change.
 type State struct {
-	Provider      Provider `json:"provider"`
-	Session       string   `json:"session"` // native id; changes on Claude's /clear
-	Cwd           string   `json:"cwd"`
-	Busy          bool     `json:"busy"`
-	Activity      string   `json:"activity"`
-	Model         string   `json:"model"`
-	Mode          string   `json:"mode"`
+	Provider Provider `json:"provider"`
+	Session  string   `json:"session"` // native id; changes on Claude's /clear
+	Cwd      string   `json:"cwd"`
+	Busy     bool     `json:"busy"`
+	Activity string   `json:"activity"`
+	Model    string   `json:"model"`
+	Mode     string   `json:"mode"`
+	// Effort: the reasoning effort set for this thread ("" = the agent's default).
+	// Efforts: the levels the agent offers here, when it says so per session
+	// (ACP); otherwise the current Model's Efforts apply.
+	Effort  string   `json:"effort,omitempty"`
+	Efforts []string `json:"efforts,omitempty"`
+	// Fast: "on" | "off" when the agent offers a fast mode now, "" when it
+	// doesn't; FastNote says why not.
+	Fast          string   `json:"fast,omitempty"`
+	FastNote      string   `json:"fastNote,omitempty"`
 	Commands      []string `json:"commands,omitempty"`
 	Usage         *Usage   `json:"usage,omitempty"`
 	ContextTokens int64    `json:"contextTokens,omitempty"`
@@ -249,11 +258,13 @@ type Answer struct {
 
 // ClientFrame, client → server.
 type ClientFrame struct {
-	Type  string   `json:"type"` // send | answer | interrupt | mode | model
-	Text  string   `json:"text,omitempty"`
-	Files []string `json:"files,omitempty"` // with send: paths from POST /uploads
-	Mode  string   `json:"mode,omitempty"`
-	Model string   `json:"model,omitempty"`
+	Type   string   `json:"type"` // send | answer | interrupt | mode | model | effort | fast
+	Text   string   `json:"text,omitempty"`
+	Files  []string `json:"files,omitempty"` // with send: paths from POST /uploads
+	Mode   string   `json:"mode,omitempty"`
+	Model  string   `json:"model,omitempty"`
+	Effort string   `json:"effort,omitempty"`
+	Fast   bool     `json:"fast,omitempty"`
 	Answer
 }
 
@@ -279,11 +290,14 @@ type Run struct {
 // full model ID a session then reports (e.g. "claude-opus-5-5"); Group
 // sorts long lists (OpenCode and Oh My Pi list their providers' models).
 type Model struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Desc     string `json:"desc,omitempty"`
-	Resolved string `json:"resolved,omitempty"`
-	Group    string `json:"group,omitempty"`
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Desc     string   `json:"desc,omitempty"`
+	Resolved string   `json:"resolved,omitempty"`
+	Group    string   `json:"group,omitempty"`
+	Efforts  []string `json:"efforts,omitempty"` // reasoning levels, lowest first
+	Effort   string   `json:"effort,omitempty"`  // the model's default level
+	Fast     bool     `json:"fast,omitempty"`    // has a fast mode
 }
 
 type Command struct {

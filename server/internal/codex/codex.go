@@ -124,11 +124,12 @@ type runtime struct {
 	s  *server
 	id string // codex thread id
 
-	mu    sync.Mutex
-	turn  string // active turn id
-	mode  string
-	model string
-	items map[string]map[string]any // in-flight items by id (approval bodies)
+	mu     sync.Mutex
+	turn   string // active turn id
+	mode   string
+	model  string
+	effort string
+	items  map[string]map[string]any // in-flight items by id (approval bodies)
 }
 
 type promptData struct {
@@ -138,6 +139,7 @@ type promptData struct {
 
 type threadResp struct {
 	Model  string    `json:"model"`
+	Effort string    `json:"reasoningEffort"`
 	Thread threadRec `json:"thread"`
 }
 
@@ -189,7 +191,7 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 	if cwd == "" && len(resp.Thread.Envs) > 0 {
 		cwd = resp.Thread.Envs[0].Cwd
 	}
-	t := hub.New(id, protocol.State{Provider: protocol.Codex, Session: id, Cwd: text.OrDefault(cwd, r.Cwd), Mode: mode, Model: resp.Model})
+	t := hub.New(id, protocol.State{Provider: protocol.Codex, Session: id, Cwd: text.OrDefault(cwd, r.Cwd), Mode: mode, Model: resp.Model, Effort: resp.Effort})
 	rt := &runtime{t: t, s: s, id: id, mode: mode, model: r.Model, items: map[string]map[string]any{}}
 	t.SetRuntime(rt)
 	var hist []protocol.Msg
@@ -425,7 +427,7 @@ func userInput(msg string, files []string) []map[string]any {
 // Send starts a turn, or steers the running one.
 func (c *runtime) Send(msg string, files []string) error {
 	c.mu.Lock()
-	turn, mode, model := c.turn, c.mode, c.model
+	turn, mode, model, effort := c.turn, c.mode, c.model, c.effort
 	c.mu.Unlock()
 	if turn != "" {
 		_, err := c.s.Call("turn/steer", map[string]any{"threadId": c.id, "expectedTurnId": turn, "input": userInput(msg, files)})
@@ -436,6 +438,9 @@ func (c *runtime) Send(msg string, files []string) error {
 		"sandboxPolicy": map[string]any{"type": pol.sandboxType}}
 	if model != "" {
 		params["model"] = model
+	}
+	if effort != "" {
+		params["effort"] = effort
 	}
 	_, err := c.s.Call("turn/start", params)
 	return err
@@ -471,6 +476,20 @@ func (c *runtime) SetModel(m string) error {
 	c.t.Do(func(st *protocol.State) { st.Model = m })
 	return nil
 }
+
+// SetEffort applies from the next turn, like the model.
+func (c *runtime) SetEffort(e string) error {
+	if e == "" {
+		return errors.New("empty effort")
+	}
+	c.mu.Lock()
+	c.effort = e
+	c.mu.Unlock()
+	c.t.Do(func(st *protocol.State) { st.Effort = e })
+	return nil
+}
+
+func (c *runtime) SetFast(bool) error { return errors.New("Codex has no fast mode here") }
 
 // Stop unloads the thread from the shared app-server; its history stays in Codex's store.
 func (c *runtime) Stop() {

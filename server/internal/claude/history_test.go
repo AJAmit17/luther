@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/AJAmit17/luther/server/internal/paths"
@@ -64,13 +65,59 @@ func TestModelSet(t *testing.T) {
 func TestParseInitModels(t *testing.T) {
 	line := `{"type":"control_response","response":{"request_id":"luther-models","response":{"models":[
 		{"value":"default","resolvedModel":"claude-opus-5-5","displayName":"Default (recommended)"},
-		{"value":"opus","resolvedModel":"claude-opus-5-5","displayName":"Opus 5.5","description":"For complex work"},
+		{"value":"opus","resolvedModel":"claude-opus-5-5","displayName":"Opus 5.5","description":"For complex work","supportedEffortLevels":["low","max"],"supportsFastMode":true},
 		{"value":"haiku","resolvedModel":"claude-haiku-5-5","displayName":"Haiku 5.5"}]}}}`
 	ms, ok := parseInitModels([]byte(line))
-	if !ok || len(ms) != 2 || ms[0] != (protocol.Model{ID: "opus", Name: "Opus 5.5", Desc: "For complex work", Resolved: "claude-opus-5-5"}) {
+	if !ok || len(ms) != 2 || !reflect.DeepEqual(ms[0], protocol.Model{ID: "opus", Name: "Opus 5.5", Desc: "For complex work", Resolved: "claude-opus-5-5", Efforts: []string{"low", "max"}, Fast: true}) {
 		t.Fatalf("got %+v %v", ms, ok)
 	}
 	if _, ok := parseInitModels([]byte(`{"type":"system"}`)); ok {
 		t.Fatal("other line taken")
+	}
+}
+
+// A typed /effort shows only in Claude's output; fast mode reads n/a when the
+// account can't have it.
+func TestEffortAndFast(t *testing.T) {
+	if e := effortSet(protocol.Msg{Role: "system", Text: "Set effort level to xhigh (this session only): Deeper"}); e != "xhigh" {
+		t.Errorf("got %q", e)
+	}
+	if effortSet(protocol.Msg{Role: "user", Text: "Set effort level to low"}) != "" {
+		t.Error("user text taken")
+	}
+	var st protocol.State
+	fastState(&st, "off", "sdk_opt_in_required")
+	if st.Fast != "" || st.FastNote != "" {
+		t.Errorf("not asked yet tells nothing: %+v", st)
+	}
+	if why, ok := parseInitFast([]byte(`{"type":"control_response","response":{"request_id":"luther-fast","response":{"fast_mode_state":"off","fast_mode_disabled_reason":"preference"}}}`)); !ok || why != "preference" {
+		t.Errorf("fast answer: %q %v", why, ok)
+	}
+	fastState(&st, "off", "preference")
+	if st.Fast != "" || st.FastNote == "" {
+		t.Errorf("org off: %+v", st)
+	}
+	fastState(&st, "on", "")
+	if st.Fast != "on" || st.FastNote != "" {
+		t.Errorf("on: %+v", st)
+	}
+}
+
+// A resumed session shows the effort its last reply used.
+func TestLastEffort(t *testing.T) {
+	paths.Home = t.TempDir() // never Claude's real store
+	dir := filepath.Join(root(), "-proj")
+	os.MkdirAll(dir, 0o700)
+	sid := "11111111-2222-3333-4444-555555555555"
+	os.WriteFile(filepath.Join(dir, sid+".jsonl"), []byte(`{"type":"assistant","effort":"medium","message":{}}
+{"type":"user","message":{"content":[{"type":"tool_result","content":"{\"effort\":\"max\"}"}]}}
+{"type":"assistant","effort":"xhigh","perTurnEffort":"xhigh","message":{}}
+{"type":"user","effort":"low"}
+`), 0o600)
+	if e := lastEffort(sid); e != "xhigh" {
+		t.Fatalf("got %q", e)
+	}
+	if lastEffort("00000000-0000-0000-0000-000000000000") != "" {
+		t.Fatal("missing session")
 	}
 }

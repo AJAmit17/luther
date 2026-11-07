@@ -130,6 +130,8 @@ export function useThread(id: string) {
     interrupt: () => send({ type: 'interrupt' }),
     setMode: (mode: Mode) => send({ type: 'mode', mode }),
     setModel: (model: string) => send({ type: 'model', model }),
+    setEffort: (effort: string) => send({ type: 'effort', effort }),
+    setFast: (fast: boolean) => send({ type: 'fast', fast }),
   };
 }
 
