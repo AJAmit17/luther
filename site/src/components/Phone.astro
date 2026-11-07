@@ -1,0 +1,24 @@
+---
+// Luther's phone app, drawn as one scalable picture: everything inside is sized in em from a font size
+// that follows the phone's own width (13px at its 270px design width), so it keeps its proportions at
+// any size the layout gives it (--ph-w on the element or a parent).
+interface Props {
+  label: string;
+  title?: string;
+  right?: string;
+  tabs?: boolean;
+  theme?: 'light' | 'dark' | 'lock';
+  class?: string;
+}
+const { label, title, right = '', tabs = false, theme = 'light', class: cls = '' } = Astro.props;
+---
+<div class:list={['ui', 'ui-device', 'ph', `ph--${theme}`, cls]} role="img" aria-label={label}>
+  <div class="ph__frame">
+    <div class="ph__screen">
+      <div class="ph__sb" aria-hidden="true"><span>9:41</span><i></i><span>5G</span></div>
+      {title && <div class="ph__nav" aria-hidden="true"><span>‹</span><b>{title}</b><span>{right}</span></div>}
+      <div class="ph__body"><slot /></div>
+      {tabs && <div class="ph__tabs" aria-hidden="true"><span class="on">Home</span><span>Threads</span><span>Search</span><span>Settings</span></div>}
+    </div>
+  </div>
+</div>
