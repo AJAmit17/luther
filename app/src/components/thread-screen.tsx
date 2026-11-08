@@ -15,7 +15,8 @@ import { knobs } from '@/components/thinking-sheet';
 import { TaskPanel } from '@/components/task-panel';
 import { GoalPanel } from '@/components/goal-panel';
 import { toBlocks, type Block } from '@/lib/blocks';
-import type { Command, Prompt } from '@/lib/protocol';
+import type { Command, Prompt, Turn } from '@/lib/protocol';
+import { openThread } from '@/lib/threads';
 import { setWatching } from '@/lib/feed';
 import { useThread } from '@/lib/socket';
 import { useVoice } from '@/lib/voice';
@@ -124,7 +125,20 @@ export default function ThreadScreen() {
     const extra = (st?.commands ?? []).map((n) => (n.startsWith('/') ? n : '/' + n)).filter((n) => !seen.has(n));
     return [...cmds, ...extra.map((name) => ({ name, desc: '' }))];
   }, [cmds, st?.commands]);
-  const suggest = text.startsWith('/') && !text.includes(' ') ? allCmds.filter((x) => x.name.startsWith(text)).slice(0, 5) : [];
+  // @-mentions: the word being typed after "@" searches the project's files.
+  const mention = /(?:^|\s)@([^\s@]*)$/.exec(text)?.[1];
+  const [found, setFound] = useState<string[]>([]);
+  useEffect(() => {
+    if (mention === undefined || !st?.cwd) return; // suggestions show only while a mention is typed
+    const t = setTimeout(() => api<string[]>(`/files/search?cwd=${encodeURIComponent(st.cwd)}&q=${encodeURIComponent(mention)}`).then(setFound, () => setFound([])), 150);
+    return () => clearTimeout(t);
+  }, [mention, st?.cwd]);
+  const suggest: { key: string; label: string; desc: string; pick: () => void }[] =
+    mention !== undefined
+      ? found.slice(0, 6).map((f) => ({ key: f, label: '@' + f, desc: '', pick: () => setText(text.slice(0, text.length - mention.length - 1) + '@' + f + ' ') }))
+      : text.startsWith('/') && !text.includes(' ')
+        ? allCmds.filter((x) => x.name.startsWith(text)).slice(0, 5).map((x) => ({ key: x.name, label: x.name, desc: x.desc, pick: () => setText(x.name + ' ') }))
+        : [];
 
   const blocks = useMemo(() => toBlocks(ev.messages).reverse(), [ev.messages]);
 
@@ -142,10 +156,53 @@ export default function ThreadScreen() {
     if (top?.kind === 'question') answerQuestion(top, [t]);
     else if (top) {
       if (!ev.answer({ id: top.id, message: t })) return; // "No, do this instead"
+    } else if (t.startsWith('!') && t.length > 1 && !att.items.length) {
+      shell(t.slice(1).trim());
     } else if (!ev.sendText(t, att.paths)) return;
     else att.clear();
     setText('');
   };
+
+  // "!command": runs on the Mac in the project; the output can go to the agent.
+  const shell = (command: string) => {
+    if (!st?.cwd) return;
+    post<{ output: string; code: number }>('/shell', { cwd: st.cwd, command }).then(
+      (r) => {
+        const out = r.output.trim() || '(no output)';
+        Alert.alert(`$ ${command}`, `${out.length > 1500 ? '…' + out.slice(-1500) : out}\n\nexit ${r.code}`, [
+          { text: 'Close', style: 'cancel' },
+          { text: 'Send to agent', onPress: () => ev.sendText(`I ran \`${command}\` (exit ${r.code}):\n\n\`\`\`\n${out.length > 12000 ? '…' + out.slice(-12000) : out}\n\`\`\``) },
+        ]);
+      },
+      (e) => Alert.alert(`$ ${command}`, e.message),
+    );
+  };
+
+  // Edit the last message: it comes back into the composer; the files its turn
+  // changed can be undone too. The earlier exchange stays in the conversation.
+  const editLast = () => {
+    const last = [...ev.messages].reverse().find((m) => m.role === 'user' && !m.parent);
+    if (!last?.text) return Alert.alert('Nothing to edit', 'There’s no message of yours in this conversation yet.');
+    api<Turn[]>(`/threads/${encodeURIComponent(id)}/turns`).then(
+      (turns) => {
+        const t = turns[0];
+        const back = () => setText(last.text);
+        if (!t?.endedAt || !t.files) return back();
+        Alert.alert('Undo what it changed too?', `That turn changed ${t.files === 1 ? '1 file' : `${t.files} files`}. Put them back as they were before it, then edit your message?`, [
+          { text: 'Just edit', onPress: back },
+          { text: 'Undo and edit', style: 'destructive', onPress: () => post(`/threads/${encodeURIComponent(id)}/turns/${t.n}/revert`, {}).then(back, (e) => Alert.alert('Undo failed', e.message)) },
+          { text: 'Cancel', style: 'cancel' },
+        ]);
+      },
+      () => setText(last.text),
+    );
+  };
+  const fork = () => st && provider && openThread({ provider, cwd: st.cwd, resume: st.session, fork: true });
+  const compact = () =>
+    Alert.alert('Compact the conversation?', 'The agent summarizes it so far, freeing context for what comes next.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Compact', onPress: () => ev.compact() },
+    ]);
 
   const terminal = () =>
     st?.cwd &&
@@ -196,6 +253,11 @@ export default function ThreadScreen() {
           <Stack.Toolbar.MenuAction icon={tb('arrow.triangle.branch')} onPress={() => go('/git')}>Changes</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon={tb('clock.arrow.circlepath')} onPress={() => router.push({ pathname: '/turns', params: { id } })}>Turns and undo</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon={tb('target')} onPress={() => router.push({ pathname: '/goal', params: { id } })}>Work toward a goal</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('pencil')} disabled={busy} onPress={editLast}>Edit last message</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('arrow.triangle.branch')} onPress={fork}>Fork conversation</Stack.Toolbar.MenuAction>
+          {provider === 'claude' || provider === 'codex' ? (
+            <Stack.Toolbar.MenuAction icon={tb('arrow.down.right.and.arrow.up.left')} disabled={busy} onPress={compact}>Compact conversation</Stack.Toolbar.MenuAction>
+          ) : null}
           <Stack.Toolbar.MenuAction icon={tb('globe')} onPress={() => go('/preview')}>Preview dev server</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon={tb('text.book.closed')} onPress={() => go('/instructions')}>Instructions</Stack.Toolbar.MenuAction>
           {usage ? (
@@ -250,9 +312,9 @@ export default function ThreadScreen() {
           {suggest.length > 0 && (
             <View style={[card, { overflow: 'hidden' }]}>
               {suggest.map((x, i) => (
-                <Pressable key={x.name} onPress={() => setText(x.name + ' ')} style={({ pressed }) => ({ paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderTopColor: c.line, backgroundColor: pressed ? c.muted : 'transparent' })}>
-                  <Text style={{ fontFamily: mono, fontSize: 14, color: c.text }} numberOfLines={1}>
-                    {x.name} <Text style={[type.caption, { fontFamily: undefined }]}>{x.desc}</Text>
+                <Pressable key={x.key} onPress={x.pick} style={({ pressed }) => ({ paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderTopColor: c.line, backgroundColor: pressed ? c.muted : 'transparent' })}>
+                  <Text style={{ fontFamily: mono, fontSize: 14, color: c.text }} numberOfLines={1} ellipsizeMode="head">
+                    {x.label} {!!x.desc && <Text style={[type.caption, { fontFamily: undefined }]}>{x.desc}</Text>}
                   </Text>
                 </Pressable>
               ))}
@@ -274,7 +336,7 @@ export default function ThreadScreen() {
           <Composer
             text={text}
             setText={setText}
-            placeholder={top?.kind === 'question' ? 'Or type your own answer' : top ? 'Or tell it what to do instead' : busy ? (provider === 'codex' ? 'Steer the running turn…' : 'Queue a message…') : allCmds.length ? 'Message, or / for commands' : 'Message'}
+            placeholder={top?.kind === 'question' ? 'Or type your own answer' : top ? 'Or tell it what to do instead' : busy ? (provider === 'codex' ? 'Steer the running turn…' : 'Queue a message…') : allCmds.length ? 'Message, / commands, @ files, ! shell' : 'Message, @ files, ! shell'}
             att={att}
             attach={!top}
             provider={provider}

@@ -128,6 +128,7 @@ export function useThread(id: string) {
     sendText: (text: string, files?: string[]) => send({ type: 'send', text, files }),
     answer: (a: Partial<Answer> & { id: string }) => send({ type: 'answer', choice: -1, ...a }),
     interrupt: () => send({ type: 'interrupt' }),
+    compact: () => send({ type: 'compact' }),
     setMode: (mode: Mode) => send({ type: 'mode', mode }),
     setModel: (model: string) => send({ type: 'model', model }),
     setEffort: (effort: string) => send({ type: 'effort', effort }),

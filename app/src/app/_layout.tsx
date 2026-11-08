@@ -92,6 +92,10 @@ export default function Layout() {
           <Stack.Screen name="files" options={{ title: 'Files' }} />
           <Stack.Screen name="git" options={{ title: 'Changes' }} />
           <Stack.Screen name="diff" options={{ title: 'Diff' }} />
+          <Stack.Screen name="branches" options={{ title: 'Branches and stashes' }} />
+          <Stack.Screen name="health" options={{ title: 'Health' }} />
+          <Stack.Screen name="log" options={{ title: 'Server log' }} />
+          <Stack.Screen name="worktrees" options={{ title: 'Worktrees' }} />
           <Stack.Screen name="turns" options={{ title: 'Turns' }} />
           <Stack.Screen name="runs" options={{ title: 'Reports' }} />
           <Stack.Screen name="preview" options={{ title: 'Preview' }} />

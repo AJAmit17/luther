@@ -103,4 +103,8 @@ export const materialIcons: Record<string, AndroidSymbol> = {
   'square.on.square': 'compare',
   'arrow.triangle.merge': 'merge',
   'tray.and.arrow.down': 'move_to_inbox',
+  'arrow.down.right.and.arrow.up.left': 'compress',
+  'speaker.wave.2': 'volume_up',
+  'heart.text.square': 'monitor_heart',
+  'doc.plaintext': 'article',
 };

@@ -2,7 +2,8 @@ import { memo, useEffect, useState } from 'react';
 import { Image } from 'expo-image';
 import { api } from '@/lib/hosts';
 import { openArtifact } from '@/lib/artifacts';
-import { ActivityIndicator, LayoutAnimation, Pressable, Text, View } from 'react-native';
+import { isReading, readAloud, stopReading } from '@/lib/speech';
+import { ActivityIndicator, Alert, LayoutAnimation, Pressable, Text, View } from 'react-native';
 import { Markdown } from '@/components/markdown';
 import { Icon, PulsingDot, c, card, mono, tint, type, useHex } from '@/components/ui';
 import { workSummary, type Block } from '@/lib/blocks';
@@ -193,6 +194,22 @@ function ErrorRow({ text }: { text: string }) {
   );
 }
 
+/** An agent's reply; long-press to hear it. */
+function Reply({ m }: { m: Msg }) {
+  const menu = () =>
+    isReading(m.id)
+      ? stopReading()
+      : Alert.alert('Read aloud?', undefined, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Read aloud', onPress: () => readAloud(m.id, m.text) },
+        ]);
+  return (
+    <Pressable onLongPress={menu} delayLongPress={350} accessibilityHint="Long-press to read it aloud">
+      <Markdown text={m.text} />
+    </Pressable>
+  );
+}
+
 /** One block of the chat. */
 export const BlockRow = memo(function BlockRow({ b, live, activity }: { b: Block; live: boolean; activity?: string }) {
   useHex();
@@ -203,5 +220,5 @@ export const BlockRow = memo(function BlockRow({ b, live, activity }: { b: Block
   if (m.role === 'system') return m.id.startsWith('err-') ? <ErrorRow text={m.text} /> : <Notice text={m.text} />;
   if (m.role === 'tool') return <StepRow m={m} />;
   if (m.role === 'artifact') return <ArtifactCard m={m} />;
-  return <Markdown text={m.text} />;
+  return <Reply m={m} />;
 });

@@ -92,6 +92,7 @@ export type ClientFrame =
   | { type: 'send'; text: string; files?: string[] }
   | ({ type: 'answer' } & Answer)
   | { type: 'interrupt' }
+  | { type: 'compact' }
   | { type: 'mode'; mode: Mode }
   | { type: 'model'; model: string }
   | { type: 'effort'; effort: string }
@@ -157,4 +158,7 @@ export type Term = { name: string; cwd: string; attached: boolean; created: numb
 export type FileEntry = { name: string; dir: boolean; size: number };
 export type FileContent = { path: string; text: string; binary?: boolean; truncated?: boolean; hash?: string };
 export type GitChange = { path: string; status: string };
-export type GitStatus = { branch: string; upstream?: string; ahead: number; worktree?: boolean; files: GitChange[] };
+export type GitStatus = { branch: string; upstream?: string; ahead: number; worktree?: boolean; operation?: 'merge' | 'rebase' | 'cherry-pick' | 'revert'; files: GitChange[] };
+export type Branches = { current: string; branches: { name: string; upstream?: string; last: number }[]; stashes: { ref: string; message: string; at: number }[] };
+export type WorktreeInfo = { path: string; branch: string; files: number; added: number; removed: number };
+export type Health = { version: string; started: number; name: string; agents: { id: Provider; name: string; installed: boolean; version?: string; running: boolean; threads: number }[] };
