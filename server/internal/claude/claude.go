@@ -12,11 +12,13 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/AJAmit17/luther/server/internal/config"
 	"github.com/AJAmit17/luther/server/internal/env"
 	"github.com/AJAmit17/luther/server/internal/hub"
 	"github.com/AJAmit17/luther/server/internal/protocol"
@@ -57,6 +59,8 @@ type runtime struct {
 	inMu sync.Mutex
 	in   io.WriteCloser
 
+	toolsFile string // Luther's tool config for this claude (holds its token); removed when it exits
+
 	compacted bool              // next user text is the compaction summary (hub lock)
 	agents    map[string]string // subagent call id → its description (hub lock)
 }
@@ -87,6 +91,7 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 		}
 	}
 	sid := text.NewUUID()
+	var err error
 	args := []string{"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
 		"--include-partial-messages", "--replay-user-messages", "--permission-prompt-tool", "stdio"}
 	switch {
@@ -103,10 +108,13 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 	if r.Model != "" {
 		args = append(args, "--model", r.Model)
 	}
+	toolsFile := ""
 	if r.Tools != nil {
-		cfg, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{"luther": map[string]any{
-			"type": "stdio", "command": r.Tools.Command, "args": r.Tools.Args, "env": r.Tools.Env}}})
-		args = append(args, "--mcp-config", string(cfg), "--allowedTools", "mcp__luther") // Luther's own tools never ask
+		// In a file only you can read, not on the command line: ps shows arguments.
+		if toolsFile, err = toolConfig(sid, r.Tools); err != nil {
+			return nil, err
+		}
+		args = append(args, "--mcp-config", toolsFile, "--allowedTools", "mcp__luther") // Luther's own tools never ask
 	}
 
 	cmd := exec.Command(Bin, args...)
@@ -122,6 +130,7 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 		return nil, err
 	}
 	if err := cmd.Start(); err != nil {
+		os.Remove(toolsFile)
 		return nil, err
 	}
 	// A resumed session's effort is the one its last reply used (Claude keeps
@@ -131,13 +140,25 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 		effort = lastEffort(r.Resume)
 	}
 	t := hub.New(sid, protocol.State{Provider: protocol.Claude, Session: sid, Cwd: r.Cwd, Mode: mode, Model: r.Model, Effort: effort})
-	rt := &runtime{t: t, cmd: cmd, in: in}
+	rt := &runtime{t: t, cmd: cmd, in: in, toolsFile: toolsFile}
 	t.SetRuntime(rt)
 	if r.Resume != "" {
 		t.SetHistory(history(r.Resume))
 	}
 	go rt.read(out)
 	return t, nil
+}
+
+// toolConfig writes the MCP config for Luther's tools to ~/.luther/mcp/<sid>.json (0600).
+func toolConfig(sid string, ts *protocol.ToolServer) (string, error) {
+	b, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{"luther": map[string]any{
+		"type": "stdio", "command": ts.Command, "args": ts.Args, "env": ts.Env}}})
+	dir := filepath.Join(config.Dir(), "mcp")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	f := filepath.Join(dir, sid+".json")
+	return f, os.WriteFile(f, b, 0o600)
 }
 
 // ---- stdout ----
@@ -181,6 +202,9 @@ func (c *runtime) read(out io.Reader) {
 		}
 	}
 	c.cmd.Wait()
+	if c.toolsFile != "" {
+		os.Remove(c.toolsFile)
+	}
 	c.t.End()
 }
 

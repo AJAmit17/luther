@@ -233,7 +233,12 @@ func startThread(parent *hub.Thread, agent, prompt, template, cwd, model, mode s
 		return "", errors.New("agent is required (or a template that names one)")
 	}
 	mode = text.OrDefault(mode, pst.Mode)
-	if modeRank[mode] > modeRank[pst.Mode] {
+	r, ok := modeRank[mode]
+	pr, pok := modeRank[pst.Mode]
+	if !ok {
+		return "", fmt.Errorf("unknown mode %q", mode)
+	}
+	if !pok || r > pr {
 		return "", fmt.Errorf("can't start a thread in %q mode: yours is %q, and a thread you start gets at most your access", mode, pst.Mode)
 	}
 	cwd = text.OrDefault(cwd, pst.Cwd)

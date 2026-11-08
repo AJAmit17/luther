@@ -319,6 +319,7 @@ Luther can run commands and change files. Pair only devices and people you trust
 | `schedules.json`, `usage.json` | Scheduled runs; plan usage | Until you change them |
 | `artifacts/` | Pages agents showed (the index, and pages passed as HTML) | 30 days |
 | `templates/` | Your agent roles | Until you change them |
+| `mcp/` | A running Claude thread's tool config (its token) | Until that Claude exits |
 
 Never commit pairing payloads, tokens, private keys, Cloudflare credentials, or `~/.luther` contents. Review logs before sharing. Automated cryptographic tests are not a claim of independent security audit.
 

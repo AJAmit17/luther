@@ -88,6 +88,18 @@ func Handler(cfg *config.Config) http.Handler {
 	return mux
 }
 
+// sweepToolConfigs: Claude's tool configs left by a crash (each holds a token
+// that died with the server; a running claude read its own at start).
+func sweepToolConfigs() {
+	dir := filepath.Join(config.Dir(), "mcp")
+	ents, _ := os.ReadDir(dir)
+	for _, e := range ents {
+		if fi, err := e.Info(); err == nil && time.Since(fi.ModTime()) > 24*time.Hour {
+			os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
+}
+
 // selfPort: where this server listens, for the agents' tool server to call back.
 var selfPort = config.DefaultPort
 
@@ -282,6 +294,7 @@ func housekeeping() {
 	for {
 		uploads.Sweep()
 		artifacts.Prune()
+		sweepToolConfigs()
 		env.CapLog(filepath.Join(config.Dir(), "serve.log"), 5<<20)
 		time.Sleep(time.Hour)
 	}

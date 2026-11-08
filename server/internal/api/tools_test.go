@@ -121,6 +121,9 @@ func TestAgentTools(t *testing.T) {
 		t.Fatalf("a just-sent child should count as working: %v", out)
 	}
 
+	if _, out := call(tok, "start_thread", map[string]any{"agent": "claude", "prompt": "go", "mode": "yolo"}); out["isError"] != true || !strings.Contains(out["text"].(string), "unknown mode") {
+		t.Fatalf("unknown mode: %v", out)
+	}
 	// More access than the caller's is refused before anything starts.
 	if _, out := call(tok, "start_thread", map[string]any{"agent": "claude", "prompt": "go", "mode": "full"}); out["isError"] != true {
 		t.Fatalf("escalated: %v", out)
