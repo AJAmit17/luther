@@ -172,13 +172,16 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [x] Tests: goal loop (continue → done, limit, blocked twice, judge error, failed turn, stop while judging), unattended declines, scheduled run recorded and read, restore selection, carry-over with real git (clash leaves the checkout untouched, new files carried), worktree confinement, judge answer parsing, router registration. Not run yet: a real judge call, a real restart, a real comparison
 
 ### Phase 9k: Workbench depth
-- [ ] Project actions (`.luther/project.json`: dev, test, lint into tmux) and secrets in the Mac's Keychain
-- [ ] Git: conflicts handed to an agent, stash, branch switch, AI commit messages, worktree merge and cleanup
-- [ ] Composer: `@file` mentions, `!` shell commands, edit the last message, fork, compact
-- [ ] Files: upload, create, rename, delete; syntax highlighting; Markdown and image previews
-- [ ] Read-aloud for replies (on-device speech)
-- [ ] Health and logs: agent CLI versions, `serve.log` viewer, restart an agent's process
-- [ ] More agents: Copilot CLI (#6), Kimi, Qwen, Droid, Grok, Amp
+- [x] Git — `GET /git/branches` (local branches by last commit, stashes), `POST /git/checkout` (`check-ref-format`, never a flag; git refuses to overwrite changes), stash push (untracked included) / apply / pop / drop (refs `stash@{n}` only), `GitStatus.operation` (merge, rebase, cherry-pick, revert from the git dir) and `POST /git/abort`; conflicts handed to a new Claude thread (resolve, stage, don't commit). `POST /git/message`: a commit message from the diff (package `oneshot`, now shared with the goal judge). Worktrees: `GET /git/worktrees`, `POST /git/worktree/bring` (`CarryOver` into the main checkout), remove with its `luther/` branch (`branch=1`; the main checkout is looked up before the folder goes). App: conflict banner (resolve with an agent, abort), ✨ commit message, Branches and stashes screen, Worktrees screen, bring/remove in a worktree's Changes
+- [x] Composer — `@` searches project files (`GET /files/search`: git's file list or a bounded walk; name prefix > name > path > letters in order); `!command` runs one command in the project through your login shell (`POST /shell`, 2 minutes, last 64 KB) and offers its output to the agent; edit the last message (back into the composer, optionally undoing that turn's files; the earlier exchange stays: headless Claude can't rewind); fork (`OpenReq.fork`); compact (`compact` frame: Claude's `/compact`, Codex `thread/compact/start`; others say they can't)
+- [x] Files — `POST /files/mkdir`, `/files/rename`, `/files/upload` (≤ 25 MB, never over a file unless `replace=1`), `DELETE /files` (moved into the Trash folder, renamed if taken), `GET /files/raw` (pictures ≤ 10 MB); every write path stays in the project, never `.git`, also through links (`target`). App: + menu (new file, new folder, upload photos or files), long-press rename / move to Trash, syntax highlighting (`lib/highlight.ts`, files ≤ 80 KB), Markdown preview with a source toggle, picture preview
+- [x] Read-aloud — long-press a reply: the phone's own voice (`expo-speech`), Markdown read as speech (`lib/speech-text.ts`: code blocks named, links and marks dropped); long-press again stops
+- [x] Health and logs — `GET /health` (version, uptime, each agent: installed, version, process up, open threads), `GET /logs` (end of `serve.log`), `POST /agents/{id}/restart` (Codex/ACP: the shared process; Claude: its threads). App: Settings → Health, Server log
+- [ ] Deferred: project actions (`.luther/project.json`) and secrets in the Keychain
+- [x] Tests: file operations and their confinement, mention ranking, branches/stash/abort against a real merge conflict, shell and log tail, highlighter, speech text; Go race/vet, app typecheck/lint/27 tests. Not run yet: a real commit-message call, the new screens on a phone
+
+### Phase 9l: More agents (Phase D, next)
+- [ ] GitHub Copilot CLI (#6), Kimi Code CLI (#11), Qwen Code (#12), Factory Droid (#13), Grok CLI (#14), Amp (#15): each over ACP where it has it; see the issues
 
 ### Phase 10: End-to-end tests
 - [ ] Pair over tailnet and over Cloudflare

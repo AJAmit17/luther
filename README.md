@@ -38,7 +38,7 @@ Agents: **Claude Code**, **Codex**, **Devin**, **OpenCode**, **Oh My Pi**, **Gem
 | Send photos | Take a photo or pick images and files; images show in the conversation, and large ones are shrunk before the agent sees them. |
 | Stay in control | Answer permission requests, questions, and plans from the phone. Concurrent clients share a thread; the first accepted answer wins. |
 | Work across repositories | Open a parent workspace containing several Git checkouts. Select the specific checkout before a Git mutation or worktree operation. |
-| Inspect the work | Browse files, review changes and per-turn checkpoints, commit, push, and create pull requests using the Mac's own tools. |
+| Inspect the work | Browse files (highlighted code, Markdown and picture previews), add, upload, rename and delete them; review changes and per-turn checkpoints; commit (with a message written for you), push, and open pull requests; switch branches, stash, and hand merge conflicts to an agent. |
 | Use a persistent terminal | Open a tmux-backed terminal that can survive a phone disconnect and be attached to on the Mac. |
 | See usage honestly | Daily 7/30/90-day token charts, input/output/cache breakdowns, provider/model totals, plan limits, and reported costs. Compact K/M/B/T or exact counts. |
 | Reach other machines | Relay another Luther server through a maintained SSH forward instead of exposing that host directly. |
@@ -46,6 +46,7 @@ Agents: **Claude Code**, **Codex**, **Devin**, **OpenCode**, **Oh My Pi**, **Gem
 | Hand work between agents | An agent can start another agent (Claude asks Codex for a review), send it messages and wait for its reply; you follow both threads. Start a thread in a role, like the built-in reviewer, or your own in `~/.luther/templates`. |
 | Let it work until it's done | Set a goal on a thread: after each turn a separate model checks the reply and sends the agent back with what's missing, until it's done, blocked or out of rounds. |
 | Compare agents | Give one task to two to five agents, each in its own worktree; compare their changes, keep the best, or have an agent combine them. |
+| Talk to it like a terminal | `@` a project file, `!` to run a command and hand its output over, edit your last message, fork or compact the conversation, or have a reply read aloud. |
 | Keep tasks moving | Schedule prompts, dictate messages, inspect local dev-server previews, and use widgets or Live Activities (iPhone). |
 
 Luther invokes the providers' own CLIs. It does not replace their subscriptions, logins, limits, sandboxes, or permission models.
