@@ -42,6 +42,8 @@ Agents: **Claude Code**, **Codex**, **Devin**, **OpenCode**, **Oh My Pi**, **Gem
 | Use a persistent terminal | Open a tmux-backed terminal that can survive a phone disconnect and be attached to on the Mac. |
 | See usage honestly | Daily 7/30/90-day token charts, input/output/cache breakdowns, provider/model totals, plan limits, and reported costs. Compact K/M/B/T or exact counts. |
 | Reach other machines | Relay another Luther server through a maintained SSH forward instead of exposing that host directly. |
+| See what agents make | An agent can show you an HTML page (a chart, a report, a walkthrough of its changes) as a card that opens on the phone. ✨ on any diff starts a walkthrough. |
+| Hand work between agents | An agent can start another agent (Claude asks Codex for a review), send it messages and wait for its reply; you follow both threads. Start a thread in a role, like the built-in reviewer, or your own in `~/.luther/templates`. |
 | Keep tasks moving | Schedule prompts, dictate messages, inspect local dev-server previews, and use widgets or Live Activities (iPhone). |
 
 Luther invokes the providers' own CLIs. It does not replace their subscriptions, logins, limits, sandboxes, or permission models.
@@ -211,6 +213,31 @@ This uses key-based SSH and forwards the remote server through this Mac. The rem
 
 ACP adapters share a protocol, not a guarantee of identical capabilities. Models and permissions depend on the agent. Model lists come from the agents themselves (Claude's `initialize`, Codex's `model/list`, ACP's `session/new`) and are cached in `~/.luther/models.json`. `luther doctor` shows which agents are installed. Devin handshake/session/model/mode behavior has been checked; fake-peer tests cover protocol flows. Live model turns and all providers' real permission paths are not universally verified. See the [end-to-end checklist](docs/PLAN.md#phase-10-end-to-end-tests).
 
+## Agent tools
+
+Every thread Luther opens gets Luther's own tools, over MCP (`luther mcp`, started by the agent with a token for that thread):
+
+| Tool | What it does |
+| --- | --- |
+| `show_artifact` | Shows an HTML page as a card in the thread: an `.html` file in the project (edit it, reopen the card) or the page itself. At most 5 MB. |
+| `start_thread` | Starts another agent on a task, in this folder or another, optionally in a role and its own worktree. |
+| `send_message`, `wait_for_thread` | Talk to a thread it started, and wait (up to 30 minutes) for its reply or for it to need you. |
+
+An agent reaches only the threads it started, and a thread it starts never gets more access than its own (plan < ask < edits < full). Luther's tools don't ask for approval; what the started agents do still follows their own mode.
+
+**Roles** are Markdown files in `~/.luther/templates/`:
+
+```markdown
+---
+description: Writes tests for the change
+agent: codex
+mode: edits
+---
+Write tests for the uncommitted change. Cover the edge cases, run them, and fix what fails.
+```
+
+`agent`, `model` and `mode` are optional; the instructions go before the first message. A built-in `reviewer` (read-only) is there until a file of that name replaces it.
+
 ## Usage and notifications
 
 Usage history combines readable Claude/Codex transcripts with explicit usage reported by ACP prompts run through Luther. Supported streamed/cumulative records are deduplicated. Agent context occupancy is not token consumption.
@@ -274,6 +301,8 @@ Luther can run commands and change files. Pair only devices and people you trust
 - The admin token (`~/.luther/config.json`) works only from the Mac itself, never through Tailscale, Cloudflare or another proxy.
 - Luther's file, git and terminal routes stay inside your home folder, also through symlinks, and never reach `~/.luther`, `~/.ssh`, `~/.gnupg`, `~/.aws` or your keychains. An agent you run still acts with your own rights.
 - A preview link opens once and lasts an hour, and only for a dev server listening now on port 1024 or higher.
+- An agent's HTML page opens through a random link that lasts 30 minutes. It is served sandboxed (an opaque origin: scripts run, but no cookies, storage, forms or popups), so a page can't act as your phone or reach Luther. Like previews, it isn't covered by the sealed app protocol.
+- The agents' tool server takes its per-thread token only from the Mac itself.
 - Unauthenticated callers get `{ok: true}` from `/healthz` and nothing else.
 
 ### What `~/.luther` keeps
@@ -288,6 +317,8 @@ Luther can run commands and change files. Pair only devices and people you trust
 | `quick.json`, `quick.log` | The quick tunnel's address and its cloudflared log | While the tunnel is on |
 | `tunnel.log` | The named tunnel's cloudflared log | Since its last start |
 | `schedules.json`, `usage.json` | Scheduled runs; plan usage | Until you change them |
+| `artifacts/` | Pages agents showed (the index, and pages passed as HTML) | 30 days |
+| `templates/` | Your agent roles | Until you change them |
 
 Never commit pairing payloads, tokens, private keys, Cloudflare credentials, or `~/.luther` contents. Review logs before sharing. Automated cryptographic tests are not a claim of independent security audit.
 

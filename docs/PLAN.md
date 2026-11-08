@@ -155,6 +155,29 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [ ] Constrain menu-wrapped list rows; use Android typography, tonal cards, and comfortable composer controls.
 - [ ] Rebuild/install the standalone Android Release; verify Home, Settings, chat, and appearance changes through scrcpy/device captures. Initial screenshot probe failed with a 17.04:1 header/content contrast.
 
+### Phase 9i: Agents that show and delegate
+- [x] Luther's tool server for agents — package `tools`: `luther mcp` (hidden) is MCP over stdio, relaying `tools/list`/`tools/call` to `GET/POST /agent-tools` with a per-thread token (`LUTHER_TOOL_TOKEN`); the routes take it only from this Mac (`auth.Direct`). Every thread gets it: Claude `--mcp-config` + `--allowedTools mcp__luther` (`MCP_TOOL_TIMEOUT` 31 min), Codex per-thread `config` on start/resume/fork (`mcp_servers.luther`, `default_tools_approval_mode = "approve"`, `tool_timeout_sec`; shape verified against codex 0.165 app-server, which started it per thread), ACP `mcpServers` on new/load/fork (stdio, env as a list)
+- [x] HTML artifacts — package `artifacts`: `show_artifact {title, path | html}`; a project `.html/.htm` (inside the thread's folder, symlink escapes refused) or the page itself (kept in `~/.luther/artifacts`, so read-only agents can show one), ≤ 5 MB; the card is `Msg{role: "artifact"}` with id = hash of the arguments (Claude's history replays it with the same id; `AddOnce` dedupes the live one). `POST /artifacts/{id}/link` → `/a/<token>/` for 30 min, read fresh on every load, served `Content-Security-Policy: sandbox allow-scripts` (opaque origin: no cookies, storage, forms, popups), no-store, no-referrer; index pruned after 30 days. App: artifact card → Safari sheet (`expo-web-browser`, like Preview). Limits: like Preview, a browser can't seal, so the page travels over the route's TLS only; Codex/ACP history doesn't rebuild cards (live only)
+- [x] Change walkthroughs — `POST /walkthroughs {cwd | thread+turn, provider?}`: the working tree (`workspace.WorkingDiff`, untracked files included) or a turn's diff, lockfiles/minified/maps/snapshots dropped, ≤ 120 KB in the prompt; a new Ask-mode thread in the repo told to show one self-contained page via `show_artifact` with html and edit nothing. App: ✨ on the all-changes and turn diffs opens the thread
+- [x] Agents running agents — `start_thread {agent | template, prompt, cwd?, model?, mode?, worktree?}`, `send_message`, `wait_for_thread {timeout_seconds ≤ 1800}` (finished / waiting for you / failed / ended / still working, with the last reply). Only threads the caller started; a child never gets more access than its parent (plan < ask < edits < full); "Started by …" notice in the child; a just-sent message counts as working until its turn starts
+- [x] Role templates — package `templates`: `~/.luther/templates/<name>.md` (front matter `description`, `agent`, `model`, `mode`; body = instructions) plus a built-in read-only `reviewer`; a file replaces a built-in. `GET /templates`; `OpenReq.template` fills provider/model/mode and prefixes the first message. App: Role picker on the new-thread sheet
+- [x] Tests: tool auth (token, tunnel refusal), `show_artifact` guards, children-only and no-escalation, artifact links/CSP/reload, templates parsing, diff cleaning, full router registration; Go race/vet, app typecheck/lint/22 tests. Not run yet: a real agent calling the tools (Claude, Codex, ACP), the Safari sheet on a phone
+
+### Phase 9j: Work that runs without you
+- [ ] Session goals: a judge model after each turn decides done / blocked / continue; caps on rounds and tokens; notify when done or stuck
+- [ ] Multi-run across agents: one prompt to several agents, each in its own worktree; compare diffs; keep one or have an agent merge the best
+- [ ] Safer schedules: a fresh worktree per run, unattended-safe defaults (no questions, blocked commands), run history with unread reports, prompt templates, open a run as a session
+- [ ] Survive restarts: threads that were running come back after `luther stop/start` or an update, through each agent's own resume
+
+### Phase 9k: Workbench depth
+- [ ] Project actions (`.luther/project.json`: dev, test, lint into tmux) and secrets in the Mac's Keychain
+- [ ] Git: conflicts handed to an agent, stash, branch switch, AI commit messages, worktree merge and cleanup
+- [ ] Composer: `@file` mentions, `!` shell commands, edit the last message, fork, compact
+- [ ] Files: upload, create, rename, delete; syntax highlighting; Markdown and image previews
+- [ ] Read-aloud for replies (on-device speech)
+- [ ] Health and logs: agent CLI versions, `serve.log` viewer, restart an agent's process
+- [ ] More agents: Copilot CLI (#6), Kimi, Qwen, Droid, Grok, Amp
+
 ### Phase 10: End-to-end tests
 - [ ] Pair over tailnet and over Cloudflare
 - [ ] Claude thread: chat, approval, question, plan, Stop, model/mode switch
