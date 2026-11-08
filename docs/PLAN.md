@@ -180,6 +180,15 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [ ] Deferred: project actions (`.luther/project.json`) and secrets in the Keychain
 - [x] Tests: file operations and their confinement, mention ranking, branches/stash/abort against a real merge conflict, shell and log tail, highlighter, speech text; Go race/vet, app typecheck/lint/27 tests. Not run yet: a real commit-message call, the new screens on a phone
 
+### Phases 9i–9k: end-to-end pass (Nov 8, server API against real agents; Claude was out of usage, so Codex, Cursor and Gemini on free models stood in)
+- [x] Agent tools: `show_artifact` from Codex, Cursor and Gemini; the link serves the page with `sandbox allow-scripts`, an unknown link is 410. Codex `start_thread` → a Cursor child → `wait_for_thread` relayed its reply. Walkthrough (Cursor) shows its page. The `reviewer` role opens in plan mode and edits nothing
+- [x] Goals: a Codex thread met its goal in one round on Codex's verdict; a judge refusal pauses the goal with the reason
+- [x] Compare (Codex, Cursor, Gemini, each in a worktree): Keep applied cleanly; a second Keep over the changed checkout was refused with the clash; Combine merged them. Unattended schedule run: the permission was declined, the report kept. Restart mid-turn: the thread came back and finished
+- [x] Workbench: branch create/refuse a bad name, stash/apply, merge conflict seen and aborted, ✨ commit message, commit, worktrees list/bring/remove, mkdir/rename/Trash/search/upload (no overwrite without replace, `.git` refused, `..` clamped), `!` shell, logs, health, agent restart, compact, fork, undo a turn's files
+- [x] Fixed by the pass: Gemini CLI lists its tools while its session is still opening, before the token is bound, so it never saw Luther's tools; `GET /agent-tools` now takes any issued token (calls still need the bound thread). Gemini reports models only in ACP's older `models` field: a chosen model was dropped and switching failed; now `session/set_model`, and its current model shows. A refused Claude one-off (usage limit) now says why, and Codex answers instead. Cursor and Gemini show their own marks in the app
+- [ ] Known: Ask mode on ACP agents relies on the agent asking; Cursor's default mode edits files without asking, also in an unattended Ask run. A Gemini thread on a model at capacity (503) shows "Thinking…" while the CLI retries
+- [ ] Not run: Claude-backed paths (conflict hand-off, Claude judge, Claude tools) until its usage resets; the new screens on a phone
+
 ### Phase 9l: More agents (Phase D, next)
 - [ ] GitHub Copilot CLI (#6), Kimi Code CLI (#11), Qwen Code (#12), Factory Droid (#13), Grok CLI (#14), Amp (#15): each over ACP where it has it; see the issues
 

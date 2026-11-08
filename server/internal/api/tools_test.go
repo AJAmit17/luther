@@ -65,6 +65,27 @@ func TestAgentTools(t *testing.T) {
 	if code, _ := call("wrong", "show_artifact", map[string]any{}); code != http.StatusUnauthorized {
 		t.Fatalf("bad token: %d", code)
 	}
+	// A token whose thread is still opening may list the tools (Gemini CLI does
+	// while creating its session), but not call one.
+	early, _ := tools.ForThread(1)
+	defer tools.Drop(early)
+	list := func(tok string) int {
+		req := httptest.NewRequest("GET", "/agent-tools", nil)
+		req.RemoteAddr = "127.0.0.1:5555"
+		req.Header.Set("Authorization", "Bearer "+tok)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if code := list(early); code != http.StatusOK {
+		t.Fatalf("early list: %d", code)
+	}
+	if code := list("wrong"); code != http.StatusUnauthorized {
+		t.Fatalf("wrong list: %d", code)
+	}
+	if code, _ := call(early, "show_artifact", map[string]any{}); code != http.StatusUnauthorized {
+		t.Fatalf("early call: %d", code)
+	}
 	// Through a tunnel the token is refused even when right.
 	b, _ := json.Marshal(map[string]any{"title": "x", "html": "<p>"})
 	req := httptest.NewRequest("POST", "/agent-tools/show_artifact", bytes.NewReader(b))

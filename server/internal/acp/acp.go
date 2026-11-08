@@ -389,6 +389,7 @@ type sessionResp struct {
 	SessionID string   `json:"sessionId"`
 	Config    []option `json:"configOptions"`
 	Models    *struct {
+		Current   string `json:"currentModelId"`
 		Available []struct {
 			ID   string `json:"modelId"`
 			Name string `json:"name"`
@@ -414,6 +415,7 @@ type runtime struct {
 	queue    []string // sent while a turn runs (ACP can't steer)
 	mode     string   // Luther's
 	config   []option // the agent's selectable options (model, mode)
+	oldModel bool     // models only in the older models field (Gemini CLI): set with session/set_model
 	agentDef string   // the agent's own mode to return to when leaving plan
 
 	// hub lock: text being streamed, and replayed history while loading.
@@ -532,6 +534,10 @@ func (c *runtime) configure(r sessionResp) {
 				c.agentDef = o.Current
 			}
 		}
+	}
+	c.oldModel = model == "" && r.Models != nil && len(r.Models.Available) > 0
+	if c.oldModel {
+		model = r.Models.Current
 	}
 	if r.Modes != nil && c.agentDef == "" && !strings.Contains(r.Modes.Current, "plan") {
 		c.agentDef = r.Modes.Current
@@ -949,8 +955,15 @@ func (c *runtime) SetModel(m string) error {
 		return errors.New("empty model")
 	}
 	c.mu.Lock()
-	cfg := c.config
+	cfg, old := c.config, c.oldModel
 	c.mu.Unlock()
+	if old {
+		if _, err := c.s.Call("session/set_model", map[string]any{"sessionId": c.id, "modelId": m}); err != nil {
+			return err
+		}
+		c.t.Do(func(st *protocol.State) { st.Model = m })
+		return nil
+	}
 	for _, o := range cfg {
 		if o.Category == "model" {
 			if err := c.setOption(o.ID, m); err != nil {

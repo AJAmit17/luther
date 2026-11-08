@@ -2,7 +2,7 @@
 // CLI, with an answer in a JSON shape, no tools, and nothing saved: Claude
 // (`claude -p --no-session-persistence --tools ""`, Haiku), or Codex
 // (`codex exec --ephemeral`, read-only) when asked for Codex or Claude isn't
-// installed. Goals' judge and commit messages use it.
+// installed, or Claude refused. Goals' judge and commit messages use it.
 package oneshot
 
 import (
@@ -37,7 +37,14 @@ func Ask(prefer protocol.Provider, prompt, schema string) ([]byte, error) {
 	case codexErr == nil && (prefer == protocol.Codex || claudeErr != nil):
 		return byCodex(prompt, schema)
 	case claudeErr == nil:
-		return byClaude(prompt, schema)
+		out, err := byClaude(prompt, schema)
+		if err != nil && codexErr == nil {
+			// Claude refused (a usage limit, signed out): Codex answers instead.
+			if out, cerr := byCodex(prompt, schema); cerr == nil {
+				return out, nil
+			}
+		}
+		return out, err
 	}
 	return nil, errors.New("this needs Claude Code or Codex installed on the Mac")
 }
@@ -50,13 +57,17 @@ func byClaude(prompt, schema string) ([]byte, error) {
 	cmd.Dir = os.TempDir()
 	cmd.Stdin = strings.NewReader(prompt)
 	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("Claude failed: %w", err)
-	}
 	var res struct {
 		Result     string          `json:"result"`
 		Structured json.RawMessage `json:"structured_output"`
 		IsError    bool            `json:"is_error"`
+	}
+	if err != nil {
+		// A refused call (a usage limit) still says why on stdout.
+		if json.Unmarshal(out, &res) == nil && res.Result != "" {
+			return nil, fmt.Errorf("Claude: %s", text.Clip(res.Result, 300))
+		}
+		return nil, fmt.Errorf("Claude failed: %w", err)
 	}
 	if json.Unmarshal(out, &res) != nil || res.IsError {
 		return nil, fmt.Errorf("Claude answered: %s", text.Clip(strings.TrimSpace(string(out)), 300))

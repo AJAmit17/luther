@@ -57,6 +57,15 @@ func Drop(tok string) {
 	delete(reg.thread, tok)
 }
 
+// Issued: a token handed to a thread being opened or open. Agents list tools
+// while their session is still being created (Gemini CLI), before Bind.
+func Issued(tok string) bool {
+	reg.Lock()
+	defer reg.Unlock()
+	_, ok := reg.thread[tok]
+	return ok
+}
+
 // Thread: the thread a token belongs to, or "".
 func Thread(tok string) string {
 	reg.Lock()

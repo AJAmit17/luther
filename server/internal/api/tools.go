@@ -31,9 +31,14 @@ const (
 )
 
 func toolRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /agent-tools", toolAuth(func(w http.ResponseWriter, r *http.Request, _ *hub.Thread) {
+	// The list is the same for every thread, so a token not yet bound may read it.
+	mux.HandleFunc("GET /agent-tools", func(w http.ResponseWriter, r *http.Request) {
+		if !tools.Issued(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")) || !auth.Direct(r) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
 		httpx.WriteJSON(w, toolList())
-	}))
+	})
 	mux.HandleFunc("POST /agent-tools/{name}", toolAuth(func(w http.ResponseWriter, r *http.Request, t *hub.Thread) {
 		var args map[string]any
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, artifacts.MaxSize+(1<<20))).Decode(&args); err != nil {
