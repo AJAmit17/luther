@@ -44,6 +44,8 @@ Agents: **Claude Code**, **Codex**, **Devin**, **OpenCode**, **Oh My Pi**, **Gem
 | Reach other machines | Relay another Luther server through a maintained SSH forward instead of exposing that host directly. |
 | See what agents make | An agent can show you an HTML page (a chart, a report, a walkthrough of its changes) as a card that opens on the phone. ✨ on any diff starts a walkthrough. |
 | Hand work between agents | An agent can start another agent (Claude asks Codex for a review), send it messages and wait for its reply; you follow both threads. Start a thread in a role, like the built-in reviewer, or your own in `~/.luther/templates`. |
+| Let it work until it's done | Set a goal on a thread: after each turn a separate model checks the reply and sends the agent back with what's missing, until it's done, blocked or out of rounds. |
+| Compare agents | Give one task to two to five agents, each in its own worktree; compare their changes, keep the best, or have an agent combine them. |
 | Keep tasks moving | Schedule prompts, dictate messages, inspect local dev-server previews, and use widgets or Live Activities (iPhone). |
 
 Luther invokes the providers' own CLIs. It does not replace their subscriptions, logins, limits, sandboxes, or permission models.
@@ -238,6 +240,12 @@ Write tests for the uncommitted change. Cover the edge cases, run them, and fix 
 
 `agent`, `model` and `mode` are optional; the instructions go before the first message. A built-in `reviewer` (read-only) is there until a file of that name replaces it.
 
+## Running without you
+
+- **Goals.** "Work toward a goal" on a thread: the agent works turn after turn. After each turn a separate, tool-less model call (Claude Haiku, or Codex for Codex threads) reads only the goal and the latest reply and decides: done, blocked, or keep going with what's still missing. It stops when done, after two blocked verdicts, at the round limit (10 by default), on a failed turn, or when you stop it.
+- **Scheduled runs are unattended.** Nothing waits on you: approvals and plans are declined with a note, questions get "decide yourself", and Claude can't run `sudo`, force-push, `reset --hard`, `rm -rf /` and similar even in full mode. Each run keeps a report (the agent's last reply); new reports show a badge on Schedules.
+- **Restarts.** Threads that were working when Luther stopped (`luther stop`, an update, a crash) are resumed when it starts again, if they're under two hours old, and told to carry on.
+
 ## Usage and notifications
 
 Usage history combines readable Claude/Codex transcripts with explicit usage reported by ACP prompts run through Luther. Supported streamed/cumulative records are deduplicated. Agent context occupancy is not token consumption.
@@ -319,6 +327,8 @@ Luther can run commands and change files. Pair only devices and people you trust
 | `schedules.json`, `usage.json` | Scheduled runs; plan usage | Until you change them |
 | `artifacts/` | Pages agents showed (the index, and pages passed as HTML) | 30 days |
 | `templates/` | Your agent roles | Until you change them |
+| `compares.json` | Comparisons of agents on one task | The last 30 |
+| `running.json` | Threads that were working, to resume after a restart | Until the next start (resumed if under two hours old) |
 | `mcp/` | A running Claude thread's tool config (its token) | Until that Claude exits |
 
 Never commit pairing payloads, tokens, private keys, Cloudflare credentials, or `~/.luther` contents. Review logs before sharing. Automated cryptographic tests are not a claim of independent security audit.
