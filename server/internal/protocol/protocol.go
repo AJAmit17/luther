@@ -41,6 +41,12 @@ import "time"
 //   GET  /usage                           → [Limits] (plan usage per agent)
 //   GET  /ports                           → [Port] (dev servers listening on this Mac)
 //   POST /previews {port}                 → {path} (open route+path in a browser: no token needed, it is one)
+//   POST /artifacts/{id}/link             → {path} (an agent's HTML page; open route+path in a browser, like a preview)
+//   GET  /templates                       → [Template] (agent roles: ~/.luther/templates/*.md and built-ins)
+//   POST /walkthroughs {cwd, thread?, turn?, provider?} → {id} (a new thread that explains the changes as an artifact)
+//
+// Agent tools (only from this Mac, with the per-thread token `luther mcp` was started with):
+//   GET  /agent-tools → MCP tool list · POST /agent-tools/{name} {arguments} → {text, isError}
 
 type Provider string
 
@@ -102,6 +108,29 @@ type OpenReq struct {
 	Model    string   `json:"model,omitempty"`
 	Mode     string   `json:"mode,omitempty"`
 	Worktree bool     `json:"worktree,omitempty"` // new thread in its own git worktree + branch
+	Template string   `json:"template,omitempty"` // an agent role: fills provider/model/mode when empty, prefixes the first message
+
+	// Tools: the `luther mcp` server the agent gets for this thread (set by the server, never by a client).
+	Tools *ToolServer `json:"-"`
+}
+
+// ToolServer: how an agent starts Luther's tool server (MCP over stdio).
+type ToolServer struct {
+	Command string
+	Args    []string
+	Env     map[string]string
+}
+
+// Template: an agent role, from ~/.luther/templates/<name>.md (front matter,
+// then the instructions) or built in.
+type Template struct {
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	Provider     Provider `json:"provider,omitempty"`
+	Model        string   `json:"model,omitempty"`
+	Mode         string   `json:"mode,omitempty"`
+	Instructions string   `json:"instructions"`
+	BuiltIn      bool     `json:"builtIn,omitempty"`
 }
 
 type ThreadInfo struct {
@@ -189,7 +218,7 @@ type Repository struct {
 // Msg: one chat row.
 type Msg struct {
 	ID   string `json:"id"`
-	Role string `json:"role"` // user | assistant | tool | system
+	Role string `json:"role"` // user | assistant | tool | system | artifact (Text: its title, ID: POST /artifacts/{id}/link)
 	Text string `json:"text"`
 	Tool string `json:"tool,omitempty"`
 	// Parent: the subagent call (that tool row's ID) this step belongs to.
