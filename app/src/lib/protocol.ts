@@ -23,7 +23,10 @@ export type Session = {
   worktree?: string; // branch, when it ran in a Luther worktree of this project
 };
 
-export type OpenReq = { provider: Provider; cwd: string; resume?: string; fork?: boolean; move?: boolean; model?: string; mode?: Mode; worktree?: boolean };
+export type OpenReq = { provider: Provider; cwd: string; resume?: string; fork?: boolean; move?: boolean; model?: string; mode?: Mode; worktree?: boolean; template?: string };
+
+/** An agent role (GET /templates): ~/.luther/templates/<name>.md or built in. */
+export type Template = { name: string; description: string; provider?: Provider; model?: string; mode?: Mode; instructions: string; builtIn?: boolean };
 
 export type Usage = { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number; costUsd?: number; costReported?: boolean };
 export type UsageDay = Usage & { date: string };
@@ -55,7 +58,8 @@ export type Turn = { n: number; prompt: string; startedAt: number; endedAt?: num
 
 export type ThreadInfo = State & { id: string; title: string; clients: number };
 
-export type Msg = { id: string; role: 'user' | 'assistant' | 'tool' | 'system'; text: string; tool?: string; parent?: string /* a subagent call's row id */; images?: string[] /* GET /uploads/{name} */ };
+/** role 'artifact': an HTML page the agent showed (text: its title; open with POST /artifacts/{id}/link). */
+export type Msg = { id: string; role: 'user' | 'assistant' | 'tool' | 'system' | 'artifact'; text: string; tool?: string; parent?: string /* a subagent call's row id */; images?: string[] /* GET /uploads/{name} */ };
 export type Option = { label: string; desc?: string };
 export type Question = { id: string; question: string; header?: string; options: Option[]; multiSelect?: boolean };
 export type Prompt = {

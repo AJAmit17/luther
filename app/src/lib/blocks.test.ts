@@ -29,3 +29,12 @@ test('summarises steps', () => {
   assert.equal(workSummary([m('1', 'tool', 'Grep'), m('2', 'tool', 'mcp.x')]), 'Searched once, 1 other step');
   assert.equal(workSummary([m('1', 'tool', 'Read'), m('2', 'tool', 'Read')]), 'Read 2 files');
 });
+
+test('an artifact card stands on its own between steps', () => {
+  const b = toBlocks([
+    { id: '1', role: 'tool', tool: 'Bash', text: 'ls' },
+    { id: 'art-1', role: 'artifact', text: 'Walkthrough' },
+    { id: '2', role: 'tool', tool: 'Read', text: 'x' },
+  ]);
+  assert.deepEqual(b.map((x) => x.kind), ['work', 'msg', 'work']);
+});

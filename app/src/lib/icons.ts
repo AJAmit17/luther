@@ -96,4 +96,7 @@ export const materialIcons: Record<string, AndroidSymbol> = {
   'wrench.and.screwdriver': 'build',
   bell: 'notifications',
   'p.circle.fill': 'local_parking',
+  'doc.richtext': 'article',
+  sparkles: 'auto_awesome',
+  theatermasks: 'theater_comedy',
 };
