@@ -267,6 +267,13 @@ func (t *Thread) AddPrompt(p *protocol.Prompt) {
 	}
 }
 
+// IsUnattended: SetUnattended was called (kept across a restart by package restore).
+func (t *Thread) IsUnattended() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.alone
+}
+
 // SetUnattended: nobody watches this thread (a scheduled run).
 func (t *Thread) SetUnattended() {
 	t.mu.Lock()

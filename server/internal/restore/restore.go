@@ -33,7 +33,9 @@ type Entry struct {
 	Cwd      string            `json:"cwd"`
 	Mode     string            `json:"mode,omitempty"`
 	Model    string            `json:"model,omitempty"`
-	Saved    int64             `json:"saved"`
+	// Unattended: a scheduled run; it comes back with the same declines and deny rules.
+	Unattended bool  `json:"unattended,omitempty"`
+	Saved      int64 `json:"saved"`
 }
 
 func file() string { return filepath.Join(config.Dir(), "running.json") }
@@ -47,7 +49,7 @@ func Running() []Entry {
 			continue
 		}
 		st := t.State()
-		out = append(out, Entry{Provider: st.Provider, Session: st.Session, Cwd: st.Cwd, Mode: st.Mode, Model: st.Model})
+		out = append(out, Entry{Provider: st.Provider, Session: st.Session, Cwd: st.Cwd, Mode: st.Mode, Model: st.Model, Unattended: t.IsUnattended()})
 	}
 	return out
 }
@@ -100,7 +102,7 @@ func Resume(open Opener) {
 		return
 	}
 	for _, e := range Due(list, time.Now()) {
-		t, _, err := open(protocol.OpenReq{Provider: e.Provider, Cwd: e.Cwd, Resume: e.Session, Mode: e.Mode, Model: e.Model})
+		t, _, err := open(protocol.OpenReq{Provider: e.Provider, Cwd: e.Cwd, Resume: e.Session, Mode: e.Mode, Model: e.Model, Unattended: e.Unattended})
 		if err != nil {
 			log.Printf("resume %s %s: %v", e.Provider, text.Clip(e.Session, 8), err)
 			continue
