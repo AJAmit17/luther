@@ -285,6 +285,8 @@ const MARKS: Partial<Record<Provider, { src: number; tint?: boolean }>> = {
   opencode: { src: require('../../assets/agents/opencode.png'), tint: true },
   devin: { src: require('../../assets/agents/devin.png'), tint: true },
   omp: { src: require('../../assets/agents/omp.png') },
+  gemini: { src: require('../../assets/agents/gemini.png') },
+  cursor: { src: require('../../assets/agents/cursor.png'), tint: true },
 };
 
 /** An agent's logo at `size`, or its symbol. */
