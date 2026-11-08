@@ -21,10 +21,24 @@ func Routes(mux *http.ServeMux, wrap httpx.Wrap) {
 	mux.HandleFunc("GET /threads/{id}/events", wrap(open(events)))
 	mux.HandleFunc("DELETE /threads/{id}", wrap(open(func(w http.ResponseWriter, r *http.Request, t *Thread) { t.rt.Stop() })))
 	mux.HandleFunc("POST /threads/{id}/interrupt", wrap(open(func(w http.ResponseWriter, r *http.Request, t *Thread) {
+		t.StopGoal()
 		if err := t.rt.Interrupt(); err != nil {
 			http.Error(w, err.Error(), http.StatusConflict)
 		}
 	})))
+	mux.HandleFunc("POST /threads/{id}/goal", wrap(open(func(w http.ResponseWriter, r *http.Request, t *Thread) {
+		var g struct {
+			Objective string `json:"objective"`
+			Rounds    int    `json:"rounds"`
+		}
+		if !httpx.ReadJSON(w, r, &g) {
+			return
+		}
+		if err := t.SetGoal(g.Objective, g.Rounds); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+	})))
+	mux.HandleFunc("DELETE /threads/{id}/goal", wrap(open(func(w http.ResponseWriter, r *http.Request, t *Thread) { t.StopGoal() })))
 	mux.HandleFunc("POST /threads/{id}/answer", wrap(open(func(w http.ResponseWriter, r *http.Request, t *Thread) {
 		var a protocol.Answer
 		if !httpx.ReadJSON(w, r, &a) {
@@ -99,7 +113,12 @@ func events(w http.ResponseWriter, r *http.Request, t *Thread) {
 			case "answer":
 				err2 = t.Answer(f.Answer)
 			case "interrupt":
+				t.StopGoal() // Stop means stop, not "judge and go on"
 				err2 = t.rt.Interrupt()
+			case "goal":
+				err2 = t.SetGoal(f.Text, f.Rounds)
+			case "goal_stop":
+				t.StopGoal()
 			case "mode":
 				err2 = t.SetMode(f.Mode)
 			case "model":

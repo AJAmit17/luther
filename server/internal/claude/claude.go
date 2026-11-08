@@ -108,6 +108,13 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 	if r.Model != "" {
 		args = append(args, "--model", r.Model)
 	}
+	if r.Unattended { // deny rules hold in every mode, bypass included
+		deny := []string{"AskUserQuestion"}
+		for _, c := range protocol.Blocked {
+			deny = append(deny, "Bash("+c+":*)")
+		}
+		args = append(append(args, "--disallowedTools"), deny...) // one argument each: rules contain spaces
+	}
 	toolsFile := ""
 	if r.Tools != nil {
 		// In a file only you can read, not on the command line: ps shows arguments.

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/AJAmit17/luther/server/internal/config"
@@ -144,4 +145,67 @@ func removeWorktree(w http.ResponseWriter, r *http.Request) {
 	if _, err := git(Parent(cwd), args...); err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 	}
+}
+
+// Changes: how much cwd's checkout differs from its HEAD, new files included
+// (they're marked intent-to-add, so use it on Luther's worktrees only).
+func Changes(cwd string) (files, added, removed int) {
+	git(cwd, "add", "-A", "-N")
+	out, err := git(cwd, "diff", "HEAD", "--numstat")
+	if err != nil {
+		return 0, 0, 0
+	}
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		f := strings.Fields(line)
+		if len(f) < 3 {
+			continue
+		}
+		files++
+		a, _ := strconv.Atoi(f[0]) // "-" for binary files
+		r, _ := strconv.Atoi(f[1])
+		added, removed = added+a, removed+r
+	}
+	return files, added, removed
+}
+
+// CarryOver applies a Luther worktree's uncommitted changes (new files
+// included) to the checkout at dst, as uncommitted changes there. It changes
+// nothing in dst unless the whole patch applies cleanly.
+func CarryOver(worktree, dst string) error {
+	if !IsWorktree(worktree) {
+		return errors.New("not a Luther worktree")
+	}
+	src, err := git(worktree, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return err
+	}
+	root, err := git(dst, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return fmt.Errorf("not a git repository: %w", err)
+	}
+	src, root = strings.TrimSpace(src), strings.TrimSpace(root)
+	git(src, "add", "-A", "-N")
+	patch, err := git(src, "diff", "HEAD", "--binary")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(patch) == "" {
+		return errors.New("that run changed nothing")
+	}
+	apply := func(check bool) error {
+		args := []string{"-C", root, "apply", "--whitespace=nowarn"}
+		if check {
+			args = append(args, "--check")
+		}
+		cmd := exec.Command("git", args...)
+		cmd.Stdin = strings.NewReader(patch)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("its changes clash with your checkout (combine them with an agent instead): %s", text.Clip(strings.TrimSpace(string(out)), 400))
+		}
+		return nil
+	}
+	if err := apply(true); err != nil {
+		return err
+	}
+	return apply(false)
 }

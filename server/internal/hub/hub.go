@@ -62,6 +62,8 @@ type Thread struct {
 	ended    bool
 	prefix   string    // a role's instructions, put before the first message sent
 	asked    time.Time // a message was sent and its turn hasn't started yet
+	gr       goalRun
+	alone    bool // unattended: prompts are declined, not waited on
 }
 
 type sub struct{ ch chan []byte }
@@ -253,12 +255,42 @@ func (t *Thread) TurnEnd() {
 	for len(t.prompts) > 0 {
 		t.ClosePrompt(t.prompts[0].ID)
 	}
+	t.goalTurnEnd()
 }
 
 func (t *Thread) AddPrompt(p *protocol.Prompt) {
 	t.prompts = append(t.prompts, p)
 	t.st.Activity = "Waiting for you"
 	t.broadcast(map[string]any{"type": "prompt", "prompt": p})
+	if t.alone {
+		go t.decline(p)
+	}
+}
+
+// SetUnattended: nobody watches this thread (a scheduled run).
+func (t *Thread) SetUnattended() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.alone = true
+}
+
+// Unattended: the note an unattended run gets instead of an answer.
+const Unattended = "No one is watching this run, so nothing can be approved or answered. Don't wait: decide for yourself where you can, skip what needs approval, and list what you skipped in your final reply."
+
+// decline answers p for a user who isn't there.
+func (t *Thread) decline(p *protocol.Prompt) {
+	a := protocol.Answer{ID: p.ID, Choice: -1, Message: Unattended}
+	if p.Kind == "question" {
+		a.Answers = map[string][]string{}
+		for _, q := range p.Questions {
+			a.Answers[q.ID] = []string{Unattended}
+		}
+	}
+	if t.Answer(a) == nil {
+		t.Do(func(*protocol.State) {
+			t.Add(protocol.Msg{ID: "alone-" + text.RandHex(4), Role: "system", Text: "Declined (unattended run): " + text.OneLine(p.Title+" "+p.Body)})
+		})
+	}
 }
 
 func (t *Thread) ClosePrompt(id string) *protocol.Prompt {

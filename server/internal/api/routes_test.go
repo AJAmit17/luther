@@ -23,6 +23,9 @@ func TestHandlerRoutes(t *testing.T) {
 		{"POST", "/walkthroughs", http.StatusUnauthorized},
 		{"POST", "/artifacts/art-x/link", http.StatusUnauthorized},
 		{"GET", "/a/nope/", http.StatusGone},
+		{"GET", "/compares", http.StatusUnauthorized},
+		{"POST", "/compares/x/keep", http.StatusUnauthorized},
+		{"POST", "/schedules/x/read", http.StatusUnauthorized},
 	} {
 		req := httptest.NewRequest(c.method, c.path, nil)
 		req.RemoteAddr = "127.0.0.1:1"

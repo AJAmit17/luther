@@ -7,14 +7,17 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	goruntime "runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/AJAmit17/luther/server/internal/acp"
@@ -31,6 +34,7 @@ import (
 	"github.com/AJAmit17/luther/server/internal/preview"
 	"github.com/AJAmit17/luther/server/internal/protocol"
 	"github.com/AJAmit17/luther/server/internal/remote"
+	"github.com/AJAmit17/luther/server/internal/restore"
 	"github.com/AJAmit17/luther/server/internal/schedule"
 	"github.com/AJAmit17/luther/server/internal/sessions"
 	"github.com/AJAmit17/luther/server/internal/templates"
@@ -80,6 +84,7 @@ func Handler(cfg *config.Config) http.Handler {
 	mux.HandleFunc("POST /walkthroughs", wrap(walkthrough))
 	artifacts.Routes(mux, wrap)
 	toolRoutes(mux)
+	compareRoutes(mux, wrap)
 	usage.Routes(mux, wrap)
 	schedule.Start(mux, wrap, open)
 	remote.Start(mux, wrap, func(r *http.Request) bool { return auth.DeviceID(r) == auth.Admin })
@@ -125,7 +130,24 @@ func Serve(cfg *config.Config) {
 	// Header and idle timeouts against slow or idle connections from the
 	// internet; no read/write timeout, which would cut WebSockets.
 	srv := &http.Server{Addr: addr, Handler: Handler(cfg), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
-	log.Fatal(srv.ListenAndServe())
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Threads that were working when Luther last stopped come back, once it
+	// listens (their agents start Luther's tool server, which calls back).
+	go restore.Resume(open)
+	go restore.Keep()
+	go func() {
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
+		<-sig
+		if err := restore.Save(); err != nil {
+			log.Printf("save running threads: %v", err)
+		}
+		os.Exit(0)
+	}()
+	log.Fatal(srv.Serve(ln))
 }
 
 // openThread: POST /threads OpenReq → {id}. Attaches to the thread already
@@ -205,6 +227,9 @@ func open(req protocol.OpenReq) (*hub.Thread, int, error) {
 		t = got
 	}
 	tools.Bind(tok, t.ID)
+	if req.Unattended {
+		t.SetUnattended()
+	}
 	if role != nil {
 		t.SetPrefix(role.Instructions)
 	}
