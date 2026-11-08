@@ -99,4 +99,8 @@ export const materialIcons: Record<string, AndroidSymbol> = {
   'doc.richtext': 'article',
   sparkles: 'auto_awesome',
   theatermasks: 'theater_comedy',
+  target: 'track_changes',
+  'square.on.square': 'compare',
+  'arrow.triangle.merge': 'merge',
+  'tray.and.arrow.down': 'move_to_inbox',
 };

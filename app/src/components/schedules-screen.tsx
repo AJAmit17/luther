@@ -6,6 +6,9 @@ import { describe } from '@/lib/cron';
 import { Note, ProviderIcon, Row, ago, c, until, useLoad, listStyle, useHex } from '@/components/ui';
 import { tb } from '@/components/toolbar-icon';
 
+/** Reports of finished runs not seen yet. */
+export const news = (j: Job) => j.runs?.filter((r) => !r.read && r.status !== 'working').length ?? 0;
+
 // Agent runs on a timetable: each opens a new thread with its prompt. The Mac
 // runs them (while it's awake); the phone hears about them like any run.
 export default function Schedules() {
@@ -25,6 +28,7 @@ export default function Schedules() {
             (e) => Alert.alert('Could not run', e.message),
           ),
       },
+      ...(j.runs?.length ? [{ text: `Reports${news(j) ? ` (${news(j)} new)` : ''}`, onPress: () => router.push({ pathname: '/runs', params: { id: j.id } }) }] : []),
       { text: 'Edit', onPress: () => router.push({ pathname: '/schedule', params: { id: j.id } }) },
       { text: 'Delete', style: 'destructive', onPress: () => del(`/schedules/${j.id}`).then(load, (e) => Alert.alert('Error', e.message)) },
       { text: 'Cancel', style: 'cancel' },
@@ -47,11 +51,12 @@ export default function Schedules() {
         ListEmptyComponent={data ? <Note>No schedules yet. Add one to have an agent run on its own: a nightly test run, a morning summary of open PRs…</Note> : undefined}
         renderItem={({ item: j }) => {
           const last = j.lastRun ? (j.lastError ? ` · last run failed ${ago(j.lastRun)} ago` : ` · ran ${ago(j.lastRun)} ago`) : '';
+          const fresh = news(j);
           return (
             <Row
               icon={<ProviderIcon p={j.provider} />}
               title={j.name}
-              sub={`${describe(j.cron)}${j.enabled && j.next ? ` · next ${until(j.next)}` : j.enabled ? '' : ' · paused'}${last}\n${j.cwd.split('/').pop()} · ${j.prompt}`}
+              sub={`${describe(j.cron)}${j.enabled && j.next ? ` · next ${until(j.next)}` : j.enabled ? '' : ' · paused'}${last}${fresh ? ` · ${fresh} new report${fresh === 1 ? '' : 's'}` : ''}\n${j.cwd.split('/').pop()} · ${j.prompt}`}
               right={
                 <View onStartShouldSetResponder={() => true}>
                   <Switch value={j.enabled} onValueChange={(on) => save({ ...j, enabled: on })} />

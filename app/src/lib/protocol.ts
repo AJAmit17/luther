@@ -51,7 +51,11 @@ export type State = {
   contextTokens?: number;
   tasks?: Task[];
   dup?: boolean;
+  goal?: Goal;
 };
+
+/** A goal: the thread works toward it turn after turn; a judge checks after each turn. */
+export type Goal = { objective: string; rounds: number; round: number; status: 'working' | 'judging' | 'done' | 'blocked' | 'limit' | 'stopped' | 'failed' | 'paused'; note?: string };
 
 export type Task = { text: string; status: 'pending' | 'in_progress' | 'completed' };
 export type Turn = { n: number; prompt: string; startedAt: number; endedAt?: number; files: number };
@@ -128,6 +132,25 @@ export type Job = {
   lastRun?: number;
   lastThread?: string;
   lastError?: string;
+  runs?: JobRun[]; // newest first, at most 20
+};
+/** One scheduled run. Runs are unattended: what needed you was declined, and the report says so. */
+export type JobRun = { id: string; at: number; manual?: boolean; thread?: string; provider: Provider; session?: string; cwd?: string; status: 'working' | 'finished' | 'failed'; report?: string; ended?: number; read?: boolean };
+
+/** One prompt given to several agents, each in its own worktree. */
+export type Compare = { id: string; cwd: string; prompt: string; mode: Mode; created: number; runs: CompareRun[]; kept?: string };
+export type CompareRun = {
+  provider: Provider;
+  model?: string;
+  thread?: string;
+  session?: string;
+  worktree?: string;
+  error?: string;
+  status?: 'working' | 'waiting' | 'finished' | 'failed' | 'idle' | 'ended';
+  reply?: string;
+  files: number;
+  added: number;
+  removed: number;
 };
 export type Device = { id: string; name: string; created: string; lastSeen: string; encrypted?: boolean };
 export type Term = { name: string; cwd: string; attached: boolean; created: number };

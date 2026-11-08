@@ -13,6 +13,7 @@ import { useAttachments } from '@/components/attachments';
 import { useModels } from '@/components/model-picker';
 import { knobs } from '@/components/thinking-sheet';
 import { TaskPanel } from '@/components/task-panel';
+import { GoalPanel } from '@/components/goal-panel';
 import { toBlocks, type Block } from '@/lib/blocks';
 import type { Command, Prompt } from '@/lib/protocol';
 import { setWatching } from '@/lib/feed';
@@ -194,6 +195,7 @@ export default function ThreadScreen() {
           <Stack.Toolbar.MenuAction icon={tb('folder')} onPress={() => go('/files')}>Files</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon={tb('arrow.triangle.branch')} onPress={() => go('/git')}>Changes</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon={tb('clock.arrow.circlepath')} onPress={() => router.push({ pathname: '/turns', params: { id } })}>Turns and undo</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('target')} onPress={() => router.push({ pathname: '/goal', params: { id } })}>Work toward a goal</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon={tb('globe')} onPress={() => go('/preview')}>Preview dev server</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon={tb('text.book.closed')} onPress={() => go('/instructions')}>Instructions</Stack.Toolbar.MenuAction>
           {usage ? (
@@ -256,6 +258,7 @@ export default function ThreadScreen() {
               ))}
             </View>
           )}
+          {!top && !!st?.goal && <GoalPanel thread={id} goal={st.goal} />}
           {!top && !!st?.tasks?.length && <TaskPanel tasks={st.tasks} />}
           {top && (
             <PromptCard
