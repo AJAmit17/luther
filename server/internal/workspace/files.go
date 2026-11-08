@@ -36,6 +36,8 @@ func Routes(mux *http.ServeMux, wrap httpx.Wrap) {
 	mux.HandleFunc("POST /git/push", wrap(gitPush))
 	mux.HandleFunc("POST /git/pr", wrap(gitPR))
 	mux.HandleFunc("DELETE /git/worktree", wrap(removeWorktree))
+	branchRoutes(mux, wrap)
+	fileRoutes(mux, wrap)
 }
 
 func projectDir(w http.ResponseWriter, r *http.Request) (string, bool) {
@@ -206,7 +208,7 @@ func gitStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func readStatus(cwd string) (protocol.GitStatus, error) {
-	st := protocol.GitStatus{Files: []protocol.GitChange{}, Worktree: IsWorktree(cwd)}
+	st := protocol.GitStatus{Files: []protocol.GitChange{}, Worktree: IsWorktree(cwd), Operation: Operation(cwd)}
 	out, err := git(cwd, "status", "--porcelain=v1", "-z", "-b", "-uall")
 	if err != nil {
 		return st, err

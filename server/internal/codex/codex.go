@@ -498,6 +498,12 @@ func (c *runtime) SetEffort(e string) error {
 
 func (c *runtime) SetFast(bool) error { return errors.New("Codex has no fast mode here") }
 
+// Compact: the app-server's own compaction of this thread.
+func (c *runtime) Compact() error {
+	_, err := c.s.Call("thread/compact/start", map[string]any{"threadId": c.id})
+	return err
+}
+
 // Stop unloads the thread from the shared app-server; its history stays in Codex's store.
 func (c *runtime) Stop() {
 	c.s.Call("thread/unsubscribe", map[string]any{"threadId": c.id})
@@ -505,4 +511,29 @@ func (c *runtime) Stop() {
 	delete(c.s.rts, c.id)
 	c.s.mu.Unlock()
 	c.t.End()
+}
+
+// Running: whether the shared app-server is up, and how many threads it hosts.
+func Running() (bool, int) {
+	proc.Lock()
+	s := proc.s
+	proc.Unlock()
+	if s == nil || s.Dead() {
+		return false, 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return true, len(s.rts)
+}
+
+// Restart stops the app-server; its threads end (reopening resumes them) and
+// the next request starts a fresh one.
+func Restart() {
+	proc.Lock()
+	s := proc.s
+	proc.s = nil
+	proc.Unlock()
+	if s != nil && s.cmd.Process != nil {
+		s.cmd.Process.Kill()
+	}
 }

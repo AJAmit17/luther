@@ -142,8 +142,14 @@ func removeWorktree(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("force") == "1" {
 		args = append(args, "--force")
 	}
-	if _, err := git(Parent(cwd), args...); err != nil {
+	branch, main := Branch(cwd), Parent(cwd) // asked before the folder goes
+	if _, err := git(main, args...); err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	// Its luther/<id> branch too, when asked: only ever one of Luther's own.
+	if r.URL.Query().Get("branch") == "1" && strings.HasPrefix(branch, "luther/") {
+		git(main, "branch", "-D", branch)
 	}
 }
 

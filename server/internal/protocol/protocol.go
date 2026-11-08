@@ -37,11 +37,19 @@ import "time"
 //   GET  /files?cwd=&path=                → FileEntry list (dir) or FileContent (file)
 //   PUT  /files {cwd, path, text, base}   → FileContent (base: the hash you edited; "" creates; 409 if it changed)
 //   GET  /git/status?cwd= · GET /git/diff?cwd=&path= · POST /git/commit {cwd, message}
-//   POST /git/push {cwd} · POST /git/pr {cwd, title, body} → {url} · DELETE /git/worktree?cwd=
+//   POST /git/push {cwd} · POST /git/pr {cwd, title, body} → {url} · DELETE /git/worktree?cwd=[&force=1][&branch=1]
+//   GET  /git/branches?cwd= → Branches · POST /git/checkout {cwd, branch, create?} · POST /git/abort {cwd}
+//   POST /git/stash {cwd, message?} · POST /git/stash/apply {cwd, ref, drop?} · DELETE /git/stash?cwd=&ref=
+//   GET  /git/worktrees?cwd= → [WorktreeInfo] · POST /git/worktree/bring {cwd} (a worktree's changes into its main checkout)
+//   POST /git/message {cwd, provider?} → {subject, body} (a commit message written from the diff)
 //   GET  /schedules → [Job] · POST /schedules Job (create, or update by id) → Job · DELETE /schedules/{id} · POST /schedules/{id}/run → {thread}
 //   POST /schedules/{id}/read (its runs' reports seen)
 //   GET  /usage                           → [Limits] (plan usage per agent)
 //   GET  /ports                           → [Port] (dev servers listening on this Mac)
+//   GET  /health → Health · GET /logs?lines= (text: the end of serve.log) · POST /agents/{id}/restart
+//   POST /shell {cwd, command} → {output, code} (one command, 2 minutes at most)
+//   GET  /files/search?cwd=&q= → [path] · GET /files/raw?cwd=&path= → {type, data} (a picture)
+//   POST /files/mkdir {cwd, path} · POST /files/rename {cwd, from, to} · POST /files/upload?cwd=&path=[&replace=1] (raw body) · DELETE /files?cwd=&path= (to the Trash)
 //   POST /previews {port}                 → {path} (open route+path in a browser: no token needed, it is one)
 //   POST /artifacts/{id}/link             → {path} (an agent's HTML page; open route+path in a browser, like a preview)
 //   GET  /templates                       → [Template] (agent roles: ~/.luther/templates/*.md and built-ins)
@@ -312,7 +320,7 @@ type Answer struct {
 
 // ClientFrame, client → server.
 type ClientFrame struct {
-	Type   string   `json:"type"` // send | answer | interrupt | mode | model | effort | fast | goal (Text, Rounds) | goal_stop
+	Type   string   `json:"type"` // send | answer | interrupt | mode | model | effort | fast | goal (Text, Rounds) | goal_stop | compact
 	Text   string   `json:"text,omitempty"`
 	Files  []string `json:"files,omitempty"` // with send: paths from POST /uploads
 	Mode   string   `json:"mode,omitempty"`
@@ -391,11 +399,40 @@ type FileContent struct {
 }
 
 type GitStatus struct {
-	Branch   string      `json:"branch"`
-	Upstream string      `json:"upstream,omitempty"`
-	Ahead    int         `json:"ahead"`
-	Worktree bool        `json:"worktree,omitempty"` // a Luther worktree (removable)
-	Files    []GitChange `json:"files"`
+	Branch    string      `json:"branch"`
+	Upstream  string      `json:"upstream,omitempty"`
+	Ahead     int         `json:"ahead"`
+	Worktree  bool        `json:"worktree,omitempty"`  // a Luther worktree (removable)
+	Operation string      `json:"operation,omitempty"` // merge | rebase | cherry-pick | revert, while one is stopped
+	Files     []GitChange `json:"files"`
+}
+
+// Branches: GET /git/branches.
+type Branches struct {
+	Current  string      `json:"current"`
+	Branches []GitBranch `json:"branches"` // local, most recent commit first
+	Stashes  []Stash     `json:"stashes"`
+}
+
+type GitBranch struct {
+	Name     string `json:"name"`
+	Upstream string `json:"upstream,omitempty"`
+	Last     int64  `json:"last"` // ms, its latest commit
+}
+
+type Stash struct {
+	Ref     string `json:"ref"` // stash@{n}
+	Message string `json:"message"`
+	At      int64  `json:"at"`
+}
+
+// WorktreeInfo: one of Luther's worktrees of a repository.
+type WorktreeInfo struct {
+	Path    string `json:"path"`
+	Branch  string `json:"branch"`
+	Files   int    `json:"files"`
+	Added   int    `json:"added"`
+	Removed int    `json:"removed"`
 }
 
 type GitChange struct {
@@ -489,6 +526,23 @@ type CompareRun struct {
 	Files   int    `json:"files"`
 	Added   int    `json:"added"`
 	Removed int    `json:"removed"`
+}
+
+// Health: GET /health, what Luther and each agent are doing.
+type Health struct {
+	Version string        `json:"version"`
+	Started int64         `json:"started"` // ms
+	Name    string        `json:"name"`
+	Agents  []AgentHealth `json:"agents"`
+}
+
+type AgentHealth struct {
+	ID        Provider `json:"id"`
+	Name      string   `json:"name"`
+	Installed bool     `json:"installed"`
+	Version   string   `json:"version,omitempty"`
+	Running   bool     `json:"running"` // its process is up (Claude: one per thread)
+	Threads   int      `json:"threads"` // open in Luther
 }
 
 // Port: a TCP port something of yours listens on (a dev server, usually).

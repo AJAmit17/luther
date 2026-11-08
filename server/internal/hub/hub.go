@@ -502,6 +502,21 @@ func (t *Thread) SetMode(m string) error {
 	return t.rt.SetMode(m)
 }
 
+// Compacter: an agent that can summarize its conversation to free context.
+type Compacter interface{ Compact() error }
+
+// Compact asks the agent to compact the conversation, if it can.
+func (t *Thread) Compact() error {
+	if t.State().Busy {
+		return errors.New("wait for the turn to finish, then compact")
+	}
+	c, ok := t.rt.(Compacter)
+	if !ok {
+		return fmt.Errorf("%s can't compact its conversation from Luther", t.State().Provider.Name())
+	}
+	return c.Compact()
+}
+
 // ReapIdle stops threads nobody watches that aren't working; reopening resumes them.
 func ReapIdle() {
 	for range time.Tick(time.Minute) {

@@ -499,6 +499,9 @@ func (c *runtime) control(req map[string]any) error {
 	return c.write(map[string]any{"type": "control_request", "request_id": "luther-" + text.RandHex(6), "request": req})
 }
 
+// Compact: Claude Code's own /compact.
+func (c *runtime) Compact() error { return c.Send("/compact", nil) }
+
 func (c *runtime) Interrupt() error { return c.control(map[string]any{"subtype": "interrupt"}) }
 
 // SetMode / SetModel: Claude applies them at once; the state shows them right

@@ -1043,3 +1043,28 @@ func (c *runtime) Stop() {
 	c.s.drop(c.id)
 	c.t.End()
 }
+
+// Running: whether the agent's process is up, and how many threads it hosts.
+func Running(id protocol.Provider) (bool, int) {
+	procs.Lock()
+	s := procs.m[id]
+	procs.Unlock()
+	if s == nil || s.Dead() {
+		return false, 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return true, len(s.rts)
+}
+
+// Restart stops the agent's process; its threads end (reopening resumes
+// them) and the next request starts a fresh one.
+func Restart(id protocol.Provider) {
+	procs.Lock()
+	s := procs.m[id]
+	delete(procs.m, id)
+	procs.Unlock()
+	if s != nil && s.cmd.Process != nil {
+		s.cmd.Process.Kill()
+	}
+}

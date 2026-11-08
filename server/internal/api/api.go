@@ -85,6 +85,7 @@ func Handler(cfg *config.Config) http.Handler {
 	artifacts.Routes(mux, wrap)
 	toolRoutes(mux)
 	compareRoutes(mux, wrap)
+	workbenchRoutes(mux, wrap, cfg)
 	usage.Routes(mux, wrap)
 	schedule.Start(mux, wrap, open)
 	remote.Start(mux, wrap, func(r *http.Request) bool { return auth.DeviceID(r) == auth.Admin })
@@ -247,7 +248,10 @@ func listOpen(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, out)
 }
 
-func providers(w http.ResponseWriter, r *http.Request) {
+func providers(w http.ResponseWriter, r *http.Request) { httpx.WriteJSON(w, providerInfos()) }
+
+// providerInfos: every agent Luther knows, whether it's installed, and its version.
+func providerInfos() []protocol.ProviderInfo {
 	ver := func(bin string) (string, bool) {
 		out, err := exec.Command(bin, "--version").Output()
 		return strings.TrimSpace(string(out)), err == nil
@@ -263,7 +267,7 @@ func providers(w http.ResponseWriter, r *http.Request) {
 		v, ok := a.Version()
 		out = append(out, protocol.ProviderInfo{ID: a.ID, Name: a.Name, Installed: ok, Version: v, Modes: modes})
 	}
-	httpx.WriteJSON(w, out)
+	return out
 }
 
 func commands(w http.ResponseWriter, r *http.Request) {

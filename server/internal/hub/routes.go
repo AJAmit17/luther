@@ -119,6 +119,8 @@ func events(w http.ResponseWriter, r *http.Request, t *Thread) {
 				err2 = t.SetGoal(f.Text, f.Rounds)
 			case "goal_stop":
 				t.StopGoal()
+			case "compact":
+				err2 = t.Compact()
 			case "mode":
 				err2 = t.SetMode(f.Mode)
 			case "model":
