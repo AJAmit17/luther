@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/AJAmit17/luther/server/internal/artifacts"
 	"github.com/AJAmit17/luther/server/internal/paths"
 	"github.com/AJAmit17/luther/server/internal/protocol"
 	"github.com/AJAmit17/luther/server/internal/text"
@@ -145,6 +146,10 @@ func recMsgs(r chatRec) []protocol.Msg {
 				m.Text, m.Images = uploads.SplitAttached(b.Text)
 			}
 			out = append(out, m)
+		case b.Type == "tool_use" && b.Name == "mcp__luther__show_artifact": // the page's card, as Luther showed it
+			str := func(k string) string { v, _ := b.Input[k].(string); return v }
+			title := strings.TrimSpace(str("title"))
+			out = append(out, protocol.Msg{ID: artifacts.ID(title, strings.TrimSpace(str("path")), str("html")), Role: "artifact", Text: title})
 		case b.Type == "tool_use":
 			if isAgentTool(b.Name) && b.ID != "" {
 				id = b.ID // a subagent's steps name this call as their Parent

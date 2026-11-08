@@ -290,3 +290,26 @@ func gitCommit(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.WriteJSON(w, map[string]string{"output": strings.TrimSpace(out)})
 }
+
+// WorkingDiff: every uncommitted change in cwd's repository, untracked files
+// included, at most max bytes (cut at a file boundary when it can be).
+func WorkingDiff(cwd string, max int) (string, error) {
+	out, err := git(cwd, "diff", "HEAD", "--no-color")
+	if err != nil { // no commits yet
+		if out, err = git(cwd, "diff", "--no-color"); err != nil {
+			return "", err
+		}
+	}
+	var b strings.Builder
+	b.WriteString(out)
+	untracked, _ := git(cwd, "ls-files", "--others", "--exclude-standard", "-z")
+	for _, f := range strings.Split(untracked, "\x00") {
+		if f == "" || b.Len() > max {
+			continue
+		}
+		// --no-index exits 1 when the files differ, which they always do here.
+		d, _ := exec.Command("git", "-C", cwd, "diff", "--no-color", "--no-index", "/dev/null", f).Output()
+		b.Write(d)
+	}
+	return text.Clip(b.String(), max), nil
+}

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/AJAmit17/luther/server/internal/acp"
+	"github.com/AJAmit17/luther/server/internal/artifacts"
 	"github.com/AJAmit17/luther/server/internal/auth"
 	"github.com/AJAmit17/luther/server/internal/claude"
 	"github.com/AJAmit17/luther/server/internal/codex"
@@ -32,8 +33,10 @@ import (
 	"github.com/AJAmit17/luther/server/internal/remote"
 	"github.com/AJAmit17/luther/server/internal/schedule"
 	"github.com/AJAmit17/luther/server/internal/sessions"
+	"github.com/AJAmit17/luther/server/internal/templates"
 	"github.com/AJAmit17/luther/server/internal/terminal"
 	"github.com/AJAmit17/luther/server/internal/text"
+	"github.com/AJAmit17/luther/server/internal/tools"
 	"github.com/AJAmit17/luther/server/internal/tunnel"
 	"github.com/AJAmit17/luther/server/internal/uploads"
 	"github.com/AJAmit17/luther/server/internal/usage"
@@ -42,6 +45,7 @@ import (
 
 // Handler: every route of `luther serve`.
 func Handler(cfg *config.Config) http.Handler {
+	selfPort = cfg.Port
 	mux := http.NewServeMux()
 	a := auth.New(cfg)
 	wrap := httpx.Wrap(a.Wrap)
@@ -72,6 +76,10 @@ func Handler(cfg *config.Config) http.Handler {
 	mux.HandleFunc("GET /commands", wrap(commands))
 	mux.HandleFunc("GET /dirs", wrap(dirs))
 	mux.HandleFunc("GET /usage", wrap(limits))
+	mux.HandleFunc("GET /templates", wrap(func(w http.ResponseWriter, r *http.Request) { httpx.WriteJSON(w, templates.List()) }))
+	mux.HandleFunc("POST /walkthroughs", wrap(walkthrough))
+	artifacts.Routes(mux, wrap)
+	toolRoutes(mux)
 	usage.Routes(mux, wrap)
 	schedule.Start(mux, wrap, open)
 	remote.Start(mux, wrap, func(r *http.Request) bool { return auth.DeviceID(r) == auth.Admin })
@@ -79,6 +87,9 @@ func Handler(cfg *config.Config) http.Handler {
 	preview.Routes(mux, wrap, cfg.Port) // last: it owns "/"
 	return mux
 }
+
+// selfPort: where this server listens, for the agents' tool server to call back.
+var selfPort = config.DefaultPort
 
 // Serve runs the server on 127.0.0.1 (tailscale serve / cloudflared proxy to it).
 func Serve(cfg *config.Config) {
@@ -135,6 +146,17 @@ func open(req protocol.OpenReq) (*hub.Thread, int, error) {
 			return t, 200, nil
 		}
 	}
+	var role *protocol.Template
+	if req.Template != "" {
+		tp, ok := templates.Get(req.Template)
+		if !ok {
+			return nil, http.StatusBadRequest, errors.New("no such template")
+		}
+		role = &tp
+		req.Provider = protocol.Provider(text.OrDefault(string(req.Provider), string(tp.Provider)))
+		req.Model = text.OrDefault(req.Model, tp.Model)
+		req.Mode = text.OrDefault(req.Mode, tp.Mode)
+	}
 	if req.Worktree {
 		dir, err := workspace.NewWorktree(req.Cwd)
 		if err != nil {
@@ -142,6 +164,8 @@ func open(req protocol.OpenReq) (*hub.Thread, int, error) {
 		}
 		req.Cwd = dir
 	}
+	tok, spec := tools.ForThread(selfPort)
+	req.Tools = spec
 	var t *hub.Thread
 	var err error
 	switch req.Provider {
@@ -158,13 +182,19 @@ func open(req protocol.OpenReq) (*hub.Thread, int, error) {
 	}
 	switch {
 	case errors.Is(err, claude.ErrHeld):
+		tools.Drop(tok)
 		return nil, http.StatusConflict, err
 	case err != nil:
+		tools.Drop(tok)
 		return nil, http.StatusBadGateway, err
 	}
 	if got := hub.Register(t); got != t { // lost a race with another open
 		t.Runtime().Stop()
 		t = got
+	}
+	tools.Bind(tok, t.ID)
+	if role != nil {
+		t.SetPrefix(role.Instructions)
 	}
 	return t, 200, nil
 }
@@ -251,6 +281,7 @@ func limits(w http.ResponseWriter, r *http.Request) {
 func housekeeping() {
 	for {
 		uploads.Sweep()
+		artifacts.Prune()
 		env.CapLog(filepath.Join(config.Dir(), "serve.log"), 5<<20)
 		time.Sleep(time.Hour)
 	}

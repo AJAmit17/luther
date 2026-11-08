@@ -16,6 +16,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -431,7 +432,7 @@ func Open(a Agent, r protocol.OpenReq) (*hub.Thread, error) {
 		return nil, err
 	}
 	mode := text.OrDefault(r.Mode, protocol.ModeAsk)
-	base := map[string]any{"cwd": r.Cwd, "mcpServers": []any{}}
+	base := map[string]any{"cwd": r.Cwd, "mcpServers": mcpServers(r.Tools)}
 	method := "session/new"
 	switch {
 	case r.Resume != "" && r.Fork:
@@ -485,6 +486,19 @@ func Open(a Agent, r protocol.OpenReq) (*hub.Thread, error) {
 		return nil, err
 	}
 	return t, nil
+}
+
+// mcpServers: Luther's tool server in ACP's form (stdio; env as a list).
+func mcpServers(ts *protocol.ToolServer) []any {
+	if ts == nil {
+		return []any{}
+	}
+	env := []map[string]string{}
+	for k, v := range ts.Env {
+		env = append(env, map[string]string{"name": k, "value": v})
+	}
+	sort.Slice(env, func(i, j int) bool { return env[i]["name"] < env[j]["name"] })
+	return []any{map[string]any{"name": "luther", "command": ts.Command, "args": ts.Args, "env": env}}
 }
 
 func (s *server) newThread(id, cwd, mode string) (*hub.Thread, *runtime) {

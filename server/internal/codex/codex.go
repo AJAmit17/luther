@@ -170,6 +170,13 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 	if r.Model != "" {
 		params["model"] = r.Model
 	}
+	if r.Tools != nil { // per thread: the shared app-server starts it for this thread only
+		params["config"] = map[string]any{"mcp_servers.luther": map[string]any{
+			"command": r.Tools.Command, "args": r.Tools.Args, "env": r.Tools.Env,
+			"default_tools_approval_mode": "approve", // Luther's own tools never ask
+			"tool_timeout_sec":            1860,      // wait_for_thread may wait 30 minutes
+		}}
+	}
 	method := "thread/start"
 	if r.Resume != "" {
 		params["threadId"] = r.Resume

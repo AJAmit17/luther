@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -102,9 +103,15 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 	if r.Model != "" {
 		args = append(args, "--model", r.Model)
 	}
+	if r.Tools != nil {
+		cfg, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{"luther": map[string]any{
+			"type": "stdio", "command": r.Tools.Command, "args": r.Tools.Args, "env": r.Tools.Env}}})
+		args = append(args, "--mcp-config", string(cfg), "--allowedTools", "mcp__luther") // Luther's own tools never ask
+	}
 
 	cmd := exec.Command(Bin, args...)
 	cmd.Dir = r.Cwd
+	cmd.Env = append(os.Environ(), "MCP_TOOL_TIMEOUT=1860000") // wait_for_thread may wait 30 minutes
 	cmd.Stderr = &env.LogTail{Prefix: "claude " + sid[:8] + ": "}
 	in, err := cmd.StdinPipe()
 	if err != nil {

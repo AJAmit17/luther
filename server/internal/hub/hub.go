@@ -60,6 +60,8 @@ type Thread struct {
 	run      protocol.Run
 	turns    []*checkpoint.Checkpoint
 	ended    bool
+	prefix   string    // a role's instructions, put before the first message sent
+	asked    time.Time // a message was sent and its turn hasn't started yet
 }
 
 type sub struct{ ch chan []byte }
@@ -79,6 +81,35 @@ func (t *Thread) Runtime() Runtime      { return t.rt }
 
 // SetHistory: messages from the agent's own store, before Register.
 func (t *Thread) SetHistory(msgs []protocol.Msg) { t.msgs = msgs[max(0, len(msgs)-keepMsgs):] }
+
+// SetPrefix: instructions to put before the next message sent (a role's).
+func (t *Thread) SetPrefix(s string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.prefix = s
+}
+
+// Status: where the thread stands, for an agent waiting on it: working,
+// waiting (on the user), failed, finished or idle; and its last reply.
+func (t *Thread) Status() (phase, reply string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	switch {
+	case t.ended:
+		phase = "ended"
+	case len(t.prompts) > 0:
+		phase = "waiting"
+	case t.st.Busy, !t.asked.IsZero() && time.Since(t.asked) < 2*time.Minute:
+		phase = "working"
+	case t.failed != "":
+		phase = "failed"
+	case t.lastText != "":
+		phase = "finished"
+	default:
+		phase = "idle"
+	}
+	return phase, t.lastText
+}
 
 // Register makes t findable. If a thread with t's id is already open (two
 // opens raced), that one is returned and the caller should stop t.
@@ -122,6 +153,13 @@ func (t *Thread) State() protocol.State {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.st
+}
+
+// Messages: a copy of the thread's messages.
+func (t *Thread) Messages() []protocol.Msg {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return append([]protocol.Msg(nil), t.msgs...)
 }
 
 func (t *Thread) Clients() int {
@@ -170,6 +208,17 @@ func (t *Thread) Add(m protocol.Msg) {
 	t.broadcast(map[string]any{"type": "message", "message": m})
 }
 
+// AddOnce: Add, unless a message with m's ID is already there (an artifact
+// card the adapter also derives from the agent's tool call).
+func (t *Thread) AddOnce(m protocol.Msg) {
+	for _, x := range t.msgs {
+		if x.ID == m.ID {
+			return
+		}
+	}
+	t.Add(m)
+}
+
 // Reset replaces every message (Claude's /clear).
 func (t *Thread) Reset(msgs []protocol.Msg) {
 	t.msgs = msgs
@@ -192,6 +241,7 @@ func (t *Thread) TurnStart() {
 		t.failed = ""
 	}
 	t.st.Busy = true
+	t.asked = time.Time{}
 	t.st.Activity = text.OrDefault(t.st.Activity, "Working…")
 }
 
@@ -368,6 +418,11 @@ func (t *Thread) Send(msg string, files []string) error {
 	t.mu.Lock()
 	t.touched = time.Now()
 	busy, cwd := t.st.Busy, t.st.Cwd
+	if t.prefix != "" {
+		msg = strings.TrimSpace(t.prefix + "\n\n" + msg)
+		t.prefix = ""
+	}
+	t.asked = time.Now()
 	t.mu.Unlock()
 	if !busy {
 		if cp := checkpoint.Begin(cwd, msg); cp != nil {
