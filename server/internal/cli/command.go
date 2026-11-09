@@ -7,6 +7,7 @@ import (
 
 	"github.com/AJAmit17/luther/server/internal/config"
 	"github.com/AJAmit17/luther/server/internal/protocol"
+	"github.com/AJAmit17/luther/server/internal/tools"
 	"github.com/spf13/cobra"
 )
 
@@ -147,6 +148,9 @@ func command(serve func(*config.Config)) *cobra.Command {
 	}
 	root.AddCommand(remote)
 	add("doctor", "Check agent CLIs, server, routes, and pairing", "manage", true, func(c *CLI, _ []string) error { c.Doctor(); return nil })
+	// Started by the agents Luther runs (their MCP server for Luther's tools), never by hand.
+	root.AddCommand(&cobra.Command{Use: "mcp", Short: "Luther's tools for the agents it runs (MCP over stdio)", Hidden: true, Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error { return tools.Serve(cmd.InOrStdin(), cmd.OutOrStdout()) }})
 	root.AddCommand(&cobra.Command{Use: "version", Short: "Print the Luther build version", GroupID: "tools", Args: cobra.NoArgs,
 		Run: func(cmd *cobra.Command, _ []string) { fmt.Fprintln(cmd.OutOrStdout(), "luther", protocol.Version) }})
 	root.AddCommand(&cobra.Command{

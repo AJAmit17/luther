@@ -10,12 +10,15 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/AJAmit17/luther/server/internal/config"
 	"github.com/AJAmit17/luther/server/internal/env"
 	"github.com/AJAmit17/luther/server/internal/hub"
 	"github.com/AJAmit17/luther/server/internal/protocol"
@@ -56,6 +59,8 @@ type runtime struct {
 	inMu sync.Mutex
 	in   io.WriteCloser
 
+	toolsFile string // Luther's tool config for this claude (holds its token); removed when it exits
+
 	compacted bool              // next user text is the compaction summary (hub lock)
 	agents    map[string]string // subagent call id → its description (hub lock)
 }
@@ -86,6 +91,7 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 		}
 	}
 	sid := text.NewUUID()
+	var err error
 	args := []string{"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
 		"--include-partial-messages", "--replay-user-messages", "--permission-prompt-tool", "stdio"}
 	switch {
@@ -102,9 +108,25 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 	if r.Model != "" {
 		args = append(args, "--model", r.Model)
 	}
+	if r.Unattended { // deny rules hold in every mode, bypass included
+		deny := []string{"AskUserQuestion"}
+		for _, c := range protocol.Blocked {
+			deny = append(deny, "Bash("+c+":*)")
+		}
+		args = append(append(args, "--disallowedTools"), deny...) // one argument each: rules contain spaces
+	}
+	toolsFile := ""
+	if r.Tools != nil {
+		// In a file only you can read, not on the command line: ps shows arguments.
+		if toolsFile, err = toolConfig(sid, r.Tools); err != nil {
+			return nil, err
+		}
+		args = append(args, "--mcp-config", toolsFile, "--allowedTools", "mcp__luther") // Luther's own tools never ask
+	}
 
 	cmd := exec.Command(Bin, args...)
 	cmd.Dir = r.Cwd
+	cmd.Env = append(os.Environ(), "MCP_TOOL_TIMEOUT=1860000") // wait_for_thread may wait 30 minutes
 	cmd.Stderr = &env.LogTail{Prefix: "claude " + sid[:8] + ": "}
 	in, err := cmd.StdinPipe()
 	if err != nil {
@@ -115,6 +137,7 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 		return nil, err
 	}
 	if err := cmd.Start(); err != nil {
+		os.Remove(toolsFile)
 		return nil, err
 	}
 	// A resumed session's effort is the one its last reply used (Claude keeps
@@ -124,13 +147,25 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 		effort = lastEffort(r.Resume)
 	}
 	t := hub.New(sid, protocol.State{Provider: protocol.Claude, Session: sid, Cwd: r.Cwd, Mode: mode, Model: r.Model, Effort: effort})
-	rt := &runtime{t: t, cmd: cmd, in: in}
+	rt := &runtime{t: t, cmd: cmd, in: in, toolsFile: toolsFile}
 	t.SetRuntime(rt)
 	if r.Resume != "" {
 		t.SetHistory(history(r.Resume))
 	}
 	go rt.read(out)
 	return t, nil
+}
+
+// toolConfig writes the MCP config for Luther's tools to ~/.luther/mcp/<sid>.json (0600).
+func toolConfig(sid string, ts *protocol.ToolServer) (string, error) {
+	b, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{"luther": map[string]any{
+		"type": "stdio", "command": ts.Command, "args": ts.Args, "env": ts.Env}}})
+	dir := filepath.Join(config.Dir(), "mcp")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	f := filepath.Join(dir, sid+".json")
+	return f, os.WriteFile(f, b, 0o600)
 }
 
 // ---- stdout ----
@@ -174,6 +209,9 @@ func (c *runtime) read(out io.Reader) {
 		}
 	}
 	c.cmd.Wait()
+	if c.toolsFile != "" {
+		os.Remove(c.toolsFile)
+	}
 	c.t.End()
 }
 
@@ -460,6 +498,9 @@ func (c *runtime) Send(msg string, files []string) error {
 func (c *runtime) control(req map[string]any) error {
 	return c.write(map[string]any{"type": "control_request", "request_id": "luther-" + text.RandHex(6), "request": req})
 }
+
+// Compact: Claude Code's own /compact.
+func (c *runtime) Compact() error { return c.Send("/compact", nil) }
 
 func (c *runtime) Interrupt() error { return c.control(map[string]any{"subtype": "interrupt"}) }
 

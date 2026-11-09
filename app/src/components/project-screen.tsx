@@ -24,7 +24,7 @@ export default function ProjectScreen() {
   const search = useMemo(() => ({ ...searchColors(hx), placeholder: 'Search conversations', onChangeText: (e: { nativeEvent: { text: string } }) => setQ(e.nativeEvent.text) }), [hx]);
   const needle = q.trim().toLowerCase();
   const shown = (data ?? []).filter((s) => !needle || `${s.title} ${s.preview} ${s.worktree ?? ''}`.toLowerCase().includes(needle));
-  const go = (pathname: '/files' | '/git' | '/preview' | '/instructions' | '/schedule' | '/new') => router.push({ pathname, params: { cwd } });
+  const go = (pathname: '/files' | '/git' | '/preview' | '/instructions' | '/schedule' | '/new' | '/compares') => router.push({ pathname, params: { cwd } });
 
   const terminal = () =>
     post<{ name: string }>('/terms', { cwd }).then((r) => router.push({ pathname: '/term/[name]', params: { name: r.name, cwd } }), (e) => Alert.alert('Could not open a terminal', e.message));
@@ -45,6 +45,7 @@ export default function ProjectScreen() {
           <Stack.Toolbar.MenuAction icon={tb('globe')} onPress={() => go('/preview')}>Preview dev server</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon={tb('text.book.closed')} onPress={() => go('/instructions')}>Instructions</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon={tb('calendar.badge.plus')} onPress={() => go('/schedule')}>Schedule a run</Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon={tb('square.on.square')} onPress={() => go('/compares')}>Compare agents</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction icon={tb('archivebox')} isOn={archived} onPress={() => setArchived((a) => !a)}>Show archived</Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
         <Stack.Toolbar.Button icon={tb('square.and.pencil')} onPress={() => go('/new')} />

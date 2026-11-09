@@ -7,17 +7,21 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	goruntime "runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/AJAmit17/luther/server/internal/acp"
+	"github.com/AJAmit17/luther/server/internal/artifacts"
 	"github.com/AJAmit17/luther/server/internal/auth"
 	"github.com/AJAmit17/luther/server/internal/claude"
 	"github.com/AJAmit17/luther/server/internal/codex"
@@ -30,10 +34,13 @@ import (
 	"github.com/AJAmit17/luther/server/internal/preview"
 	"github.com/AJAmit17/luther/server/internal/protocol"
 	"github.com/AJAmit17/luther/server/internal/remote"
+	"github.com/AJAmit17/luther/server/internal/restore"
 	"github.com/AJAmit17/luther/server/internal/schedule"
 	"github.com/AJAmit17/luther/server/internal/sessions"
+	"github.com/AJAmit17/luther/server/internal/templates"
 	"github.com/AJAmit17/luther/server/internal/terminal"
 	"github.com/AJAmit17/luther/server/internal/text"
+	"github.com/AJAmit17/luther/server/internal/tools"
 	"github.com/AJAmit17/luther/server/internal/tunnel"
 	"github.com/AJAmit17/luther/server/internal/uploads"
 	"github.com/AJAmit17/luther/server/internal/usage"
@@ -42,6 +49,7 @@ import (
 
 // Handler: every route of `luther serve`.
 func Handler(cfg *config.Config) http.Handler {
+	selfPort = cfg.Port
 	mux := http.NewServeMux()
 	a := auth.New(cfg)
 	wrap := httpx.Wrap(a.Wrap)
@@ -72,6 +80,12 @@ func Handler(cfg *config.Config) http.Handler {
 	mux.HandleFunc("GET /commands", wrap(commands))
 	mux.HandleFunc("GET /dirs", wrap(dirs))
 	mux.HandleFunc("GET /usage", wrap(limits))
+	mux.HandleFunc("GET /templates", wrap(func(w http.ResponseWriter, r *http.Request) { httpx.WriteJSON(w, templates.List()) }))
+	mux.HandleFunc("POST /walkthroughs", wrap(walkthrough))
+	artifacts.Routes(mux, wrap)
+	toolRoutes(mux)
+	compareRoutes(mux, wrap)
+	workbenchRoutes(mux, wrap, cfg)
 	usage.Routes(mux, wrap)
 	schedule.Start(mux, wrap, open)
 	remote.Start(mux, wrap, func(r *http.Request) bool { return auth.DeviceID(r) == auth.Admin })
@@ -79,6 +93,21 @@ func Handler(cfg *config.Config) http.Handler {
 	preview.Routes(mux, wrap, cfg.Port) // last: it owns "/"
 	return mux
 }
+
+// sweepToolConfigs: Claude's tool configs left by a crash (each holds a token
+// that died with the server; a running claude read its own at start).
+func sweepToolConfigs() {
+	dir := filepath.Join(config.Dir(), "mcp")
+	ents, _ := os.ReadDir(dir)
+	for _, e := range ents {
+		if fi, err := e.Info(); err == nil && time.Since(fi.ModTime()) > 24*time.Hour {
+			os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
+}
+
+// selfPort: where this server listens, for the agents' tool server to call back.
+var selfPort = config.DefaultPort
 
 // Serve runs the server on 127.0.0.1 (tailscale serve / cloudflared proxy to it).
 func Serve(cfg *config.Config) {
@@ -102,7 +131,24 @@ func Serve(cfg *config.Config) {
 	// Header and idle timeouts against slow or idle connections from the
 	// internet; no read/write timeout, which would cut WebSockets.
 	srv := &http.Server{Addr: addr, Handler: Handler(cfg), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
-	log.Fatal(srv.ListenAndServe())
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Threads that were working when Luther last stopped come back, once it
+	// listens (their agents start Luther's tool server, which calls back).
+	go restore.Resume(open)
+	go restore.Keep()
+	go func() {
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
+		<-sig
+		if err := restore.Save(); err != nil {
+			log.Printf("save running threads: %v", err)
+		}
+		os.Exit(0)
+	}()
+	log.Fatal(srv.Serve(ln))
 }
 
 // openThread: POST /threads OpenReq → {id}. Attaches to the thread already
@@ -135,6 +181,17 @@ func open(req protocol.OpenReq) (*hub.Thread, int, error) {
 			return t, 200, nil
 		}
 	}
+	var role *protocol.Template
+	if req.Template != "" {
+		tp, ok := templates.Get(req.Template)
+		if !ok {
+			return nil, http.StatusBadRequest, errors.New("no such template")
+		}
+		role = &tp
+		req.Provider = protocol.Provider(text.OrDefault(string(req.Provider), string(tp.Provider)))
+		req.Model = text.OrDefault(req.Model, tp.Model)
+		req.Mode = text.OrDefault(req.Mode, tp.Mode)
+	}
 	if req.Worktree {
 		dir, err := workspace.NewWorktree(req.Cwd)
 		if err != nil {
@@ -142,6 +199,8 @@ func open(req protocol.OpenReq) (*hub.Thread, int, error) {
 		}
 		req.Cwd = dir
 	}
+	tok, spec := tools.ForThread(selfPort)
+	req.Tools = spec
 	var t *hub.Thread
 	var err error
 	switch req.Provider {
@@ -158,13 +217,22 @@ func open(req protocol.OpenReq) (*hub.Thread, int, error) {
 	}
 	switch {
 	case errors.Is(err, claude.ErrHeld):
+		tools.Drop(tok)
 		return nil, http.StatusConflict, err
 	case err != nil:
+		tools.Drop(tok)
 		return nil, http.StatusBadGateway, err
 	}
 	if got := hub.Register(t); got != t { // lost a race with another open
 		t.Runtime().Stop()
 		t = got
+	}
+	tools.Bind(tok, t.ID)
+	if req.Unattended {
+		t.SetUnattended()
+	}
+	if role != nil {
+		t.SetPrefix(role.Instructions)
 	}
 	return t, 200, nil
 }
@@ -180,7 +248,10 @@ func listOpen(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, out)
 }
 
-func providers(w http.ResponseWriter, r *http.Request) {
+func providers(w http.ResponseWriter, r *http.Request) { httpx.WriteJSON(w, providerInfos()) }
+
+// providerInfos: every agent Luther knows, whether it's installed, and its version.
+func providerInfos() []protocol.ProviderInfo {
 	ver := func(bin string) (string, bool) {
 		out, err := exec.Command(bin, "--version").Output()
 		return strings.TrimSpace(string(out)), err == nil
@@ -196,7 +267,7 @@ func providers(w http.ResponseWriter, r *http.Request) {
 		v, ok := a.Version()
 		out = append(out, protocol.ProviderInfo{ID: a.ID, Name: a.Name, Installed: ok, Version: v, Modes: modes})
 	}
-	httpx.WriteJSON(w, out)
+	return out
 }
 
 func commands(w http.ResponseWriter, r *http.Request) {
@@ -251,6 +322,8 @@ func limits(w http.ResponseWriter, r *http.Request) {
 func housekeeping() {
 	for {
 		uploads.Sweep()
+		artifacts.Prune()
+		sweepToolConfigs()
 		env.CapLog(filepath.Join(config.Dir(), "serve.log"), 5<<20)
 		time.Sleep(time.Hour)
 	}

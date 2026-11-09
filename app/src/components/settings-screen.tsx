@@ -129,6 +129,11 @@ export default function Settings() {
             {!devices.length && <GroupRow first label="Loading…" />}
           </Group>
 
+          <Group title="This Mac" footer="Luther's version, each agent and its process, and the server's log.">
+            <GroupRow first icon="heart.text.square" iconColor={c.accent} label="Health" onPress={() => router.push('/health')} right={<Icon name="chevron.right" size={13} color={c.faint} />} />
+            <GroupRow icon="doc.plaintext" iconColor={c.dim} label="Server log" onPress={() => router.push('/log')} right={<Icon name="chevron.right" size={13} color={c.faint} />} />
+          </Group>
+
           <Group>
             <GroupRow first icon="plus.circle" iconColor={c.accent} label="Pair another Mac" onPress={() => router.push('/pair')} />
             <GroupRow icon="trash" destructive label="Forget this Mac" onPress={forget} />

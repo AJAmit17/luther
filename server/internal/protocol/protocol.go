@@ -18,6 +18,7 @@ import "time"
 //   GET  /runs                            → [Run] (open threads; for background refresh)
 //   POST /threads/{id}/interrupt          (the Live Activity's Stop)
 //   POST /threads/{id}/answer Answer      (a notification's Approve / Deny / Reply)
+//   POST /threads/{id}/goal {objective, rounds?} (work toward it, judged after each turn) · DELETE /threads/{id}/goal
 //   GET  /threads/{id}/turns              → [Turn] · GET …/turns/{n}/diff (text) · POST …/turns/{n}/revert
 //   GET  /providers                       → [ProviderInfo]
 //   GET  /models?provider=                → [string]
@@ -36,11 +37,29 @@ import "time"
 //   GET  /files?cwd=&path=                → FileEntry list (dir) or FileContent (file)
 //   PUT  /files {cwd, path, text, base}   → FileContent (base: the hash you edited; "" creates; 409 if it changed)
 //   GET  /git/status?cwd= · GET /git/diff?cwd=&path= · POST /git/commit {cwd, message}
-//   POST /git/push {cwd} · POST /git/pr {cwd, title, body} → {url} · DELETE /git/worktree?cwd=
+//   POST /git/push {cwd} · POST /git/pr {cwd, title, body} → {url} · DELETE /git/worktree?cwd=[&force=1][&branch=1]
+//   GET  /git/branches?cwd= → Branches · POST /git/checkout {cwd, branch, create?} · POST /git/abort {cwd}
+//   POST /git/stash {cwd, message?} · POST /git/stash/apply {cwd, ref, drop?} · DELETE /git/stash?cwd=&ref=
+//   GET  /git/worktrees?cwd= → [WorktreeInfo] · POST /git/worktree/bring {cwd} (a worktree's changes into its main checkout)
+//   POST /git/message {cwd, provider?} → {subject, body} (a commit message written from the diff)
 //   GET  /schedules → [Job] · POST /schedules Job (create, or update by id) → Job · DELETE /schedules/{id} · POST /schedules/{id}/run → {thread}
+//   POST /schedules/{id}/read (its runs' reports seen)
 //   GET  /usage                           → [Limits] (plan usage per agent)
 //   GET  /ports                           → [Port] (dev servers listening on this Mac)
+//   GET  /health → Health · GET /logs?lines= (text: the end of serve.log) · POST /agents/{id}/restart
+//   POST /shell {cwd, command} → {output, code} (one command, 2 minutes at most)
+//   GET  /files/search?cwd=&q= → [path] · GET /files/raw?cwd=&path= → {type, data} (a picture)
+//   POST /files/mkdir {cwd, path} · POST /files/rename {cwd, from, to} · POST /files/upload?cwd=&path=[&replace=1] (raw body) · DELETE /files?cwd=&path= (to the Trash)
 //   POST /previews {port}                 → {path} (open route+path in a browser: no token needed, it is one)
+//   POST /artifacts/{id}/link             → {path} (an agent's HTML page; open route+path in a browser, like a preview)
+//   GET  /templates                       → [Template] (agent roles: ~/.luther/templates/*.md and built-ins)
+//   POST /walkthroughs {cwd, thread?, turn?, provider?} → {id} (a new thread that explains the changes as an artifact)
+//   POST /compares {cwd, prompt, mode?, runs: [{provider, model?}]} → Compare (one prompt, several agents, a worktree each)
+//   GET  /compares?cwd= → [Compare] · GET /compares/{id} → Compare
+//   POST /compares/{id}/keep {thread} (its changes into your checkout) · POST /compares/{id}/combine {provider?} → {id}
+//
+// Agent tools (only from this Mac, with the per-thread token `luther mcp` was started with):
+//   GET  /agent-tools → MCP tool list · POST /agent-tools/{name} {arguments} → {text, isError}
 
 type Provider string
 
@@ -102,6 +121,37 @@ type OpenReq struct {
 	Model    string   `json:"model,omitempty"`
 	Mode     string   `json:"mode,omitempty"`
 	Worktree bool     `json:"worktree,omitempty"` // new thread in its own git worktree + branch
+	Template string   `json:"template,omitempty"` // an agent role: fills provider/model/mode when empty, prefixes the first message
+
+	// Tools: the `luther mcp` server the agent gets for this thread (set by the server, never by a client).
+	Tools *ToolServer `json:"-"`
+	// Unattended: nobody is watching (a scheduled run): every approval, question
+	// or plan is declined with a note instead of waiting, and Claude is denied
+	// the commands in Blocked (set by the server, never by a client).
+	Unattended bool `json:"-"`
+}
+
+// ToolServer: how an agent starts Luther's tool server (MCP over stdio).
+type ToolServer struct {
+	Command string
+	Args    []string
+	Env     map[string]string
+}
+
+// Blocked: commands an unattended run never gets to run (Claude's deny rules).
+var Blocked = []string{"sudo", "git push --force", "git push -f", "git reset --hard", "git clean", "rm -rf /", "rm -rf ~",
+	"shutdown", "reboot", "mkfs", "dd", "diskutil erase", "killall", "kill -9"}
+
+// Template: an agent role, from ~/.luther/templates/<name>.md (front matter,
+// then the instructions) or built in.
+type Template struct {
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	Provider     Provider `json:"provider,omitempty"`
+	Model        string   `json:"model,omitempty"`
+	Mode         string   `json:"mode,omitempty"`
+	Instructions string   `json:"instructions"`
+	BuiltIn      bool     `json:"builtIn,omitempty"`
 }
 
 type ThreadInfo struct {
@@ -134,6 +184,18 @@ type State struct {
 	ContextTokens int64    `json:"contextTokens,omitempty"`
 	Tasks         []Task   `json:"tasks,omitempty"` // the agent's own todo list / plan
 	Dup           bool     `json:"dup,omitempty"`   // a CLI outside Luther also has it open
+	Goal          *Goal    `json:"goal,omitempty"`
+}
+
+// Goal: work toward Objective turn after turn. After each turn a judge (a
+// one-off model call that sees only the objective and the latest reply)
+// says done, blocked or continue; Luther sends the next round itself.
+type Goal struct {
+	Objective string `json:"objective"`
+	Rounds    int    `json:"rounds"` // at most this many turns
+	Round     int    `json:"round"`
+	Status    string `json:"status"`         // working | judging | done | blocked | limit | stopped | failed | paused
+	Note      string `json:"note,omitempty"` // the judge's last reason, or what went wrong
 }
 
 type Task struct {
@@ -189,7 +251,7 @@ type Repository struct {
 // Msg: one chat row.
 type Msg struct {
 	ID   string `json:"id"`
-	Role string `json:"role"` // user | assistant | tool | system
+	Role string `json:"role"` // user | assistant | tool | system | artifact (Text: its title, ID: POST /artifacts/{id}/link)
 	Text string `json:"text"`
 	Tool string `json:"tool,omitempty"`
 	// Parent: the subagent call (that tool row's ID) this step belongs to.
@@ -258,13 +320,14 @@ type Answer struct {
 
 // ClientFrame, client → server.
 type ClientFrame struct {
-	Type   string   `json:"type"` // send | answer | interrupt | mode | model | effort | fast
+	Type   string   `json:"type"` // send | answer | interrupt | mode | model | effort | fast | goal (Text, Rounds) | goal_stop | compact
 	Text   string   `json:"text,omitempty"`
 	Files  []string `json:"files,omitempty"` // with send: paths from POST /uploads
 	Mode   string   `json:"mode,omitempty"`
 	Model  string   `json:"model,omitempty"`
 	Effort string   `json:"effort,omitempty"`
 	Fast   bool     `json:"fast,omitempty"`
+	Rounds int      `json:"rounds,omitempty"`
 	Answer
 }
 
@@ -336,11 +399,40 @@ type FileContent struct {
 }
 
 type GitStatus struct {
-	Branch   string      `json:"branch"`
-	Upstream string      `json:"upstream,omitempty"`
-	Ahead    int         `json:"ahead"`
-	Worktree bool        `json:"worktree,omitempty"` // a Luther worktree (removable)
-	Files    []GitChange `json:"files"`
+	Branch    string      `json:"branch"`
+	Upstream  string      `json:"upstream,omitempty"`
+	Ahead     int         `json:"ahead"`
+	Worktree  bool        `json:"worktree,omitempty"`  // a Luther worktree (removable)
+	Operation string      `json:"operation,omitempty"` // merge | rebase | cherry-pick | revert, while one is stopped
+	Files     []GitChange `json:"files"`
+}
+
+// Branches: GET /git/branches.
+type Branches struct {
+	Current  string      `json:"current"`
+	Branches []GitBranch `json:"branches"` // local, most recent commit first
+	Stashes  []Stash     `json:"stashes"`
+}
+
+type GitBranch struct {
+	Name     string `json:"name"`
+	Upstream string `json:"upstream,omitempty"`
+	Last     int64  `json:"last"` // ms, its latest commit
+}
+
+type Stash struct {
+	Ref     string `json:"ref"` // stash@{n}
+	Message string `json:"message"`
+	At      int64  `json:"at"`
+}
+
+// WorktreeInfo: one of Luther's worktrees of a repository.
+type WorktreeInfo struct {
+	Path    string `json:"path"`
+	Branch  string `json:"branch"`
+	Files   int    `json:"files"`
+	Added   int    `json:"added"`
+	Removed int    `json:"removed"`
 }
 
 type GitChange struct {
@@ -387,10 +479,70 @@ type Job struct {
 	Model    string   `json:"model,omitempty"`
 	Worktree bool     `json:"worktree,omitempty"` // each run in its own worktree
 	// Filled by the server:
-	Next       int64  `json:"next,omitempty"`    // ms
-	LastRun    int64  `json:"lastRun,omitempty"` // ms
-	LastThread string `json:"lastThread,omitempty"`
-	LastError  string `json:"lastError,omitempty"`
+	Next       int64    `json:"next,omitempty"`    // ms
+	LastRun    int64    `json:"lastRun,omitempty"` // ms
+	LastThread string   `json:"lastThread,omitempty"`
+	LastError  string   `json:"lastError,omitempty"`
+	Runs       []JobRun `json:"runs,omitempty"` // newest first, at most 20
+}
+
+// JobRun: one scheduled run and how it went. Runs are unattended: nothing
+// waits on you; what needed you was declined and the agent says so.
+type JobRun struct {
+	ID       string   `json:"id"`
+	At       int64    `json:"at"` // ms
+	Manual   bool     `json:"manual,omitempty"`
+	Thread   string   `json:"thread,omitempty"`
+	Provider Provider `json:"provider"`
+	Session  string   `json:"session,omitempty"` // to open the conversation once the thread is closed
+	Cwd      string   `json:"cwd,omitempty"`
+	Status   string   `json:"status"`           // working | finished | failed
+	Report   string   `json:"report,omitempty"` // the agent's last reply
+	Ended    int64    `json:"ended,omitempty"`
+	Read     bool     `json:"read,omitempty"`
+}
+
+// Compare: one prompt given to several agents, each in its own worktree.
+type Compare struct {
+	ID      string       `json:"id"`
+	Cwd     string       `json:"cwd"`
+	Prompt  string       `json:"prompt"`
+	Mode    string       `json:"mode"`
+	Created int64        `json:"created"`
+	Runs    []CompareRun `json:"runs"`
+	Kept    string       `json:"kept,omitempty"` // the thread whose changes went into your checkout
+}
+
+type CompareRun struct {
+	Provider Provider `json:"provider"`
+	Model    string   `json:"model,omitempty"`
+	Thread   string   `json:"thread,omitempty"`
+	Session  string   `json:"session,omitempty"`
+	Worktree string   `json:"worktree,omitempty"`
+	Error    string   `json:"error,omitempty"`
+	// Filled when asked:
+	Status  string `json:"status,omitempty"` // working | waiting | finished | failed | idle | ended
+	Reply   string `json:"reply,omitempty"`
+	Files   int    `json:"files"`
+	Added   int    `json:"added"`
+	Removed int    `json:"removed"`
+}
+
+// Health: GET /health, what Luther and each agent are doing.
+type Health struct {
+	Version string        `json:"version"`
+	Started int64         `json:"started"` // ms
+	Name    string        `json:"name"`
+	Agents  []AgentHealth `json:"agents"`
+}
+
+type AgentHealth struct {
+	ID        Provider `json:"id"`
+	Name      string   `json:"name"`
+	Installed bool     `json:"installed"`
+	Version   string   `json:"version,omitempty"`
+	Running   bool     `json:"running"` // its process is up (Claude: one per thread)
+	Threads   int      `json:"threads"` // open in Luther
 }
 
 // Port: a TCP port something of yours listens on (a dev server, usually).

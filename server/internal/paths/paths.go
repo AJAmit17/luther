@@ -27,6 +27,10 @@ func InHome(p string) bool {
 func Private(p string) bool {
 	home := realHome()
 	p = resolve(p)
+	// Luther's worktrees are your code, checked out for an agent: reachable.
+	if under(p, filepath.Join(home, ".luther", "worktrees")) && p != filepath.Join(home, ".luther", "worktrees") {
+		return false
+	}
 	for _, d := range []string{".luther", ".ssh", ".gnupg", ".aws", filepath.Join("Library", "Keychains")} {
 		if under(p, filepath.Join(home, d)) {
 			return true

@@ -206,6 +206,16 @@ export async function upload(uri: string, name: string): Promise<string> {
   return r.path;
 }
 
+/** A file from the phone into the project at path (refused if one is there, unless replace). */
+export async function uploadTo(cwd: string, path: string, uri: string, replace = false): Promise<void> {
+  const body = await new File(uri).bytes();
+  await api<string>(`/files/upload?cwd=${encodeURIComponent(cwd)}&path=${encodeURIComponent(path)}${replace ? '&replace=1' : ''}`, {
+    method: 'POST',
+    body,
+    headers: { 'Content-Type': 'application/octet-stream' },
+  });
+}
+
 // Pairing payload from `luther pair`: {v, name, routes, code, pub}. The code goes
 // sealed to pub (which came in the QR, never over the network), so a relay sees
 // neither it nor the token that comes back.

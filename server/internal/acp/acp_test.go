@@ -227,3 +227,39 @@ func TestKnobs(t *testing.T) {
 		t.Errorf("models: %+v", ms)
 	}
 }
+
+// An agent that lists its models only in the older models field (Gemini CLI)
+// is switched with session/set_model, and its current model shows.
+func TestOldModelField(t *testing.T) {
+	paths.Home = t.TempDir()
+	agent, _ := Find(protocol.Gemini)
+	toAgent, clientIn := io.Pipe()
+	defer toAgent.Close()
+	defer clientIn.Close()
+	s := &server{Conn: rpc.New("fake Gemini", clientIn, true), agent: agent, rts: map[string]*runtime{}}
+	got := make(chan string, 1)
+	go func() {
+		line, _ := bufio.NewReader(toAgent).ReadBytes('\n')
+		var m rpc.Msg
+		json.Unmarshal(line, &m)
+		var p struct{ SessionID, ModelID string }
+		json.Unmarshal(m.Params, &p)
+		got <- m.Method + " " + p.SessionID + " " + p.ModelID
+	}()
+	thread, rt := s.newThread("g1", paths.Home, protocol.ModeAsk)
+	var resp sessionResp
+	json.Unmarshal([]byte(`{"models":{"currentModelId":"auto","availableModels":[{"modelId":"auto"},{"modelId":"flash"}]}}`), &resp)
+	rt.configure(resp)
+	if st := thread.State(); st.Model != "auto" {
+		t.Fatalf("current model not shown: %q", st.Model)
+	}
+	go rt.SetModel("flash") // the fake peer never replies; the request is what matters
+	select {
+	case m := <-got:
+		if m != "session/set_model g1 flash" {
+			t.Fatal(m)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no session/set_model")
+	}
+}

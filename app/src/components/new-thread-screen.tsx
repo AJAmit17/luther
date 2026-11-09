@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { MenuView } from '@expo/ui/community/menu';
 import { api } from '@/lib/hosts';
-import type { Mode, Provider, ProviderInfo, Repository } from '@/lib/protocol';
+import type { Mode, Provider, ProviderInfo, Repository, Template } from '@/lib/protocol';
 import { openThread } from '@/lib/threads';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ModelPicker, modelName, useModels } from '@/components/model-picker';
@@ -21,6 +21,18 @@ export default function NewThread() {
   const [model, setModel] = useState('');
   const [mode, setMode] = useState<Mode>('ask');
   const [worktree, setWorktree] = useState(false);
+  // A role (~/.luther/templates on the Mac): its instructions go before your first message.
+  const { data: roles } = useLoad(() => api<Template[]>('/templates'), [], 'templates');
+  const [role, setRole] = useState('');
+  const pickRole = (name: string) => {
+    setRole(name);
+    const t = roles?.find((r) => r.name === name);
+    if (!t) return;
+    if (t.provider && installed.some((x) => x.id === t.provider)) setProvider(t.provider);
+    if (t.mode) setMode(t.mode);
+    setModel(t.model ?? '');
+  };
+  const roleInfo = roles?.find((r) => r.name === role);
   const [repo, setRepo] = useState('');
   const { data: repos, error: repoError, loading: loadingRepos } = useLoad(
     () => worktree ? api<Repository[]>('/git/repos?cwd=' + encodeURIComponent(cwd)) : Promise.resolve<Repository[]>([]),
@@ -65,6 +77,18 @@ export default function NewThread() {
           );
         })}
       </View>
+
+      {!!roles?.length && (
+        <Group title="Role" footer={roleInfo ? roleInfo.description : 'Roles are Markdown files in ~/.luther/templates on your Mac.'}>
+          <MenuView
+            colorScheme={scheme}
+            actions={[{ id: '', title: 'None', state: role ? 'off' : 'on' }, ...roles.map((r) => ({ id: r.name, title: r.name, subtitle: r.description, state: (r.name === role ? 'on' : 'off') as 'on' | 'off' }))]}
+            onPressAction={({ nativeEvent }) => pickRole(nativeEvent.event)}
+          >
+            <GroupRow first icon="theatermasks" label={role || 'None'} sub={roleInfo ? 'Its instructions go before your first message' : undefined} right={<Icon name="chevron.up.chevron.down" size={13} color={c.faint} />} />
+          </MenuView>
+        </Group>
+      )}
 
       <Group title="Model">
         <GroupRow
@@ -111,7 +135,7 @@ export default function NewThread() {
         onPress={() => {
           setBusy(true);
           const dir = worktree && !cwd.startsWith(worktreeCwd + '/') ? worktreeCwd : cwd;
-          openThread({ provider: p!, cwd: dir, mode, model: model || undefined, worktree: worktree || undefined }, true).finally(() => setBusy(false));
+          openThread({ provider: p!, cwd: dir, mode, model: model || undefined, worktree: worktree || undefined, template: role || undefined }, true).finally(() => setBusy(false));
         }}
       />
     </ScrollView>

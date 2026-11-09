@@ -1,7 +1,9 @@
 import { memo, useEffect, useState } from 'react';
 import { Image } from 'expo-image';
 import { api } from '@/lib/hosts';
-import { LayoutAnimation, Pressable, Text, View } from 'react-native';
+import { openArtifact } from '@/lib/artifacts';
+import { isReading, readAloud, stopReading } from '@/lib/speech';
+import { ActivityIndicator, Alert, LayoutAnimation, Pressable, Text, View } from 'react-native';
 import { Markdown } from '@/components/markdown';
 import { Icon, PulsingDot, c, card, mono, tint, type, useHex } from '@/components/ui';
 import { workSummary, type Block } from '@/lib/blocks';
@@ -149,6 +151,28 @@ function AgentCard({ m, steps, live }: { m: Msg; steps: Msg[]; live: boolean }) 
   );
 }
 
+/** A page the agent made (show_artifact): opens in a Safari sheet, fresh each time. */
+function ArtifactCard({ m }: { m: Msg }) {
+  useHex();
+  const [opening, setOpening] = useState(false);
+  const open = () => {
+    setOpening(true);
+    openArtifact(m.id, m.text).finally(() => setOpening(false));
+  };
+  return (
+    <Pressable onPress={open} accessibilityRole="button" accessibilityLabel={`Open ${m.text}`} style={({ pressed }) => [card, { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, opacity: pressed ? 0.75 : 1 }]}>
+      <View style={{ width: 36, height: 36, borderRadius: 10, borderCurve: 'continuous', backgroundColor: tint('accent', 0.12), alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="doc.richtext" size={18} color={c.accent} />
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={[type.subhead, { fontWeight: '600' }]} numberOfLines={2}>{m.text || 'Page'}</Text>
+        <Text style={type.caption}>Page · opens in Safari</Text>
+      </View>
+      {opening ? <ActivityIndicator /> : <Icon name="arrow.up.right.square" size={16} color={c.faint} />}
+    </Pressable>
+  );
+}
+
 function Notice({ text }: { text: string }) {
   useHex();
   return (
@@ -170,6 +194,22 @@ function ErrorRow({ text }: { text: string }) {
   );
 }
 
+/** An agent's reply; long-press to hear it. */
+function Reply({ m }: { m: Msg }) {
+  const menu = () =>
+    isReading(m.id)
+      ? stopReading()
+      : Alert.alert('Read aloud?', undefined, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Read aloud', onPress: () => readAloud(m.id, m.text) },
+        ]);
+  return (
+    <Pressable onLongPress={menu} delayLongPress={350} accessibilityHint="Long-press to read it aloud">
+      <Markdown text={m.text} />
+    </Pressable>
+  );
+}
+
 /** One block of the chat. */
 export const BlockRow = memo(function BlockRow({ b, live, activity }: { b: Block; live: boolean; activity?: string }) {
   useHex();
@@ -179,5 +219,6 @@ export const BlockRow = memo(function BlockRow({ b, live, activity }: { b: Block
   if (m.role === 'user') return <UserBubble text={m.text} images={m.images} />;
   if (m.role === 'system') return m.id.startsWith('err-') ? <ErrorRow text={m.text} /> : <Notice text={m.text} />;
   if (m.role === 'tool') return <StepRow m={m} />;
-  return <Markdown text={m.text} />;
+  if (m.role === 'artifact') return <ArtifactCard m={m} />;
+  return <Reply m={m} />;
 });

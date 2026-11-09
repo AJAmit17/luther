@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Alert, ScrollView, Text } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { api, post } from '@/lib/hosts';
@@ -14,6 +15,14 @@ export default function Diff() {
     () => api<string>(turn ? turn + '/diff' : `/git/diff?cwd=${encodeURIComponent(cwd ?? '')}${path ? '&path=' + encodeURIComponent(path) : ''}`),
     [cwd, path, turn],
   );
+  // A new thread whose agent explains this change as a page (it opens with the thread).
+  const [walking, setWalking] = useState(false);
+  const walk = () => {
+    setWalking(true);
+    post<{ id: string }>('/walkthroughs', turn ? { thread, turn: Number(n) } : { cwd })
+      .then(({ id }) => router.push({ pathname: '/thread/[id]', params: { id } }), (e) => Alert.alert('Couldn’t start a walkthrough', e.message))
+      .finally(() => setWalking(false));
+  };
   const revert = () =>
     Alert.alert(`Undo turn ${n} and everything after it?`, 'Files go back to how they were before this turn. The conversation itself is kept.', [
       { text: 'Cancel', style: 'cancel' },
@@ -22,9 +31,10 @@ export default function Diff() {
   return (
     <>
       <Stack.Screen options={{ title: turn ? `Turn ${n}` : path ? path.split('/').pop() : 'All changes' }} />
-      {!!turn && (
+      {(!!turn || !path) && (
         <Stack.Toolbar placement="right">
-          <Stack.Toolbar.Button icon={tb('arrow.uturn.backward')} onPress={revert} />
+          {!!data && <Stack.Toolbar.Button icon={tb('sparkles')} onPress={walk} disabled={walking} accessibilityLabel="Walk me through it" />}
+          {!!turn && <Stack.Toolbar.Button icon={tb('arrow.uturn.backward')} onPress={revert} />}
         </Stack.Toolbar>
       )}
       <ScrollView style={{ flex: 1, backgroundColor: c.bg as any }} contentInsetAdjustmentBehavior="automatic">

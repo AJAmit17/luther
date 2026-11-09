@@ -16,6 +16,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -388,6 +389,7 @@ type sessionResp struct {
 	SessionID string   `json:"sessionId"`
 	Config    []option `json:"configOptions"`
 	Models    *struct {
+		Current   string `json:"currentModelId"`
 		Available []struct {
 			ID   string `json:"modelId"`
 			Name string `json:"name"`
@@ -413,6 +415,7 @@ type runtime struct {
 	queue    []string // sent while a turn runs (ACP can't steer)
 	mode     string   // Luther's
 	config   []option // the agent's selectable options (model, mode)
+	oldModel bool     // models only in the older models field (Gemini CLI): set with session/set_model
 	agentDef string   // the agent's own mode to return to when leaving plan
 
 	// hub lock: text being streamed, and replayed history while loading.
@@ -431,7 +434,7 @@ func Open(a Agent, r protocol.OpenReq) (*hub.Thread, error) {
 		return nil, err
 	}
 	mode := text.OrDefault(r.Mode, protocol.ModeAsk)
-	base := map[string]any{"cwd": r.Cwd, "mcpServers": []any{}}
+	base := map[string]any{"cwd": r.Cwd, "mcpServers": mcpServers(r.Tools)}
 	method := "session/new"
 	switch {
 	case r.Resume != "" && r.Fork:
@@ -487,6 +490,19 @@ func Open(a Agent, r protocol.OpenReq) (*hub.Thread, error) {
 	return t, nil
 }
 
+// mcpServers: Luther's tool server in ACP's form (stdio; env as a list).
+func mcpServers(ts *protocol.ToolServer) []any {
+	if ts == nil {
+		return []any{}
+	}
+	env := []map[string]string{}
+	for k, v := range ts.Env {
+		env = append(env, map[string]string{"name": k, "value": v})
+	}
+	sort.Slice(env, func(i, j int) bool { return env[i]["name"] < env[j]["name"] })
+	return []any{map[string]any{"name": "luther", "command": ts.Command, "args": ts.Args, "env": env}}
+}
+
 func (s *server) newThread(id, cwd, mode string) (*hub.Thread, *runtime) {
 	t := hub.New(id, protocol.State{Provider: s.agent.ID, Session: id, Cwd: cwd, Mode: mode})
 	rt := &runtime{t: t, s: s, id: id, mode: mode}
@@ -518,6 +534,10 @@ func (c *runtime) configure(r sessionResp) {
 				c.agentDef = o.Current
 			}
 		}
+	}
+	c.oldModel = model == "" && r.Models != nil && len(r.Models.Available) > 0
+	if c.oldModel {
+		model = r.Models.Current
 	}
 	if r.Modes != nil && c.agentDef == "" && !strings.Contains(r.Modes.Current, "plan") {
 		c.agentDef = r.Modes.Current
@@ -935,8 +955,15 @@ func (c *runtime) SetModel(m string) error {
 		return errors.New("empty model")
 	}
 	c.mu.Lock()
-	cfg := c.config
+	cfg, old := c.config, c.oldModel
 	c.mu.Unlock()
+	if old {
+		if _, err := c.s.Call("session/set_model", map[string]any{"sessionId": c.id, "modelId": m}); err != nil {
+			return err
+		}
+		c.t.Do(func(st *protocol.State) { st.Model = m })
+		return nil
+	}
 	for _, o := range cfg {
 		if o.Category == "model" {
 			if err := c.setOption(o.ID, m); err != nil {
@@ -1028,4 +1055,29 @@ func (c *runtime) Stop() {
 	}
 	c.s.drop(c.id)
 	c.t.End()
+}
+
+// Running: whether the agent's process is up, and how many threads it hosts.
+func Running(id protocol.Provider) (bool, int) {
+	procs.Lock()
+	s := procs.m[id]
+	procs.Unlock()
+	if s == nil || s.Dead() {
+		return false, 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return true, len(s.rts)
+}
+
+// Restart stops the agent's process; its threads end (reopening resumes
+// them) and the next request starts a fresh one.
+func Restart(id protocol.Provider) {
+	procs.Lock()
+	s := procs.m[id]
+	delete(procs.m, id)
+	procs.Unlock()
+	if s != nil && s.cmd.Process != nil {
+		s.cmd.Process.Kill()
+	}
 }

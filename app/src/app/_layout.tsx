@@ -83,12 +83,21 @@ export default function Layout() {
           <Stack.Screen name="project" />
           <Stack.Screen name="pair" options={{ title: 'Pair a Mac', presentation: 'modal' }} />
           <Stack.Screen name="new" options={{ ...sheet, sheetAllowedDetents: [0.75, 1] }} />
+          <Stack.Screen name="goal" options={{ ...sheet, sheetAllowedDetents: [0.75, 1] }} />
+          <Stack.Screen name="compare-new" options={{ ...sheet, sheetAllowedDetents: [1] }} />
+          <Stack.Screen name="compares" options={{ title: 'Compare agents' }} />
+          <Stack.Screen name="compare/[id]" options={{ title: 'Comparison' }} />
           <Stack.Screen name="send" options={{ title: 'Send to Luther', presentation: 'modal' }} />
           <Stack.Screen name="browse" options={{ title: 'Pick a folder' }} />
           <Stack.Screen name="files" options={{ title: 'Files' }} />
           <Stack.Screen name="git" options={{ title: 'Changes' }} />
           <Stack.Screen name="diff" options={{ title: 'Diff' }} />
+          <Stack.Screen name="branches" options={{ title: 'Branches and stashes' }} />
+          <Stack.Screen name="health" options={{ title: 'Health' }} />
+          <Stack.Screen name="log" options={{ title: 'Server log' }} />
+          <Stack.Screen name="worktrees" options={{ title: 'Worktrees' }} />
           <Stack.Screen name="turns" options={{ title: 'Turns' }} />
+          <Stack.Screen name="runs" options={{ title: 'Reports' }} />
           <Stack.Screen name="preview" options={{ title: 'Preview' }} />
           <Stack.Screen name="instructions" options={{ title: 'Instructions' }} />
           <Stack.Screen name="edit" options={{ title: 'Edit' }} />

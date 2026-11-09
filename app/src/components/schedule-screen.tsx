@@ -21,6 +21,15 @@ const Label = ({ children }: { children: string }) => {
   return <Text style={{ color: c.dim, fontWeight: '600', fontSize: 13 }}>{children}</Text>;
 };
 
+// Prompts that make good unattended runs.
+const STARTERS = [
+  { name: 'Health report', prompt: 'Give me a short health report of this repository: failing or flaky tests, build warnings, recent TODOs, and anything that looks broken. Don’t change any files.' },
+  { name: 'Fix failing tests', prompt: 'Run the test suite. If anything fails, find the cause and fix it, then run the suite again. Report what failed and what you changed.' },
+  { name: 'Dependency check', prompt: 'List outdated or vulnerable dependencies using the package manager’s own audit and outdated commands, and what each upgrade would involve. Don’t upgrade anything.' },
+  { name: 'Docs drift', prompt: 'Compare the README and docs with the code. List what is out of date or missing, and fix the docs where you are sure.' },
+  { name: 'Security review', prompt: 'Review the code changed in the last day (git log --since=1.day) for security problems: injection, secrets in code, unsafe input handling. Report each with file and line. Don’t change any files.' },
+];
+
 // One schedule: what to run, where, with which agent, and when.
 export default function ScheduleEditor() {
   useHex();
@@ -32,8 +41,9 @@ export default function ScheduleEditor() {
   const [prompt, setPrompt] = useState(existing?.prompt ?? '');
   const [cwd, setCwd] = useState(existing?.cwd ?? params.cwd ?? '');
   const [provider, setProvider] = useState<Provider | null>(existing?.provider ?? null);
-  const [mode, setMode] = useState<Mode>(existing?.mode ?? 'ask');
-  const [worktree, setWorktree] = useState(existing?.worktree ?? false);
+  // Runs are unattended: in Ask mode every edit would be declined, so new ones start in Edits, in their own worktree.
+  const [mode, setMode] = useState<Mode>(existing?.mode ?? 'edits');
+  const [worktree, setWorktree] = useState(existing?.worktree ?? true);
   const [preset, setPreset] = useState<Preset>(start.preset);
   const [time, setTime] = useState(start.time);
   const [day, setDay] = useState(start.day);
@@ -57,6 +67,13 @@ export default function ScheduleEditor() {
       <Stack.Screen options={{ title: existing ? 'Edit schedule' : 'New schedule' }} />
       <Label>WHAT TO DO</Label>
       <TextInput style={[input, { minHeight: 100 }]} value={prompt} onChangeText={setPrompt} placeholder="e.g. Run the test suite and fix anything that fails" placeholderTextColor={c.dim} multiline />
+      {!existing && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          {STARTERS.map((x) => (
+            <Chip key={x.name} label={x.name} on={prompt === x.prompt} onPress={() => { setPrompt(x.prompt); if (!name) setName(x.name); }} />
+          ))}
+        </ScrollView>
+      )}
       <TextInput style={input} value={name} onChangeText={setName} placeholder="Name (optional)" placeholderTextColor={c.dim} />
 
       <Label>WHEN</Label>
@@ -101,7 +118,10 @@ export default function ScheduleEditor() {
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
         {MODES.map((m) => <Chip key={m.id} label={m.label} icon={m.icon} on={mode === m.id} onPress={() => setMode(m.id)} />)}
       </View>
-      <Text style={{ color: c.dim, fontSize: 13 }}>{mode === 'ask' ? 'It stops to ask before edits and commands; you get a notification to approve.' : MODES.find((m) => m.id === mode)?.desc}</Text>
+      <Text style={{ color: c.dim, fontSize: 13 }}>
+        {mode === 'ask' ? 'Runs are unattended, so in Ask mode every edit and command it would ask about is declined: fine for reports, not for fixes.' : MODES.find((m) => m.id === mode)?.desc}
+        {' '}Questions get “decide yourself”, and Claude can’t run sudo, force-push, reset --hard and the like. The report lists what was skipped.
+      </Text>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderCurve: 'continuous', backgroundColor: c.card }}>
         <Icon name="arrow.triangle.branch" color={c.accent} />

@@ -1,8 +1,12 @@
 // Package schedule: agent runs on a timetable. Each job opens a new thread
 // (optionally in its own worktree) and sends its prompt whenever its cron
 // expression matches; the phone hears about it like any run (notifications,
-// Live Activity, approvals). Jobs live in ~/.luther/schedules.json. Runs missed
-// while the server was down or the machine slept are skipped, not caught up.
+// Live Activity). Runs are unattended: approvals and questions are declined
+// with a note instead of waiting, and Claude is denied dangerous commands
+// (protocol.Blocked). Each run is kept with its outcome and the agent's last
+// reply, unread until you've seen it. Jobs live in ~/.luther/schedules.json.
+// Runs missed while the server was down or the machine slept are skipped,
+// not caught up.
 package schedule
 
 import (
@@ -43,9 +47,19 @@ func Start(mux *http.ServeMux, wrap httpx.Wrap, open Opener) {
 		var list []*protocol.Job
 		json.Unmarshal(b, &list)
 		for _, j := range list {
+			for i := range j.Runs { // their watchers died with the last server
+				if j.Runs[i].Status == "working" {
+					j.Runs[i].Status, j.Runs[i].Report = "failed", "Luther stopped during this run. Open the conversation to see how far it got."
+				}
+			}
 			s.jobs[j.ID] = j
 		}
 	}
+	s.routes(mux, wrap)
+	go s.tick()
+}
+
+func (s *scheduler) routes(mux *http.ServeMux, wrap httpx.Wrap) {
 	mux.HandleFunc("GET /schedules", wrap(func(w http.ResponseWriter, r *http.Request) { httpx.WriteJSON(w, s.list()) }))
 	mux.HandleFunc("POST /schedules", wrap(s.put))
 	mux.HandleFunc("DELETE /schedules/{id}", wrap(func(w http.ResponseWriter, r *http.Request) {
@@ -66,14 +80,28 @@ func Start(mux *http.ServeMux, wrap httpx.Wrap, open Opener) {
 			http.Error(w, "no such schedule", http.StatusNotFound)
 			return
 		}
-		id, err := s.run(j.ID)
+		id, err := s.run(j.ID, true)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
 		}
 		httpx.WriteJSON(w, map[string]string{"thread": id})
 	}))
-	go s.tick()
+	mux.HandleFunc("POST /schedules/{id}/read", wrap(func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		j := s.jobs[r.PathValue("id")]
+		if j == nil {
+			http.Error(w, "no such schedule", http.StatusNotFound)
+			return
+		}
+		for i := range j.Runs {
+			if j.Runs[i].Status != "working" {
+				j.Runs[i].Read = true
+			}
+		}
+		s.saveLocked()
+	}))
 }
 
 func (s *scheduler) list() []protocol.Job {
@@ -112,7 +140,7 @@ func (s *scheduler) put(w http.ResponseWriter, r *http.Request) {
 	j.Name = text.OrDefault(j.Name, text.OneLine(j.Prompt))
 	s.mu.Lock()
 	if old := s.jobs[j.ID]; old != nil { // update: keep the run history
-		j.LastRun, j.LastThread, j.LastError = old.LastRun, old.LastThread, old.LastError
+		j.LastRun, j.LastThread, j.LastError, j.Runs = old.LastRun, old.LastThread, old.LastError, old.Runs
 	} else {
 		j.ID = text.RandHex(6)
 	}
@@ -153,7 +181,7 @@ func (s *scheduler) tick() {
 		s.mu.Unlock()
 		for _, id := range due {
 			go func() {
-				if _, err := s.run(id); err != nil {
+				if _, err := s.run(id, false); err != nil {
 					log.Printf("schedule %s: %v", id, err)
 				}
 			}()
@@ -162,14 +190,14 @@ func (s *scheduler) tick() {
 }
 
 // run: a new thread for job id, sent its prompt; the outcome is recorded.
-func (s *scheduler) run(id string) (string, error) {
+func (s *scheduler) run(id string, manual bool) (string, error) {
 	s.mu.Lock()
 	j := s.jobs[id]
 	if j == nil {
 		s.mu.Unlock()
 		return "", errors.New("no such schedule")
 	}
-	req := protocol.OpenReq{Provider: j.Provider, Cwd: j.Cwd, Mode: j.Mode, Model: j.Model, Worktree: j.Worktree}
+	req := protocol.OpenReq{Provider: j.Provider, Cwd: j.Cwd, Mode: j.Mode, Model: j.Model, Worktree: j.Worktree, Unattended: true}
 	prompt := j.Prompt
 	s.mu.Unlock()
 
@@ -179,13 +207,18 @@ func (s *scheduler) run(id string) (string, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	run := protocol.JobRun{ID: text.RandHex(4), At: time.Now().UnixMilli(), Manual: manual, Provider: req.Provider, Status: "working"}
 	if j = s.jobs[id]; j != nil {
-		j.LastRun, j.LastError, j.LastThread = time.Now().UnixMilli(), "", ""
+		j.LastRun, j.LastError, j.LastThread = run.At, "", ""
 		if err != nil {
 			j.LastError = err.Error()
+			run.Status, run.Report, run.Ended = "failed", err.Error(), run.At
 		} else {
-			j.LastThread = t.ID
+			st := t.State()
+			j.LastThread, run.Thread, run.Session, run.Cwd = t.ID, t.ID, st.Session, st.Cwd
+			go s.watch(id, run.ID, t)
 		}
+		j.Runs = append([]protocol.JobRun{run}, j.Runs...)[:min(len(j.Runs)+1, keepRuns)]
 		s.saveLocked()
 	}
 	if err != nil {
@@ -193,3 +226,34 @@ func (s *scheduler) run(id string) (string, error) {
 	}
 	return t.ID, nil
 }
+
+const keepRuns = 20
+
+// watch records how a run ends: its status and the agent's last reply.
+func (s *scheduler) watch(job, run string, t *hub.Thread) {
+	for {
+		time.Sleep(watchEvery)
+		phase, reply := t.Status()
+		if phase == "working" || phase == "waiting" {
+			continue
+		}
+		status := "finished"
+		if phase == "failed" || (phase == "ended" && reply == "") {
+			status = "failed"
+		}
+		s.mu.Lock()
+		if j := s.jobs[job]; j != nil {
+			for i := range j.Runs {
+				if j.Runs[i].ID == run {
+					j.Runs[i].Status, j.Runs[i].Ended = status, time.Now().UnixMilli()
+					j.Runs[i].Report = text.Clip(strings.TrimSpace(text.OrDefault(reply, "The agent stopped without a reply.")), 4000)
+				}
+			}
+			s.saveLocked()
+		}
+		s.mu.Unlock()
+		return
+	}
+}
+
+var watchEvery = 5 * time.Second

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, RefreshControl } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import { currentHost, post, resolve, api } from '@/lib/hosts';
+import { post, api } from '@/lib/hosts';
+import { openOnMac } from '@/lib/artifacts';
 import type { Port } from '@/lib/protocol';
 import { Icon, Note, Row, c, home, useLoad, listStyle, useHex } from '@/components/ui';
 
@@ -19,10 +19,8 @@ export default function Preview() {
   const open = async (p: Port) => {
     setOpening(p.port);
     try {
-      const h = await currentHost();
-      if (!h) throw new Error('No Mac paired');
       const { path } = await post<{ path: string }>('/previews', { port: p.port });
-      await WebBrowser.openBrowserAsync((await resolve(h)) + path, { presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET });
+      await openOnMac(path);
     } catch (e: any) {
       Alert.alert(`Couldn't open port ${p.port}`, e.message);
     } finally {
