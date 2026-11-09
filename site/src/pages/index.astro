@@ -231,24 +231,21 @@ const ic = (n: string) => `assets/icons/${n}.svg`;
       <div class="section-head"><h2 id="setup-h">Set up the Luther CLI in 3 steps</h2></div>
       <div class="grid">
         <article class="card card--row span-4">
-          <span class="step-num">1</span>
-          <h3>Build the server</h3>
+          <div class="lu-step"><span class="step-num">1</span><h3>Build the server</h3></div>
           <p>One Go binary; <code>luther doctor</code> lists what is missing.</p>
           <div class="panel panel--flush"><div class="stage stage--fade-b"><div class="rise rise--term">
             <Terminal label="luther doctor finding every tool" lines={['$ luther doctor', '✓ Go 1.26.10', '✓ Claude Code, logged in', '✓ Codex 0.165.0', '✓ tmux for terminals', '✓ cloudflared']} />
           </div></div></div>
         </article>
         <article class="card card--row span-4">
-          <span class="step-num">2</span>
-          <h3>Choose a way in</h3>
+          <div class="lu-step"><span class="step-num">2</span><h3>Choose a way in</h3></div>
           <p>Tailscale Funnel or a Cloudflare tunnel; nothing to install on the phone.</p>
           <div class="panel panel--flush"><div class="stage stage--fade-b"><div class="rise rise--term">
             <Terminal label="luther funnel publishing Luther" lines={['$ luther funnel', 'Funnel ready,', 'end-to-end encrypted', '$ luther tunnel --quick', 'Quick tunnel ready']} />
           </div></div></div>
         </article>
         <article class="card card--row span-4">
-          <span class="step-num">3</span>
-          <h3>Pair your phone</h3>
+          <div class="lu-step"><span class="step-num">3</span><h3>Pair your phone</h3></div>
           <p>Scan the code <code>luther pair</code> shows; it works once and expires in minutes.</p>
           <div class="panel panel--flush"><div class="stage stage--fade-b"><div class="rise">
             <Phone label="Pairing the phone with the Mac" title="Add a Mac">

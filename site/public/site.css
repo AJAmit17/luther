@@ -118,9 +118,11 @@ html[data-radius="soft"] { --r-lg: 16px; }
 .panel:has(> .stage > .rise) { container-type: inline-size; }
 .rise--term { width: min(400px, 100cqw - 48px); }
 #phone .panel { --p-h: 276px; }
-#setup .panel { --p-h: 300px; }
-@media (min-width: 1280px) { #setup .panel { --p-h: clamp(400px, 100svh - 500px, 560px); } }
-@media (max-width: 639px) { #phone .panel { --p-h: 168px; } #setup .panel { --p-h: 300px; } }
+#setup .panel { --p-h: 260px; }
+/* a step's number on its title's line */
+.lu-step { display: flex; align-items: center; gap: var(--s-3); }
+.lu-step > h3 { margin: 0; }
+@media (max-width: 639px) { #phone .panel { --p-h: 168px; } #setup .panel { --p-h: 240px; } }
 /* a phone: the phone alone and whole in the window, the field around it */
 @media (max-width: 639px) {
   .hero__lead { font-size: 16px; }
