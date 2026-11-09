@@ -48,7 +48,7 @@ export function AppearancePicker() {
               accessibilityRole="radio"
               accessibilityState={{ selected: on }}
               accessibilityLabel={label}
-              style={{ flex: 1, alignItems: 'center', gap: 8, paddingVertical: 14, borderRadius: 18, borderCurve: 'continuous', backgroundColor: c.card, borderWidth: 2, borderColor: on ? c.accent : c.line }}
+              style={{ flex: 1, alignItems: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, borderCurve: 'continuous', backgroundColor: c.card, borderWidth: 2, borderColor: on ? c.accent : c.line }}
             >
               <View style={{ width: 58, height: 96, borderRadius: 12, borderWidth: 3, borderColor: '#0B0B0C', overflow: 'hidden', flexDirection: 'row' }}>
                 {id === 'system' ? (

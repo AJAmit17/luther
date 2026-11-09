@@ -43,7 +43,7 @@ export default function NewCompare() {
         multiline
         placeholder="The task, e.g. Add retries with backoff to the payment webhook"
         placeholderTextColor={c.dim}
-        style={{ minHeight: 100, color: c.text, backgroundColor: c.card, borderRadius: 14, borderCurve: 'continuous', padding: 14, fontSize: 16, textAlignVertical: 'top' }}
+        style={{ minHeight: 100, color: c.text, backgroundColor: c.card, borderRadius: 8, borderCurve: 'continuous', padding: 14, fontSize: 16, textAlignVertical: 'top' }}
       />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         {installed.map((x) => {

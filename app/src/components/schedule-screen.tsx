@@ -10,7 +10,7 @@ import { Button, Icon, MODES, Note, c, home, mono, useLoad, ProviderMark, useHex
 const Chip = ({ label, on, onPress, icon, mark }: { label: string; on: boolean; onPress: () => void; icon?: string; mark?: React.ReactNode }) => {
   useHex();
   return (
-    <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: on ? c.accent : c.card }}>
+    <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: on ? c.accent : c.card }}>
       {mark ?? (!!icon && <Icon name={icon} size={13} color={on ? c.onAccent : c.text} />)}
       <Text style={{ color: on ? c.onAccent : c.text, fontWeight: '500' }}>{label}</Text>
     </Pressable>
