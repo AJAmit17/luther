@@ -88,10 +88,20 @@ html[data-radius="soft"] { --r-lg: 16px; }
 /* The app's real screens (public/screens, drawn 1:1 from the iPhone with demo content), frame included.
    Each stands on the page ground with a faint heat glow, sized by the height it is given. */
 .shot { display: block; height: 100%; width: auto; max-width: 100%; object-fit: contain; filter: drop-shadow(0 40px 60px rgb(0 0 0 / .45)); }
-.hero__art { position: relative; display: flex; justify-content: center; align-items: center; background: none; overflow: visible; border-radius: 0; }
-.hero__art::before, .shots::before { content: ""; position: absolute; inset: 8% 4%; background: radial-gradient(closest-side, rgb(250 93 25 / .14), transparent); pointer-events: none; }
-.hero__art > .shot { position: relative; height: min(100%, 700px); }
-.hero__proof { font-size: var(--t-small); color: var(--muted); }
+/* the hero (hero--centred): the second line of the h1 in heat; under the words a window on the page's
+   own surface with an ASCII field (assets/effects/ascii-shade) in its ground, the Mac's terminal and the
+   phone rising out of it as one group, cut by the window's fade at the hero's foot */
+.hero__hl { display: block; color: var(--p-accent); }
+.hero--centred h1 { max-width: 18ch; }
+.hero--centred .hero__window { isolation: isolate; background: var(--surface); border: 1px solid var(--line);
+  --fx-bg: var(--surface); --fx-surface: var(--surface); --fx-ink: var(--muted); --fx-accent: var(--p-accent); }
+.hero__window > .hero__term { position: absolute; z-index: 1; top: var(--s-8); left: calc(50% - 400px); width: 540px; }
+.hero__window > .hero__phone { position: absolute; z-index: 2; top: var(--s-6); left: calc(50% + 90px); width: 300px; height: auto; max-width: none; }
+@media (max-width: 1023px) {
+  .hero__window > .hero__term { left: var(--s-6); width: 60%; }
+  .hero__window > .hero__phone { left: auto; right: var(--s-6); width: 36%; }
+}
+.shots::before { content: ""; position: absolute; inset: 8% 4%; background: radial-gradient(closest-side, rgb(250 93 25 / .14), transparent); pointer-events: none; }
 
 /* threads: the home list and an open thread, side by side; one on a phone */
 .shots { position: relative; display: flex; justify-content: center; gap: clamp(24px, 6vw, 96px); margin-top: var(--s-7); height: clamp(440px, 60svh, 700px); }
@@ -111,42 +121,43 @@ html[data-radius="soft"] { --r-lg: 16px; }
 #setup .panel { --p-h: 300px; }
 @media (min-width: 1280px) { #setup .panel { --p-h: clamp(400px, 100svh - 500px, 560px); } }
 @media (max-width: 639px) { #phone .panel { --p-h: 168px; } #setup .panel { --p-h: 300px; } }
-/* a phone: the hero's screenshot takes the room under the words (the licence line is in the close too) */
+/* a phone: the phone alone and whole in the window, the field around it */
 @media (max-width: 639px) {
-  .hero__proof { display: none; }
   .hero__lead { font-size: 16px; }
-  .hero .btn-row { margin-top: var(--s-5); }
-  .hero__art { flex: 1 1 0; min-height: 0; margin-top: var(--s-5); }
+  .hero__window > .hero__term { display: none; }
+  .hero--centred .hero__window { flex: none; min-height: 0; display: flex; justify-content: center; padding: var(--s-6) 0;
+    -webkit-mask-image: none; mask-image: none; }
+  .hero__window > .hero__phone { position: relative; inset: auto; width: min(300px, 82%); }
 }
 
 /* the diagrams and the lists */
 #agents .frame--diagram { aspect-ratio: auto; height: 470px; margin-top: var(--s-7); }
 @media (max-width: 639px) { #agents .frame--diagram { height: 440px; } }
 #security .frame--split { background: var(--ground-bg); }
-@media (min-width: 1024px) { #security .frame--split { min-height: calc(100svh - var(--padt) - var(--padb)); } }
+@media (min-width: 1024px) { #security .frame--split { min-height: 520px; } }
 #faq .faq-term { display: none; }
 @media (min-width: 1024px) and (min-height: 1100px) { #faq .faq-term { display: block; } }
 #security .dg { --ink: var(--ground-ink); --muted: var(--ground-muted); --frag: #ffffff; }
 #faq .lu-plat { display: flex; flex-wrap: wrap; gap: var(--s-4); margin: 0; padding: 0; list-style: none; }
 #faq .lu-plat li { display: flex; align-items: center; gap: var(--s-2); }
 #faq .lu-plat img { width: 24px; height: 24px; }
-.close__word { line-height: 1.02; padding-top: 0.04em; }
-@media (min-width: 640px) and (max-width: 1279px) and (max-height: 1300px) { #setup { --h: 2; } }
-/* the close never overlaps its links: on a short desktop screen the footer grows past one screen
-   (as it already does below 1280), its close row at least as tall as its content */
-footer.closing { height: auto; min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; }
-footer.closing > .wrap { flex: 1 0 auto; height: auto; grid-template-rows: minmax(min-content, 1fr) auto; }
-/* a short desktop window (1280+ wide, under 820 tall): every section grows past its screens rather
-   than lay its last rows over the next one, as the kit already does below 1280 */
-@media (min-width: 1280px) and (max-height: 819px) {
-  main > :is(section, .section):not(.hero, .section--hero) {
-    height: auto; min-height: calc(var(--h, 1) * 100svh); display: flex; flex-direction: column;
-  }
-  main > :is(section, .section):not(.hero, .section--hero) > .wrap { flex: 1 0 auto; height: auto; min-height: 0; }
+/* the name set huge and faint under the legal row, its letters cut by the foot of the page */
+.closing__links > .close__word { margin: var(--s-6) 0 calc(-1 * (var(--padb) + var(--bar))); height: .74em; overflow: clip; text-align: center;
+  font-size: clamp(96px, 19vw, 280px); font-weight: 600; line-height: .9; letter-spacing: -0.05em; color: color-mix(in oklab, var(--ink) 9%, var(--bg));
+  user-select: none; pointer-events: none; }
+/* every section takes the height of what it holds, not a whole screen: 64px above and 48px under each
+   (56 / 40 on a phone), the two screens of a .g2 section 64px apart, the close and footer as tall as they are */
+:root { --padt: 64px; --padb: 48px; }
+@media (max-width: 639px) { :root { --padt: 56px; --padb: 40px; } }
+main > :is(section, .section):not(.hero, .section--hero), footer.closing {
+  height: auto; min-height: 0; display: flex; flex-direction: column;
 }
+main > :is(section, .section):not(.hero, .section--hero) > .wrap, footer.closing > .wrap { flex: 1 0 auto; height: auto; min-height: 0; }
+main > :is(section, .section).g2 > .wrap { row-gap: var(--s-8); }
+footer.closing > .wrap { grid-template-rows: auto auto; }
 
 /* the theme toggle, top right: the menu button's outlined square, a moon in light and a sun in dark */
-.lu-theme { display: inline-grid; place-items: center; width: 44px; height: 44px; flex: none;
+.lu-theme { display: inline-grid; place-items: center; width: 36px; height: 36px; flex: none;
             border: 1px solid var(--line-strong); border-radius: var(--r-btn); background: transparent; color: var(--ink); cursor: pointer;
             transition: background-color var(--dur) var(--ease), transform var(--dur) var(--ease); }
 .lu-theme:hover { background: color-mix(in oklab, var(--ink) 6%, transparent); }
@@ -164,4 +175,17 @@ footer.closing > .wrap { flex: 1 0 auto; height: auto; grid-template-rows: minma
 .nav.is-open .lu-theme { display: none; }
 /* under 375 the name, main button, toggle and menu don't fit one line: the bar's button goes (the hero's and the menu sheet's stay) */
 @media (max-width: 639px) { .nav:not(.is-open) .nav__actions { gap: var(--s-2); } }
-@media (max-width: 374px) { .nav:not(.is-open) .nav__actions > .btn--primary { display: none; } }
+/* a slimmer bar: 60px (52 on a phone), a smaller name; the toggle keeps a 44px tap area on a touch screen */
+:root { --nav: 60px; }
+.nav__logo { font-size: 19px; }
+@media (max-width: 639px) { :root { --nav: 52px; } .nav__logo { font-size: 18px; } .lu-theme { width: 44px; height: 44px; } }
+
+/* the close: one centred band on the surface, its words and two buttons in the middle, a faint heat glow
+   rising from its foot; the links and the wordmark follow under it */
+.lu-cta { position: relative; overflow: hidden; align-items: center; justify-content: center; text-align: center; gap: var(--s-4);
+  padding: var(--s-7) var(--s-6); border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: radial-gradient(60% 90% at 50% 120%, color-mix(in oklab, var(--p-accent) 16%, transparent), transparent 70%), var(--surface); }
+.lu-cta h2 { max-width: 18ch; margin: 0; }
+.lu-cta .t-lead { margin: 0; color: var(--muted); }
+.lu-cta .btn-row { justify-content: center; margin-top: var(--s-3); }
+@media (max-width: 639px) { .lu-cta { padding: var(--s-7) var(--s-5); } .lu-cta .btn-row { width: 100%; } }
