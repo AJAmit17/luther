@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AJAmit17/luther/server/internal/claudeaccounts"
 	"github.com/AJAmit17/luther/server/internal/config"
 	"github.com/AJAmit17/luther/server/internal/env"
 	"github.com/AJAmit17/luther/server/internal/hub"
@@ -60,6 +61,7 @@ type runtime struct {
 	in   io.WriteCloser
 
 	toolsFile string // Luther's tool config for this claude (holds its token); removed when it exits
+	account   string // the Claude account it runs under ("" = the CLI's login)
 
 	compacted bool              // next user text is the compaction summary (hub lock)
 	agents    map[string]string // subagent call id → its description (hub lock)
@@ -126,7 +128,8 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 
 	cmd := exec.Command(Bin, args...)
 	cmd.Dir = r.Cwd
-	cmd.Env = append(os.Environ(), "MCP_TOOL_TIMEOUT=1860000") // wait_for_thread may wait 30 minutes
+	account, accountEnv := claudeaccounts.Env()                                       // none: the CLI's own login
+	cmd.Env = append(append(os.Environ(), "MCP_TOOL_TIMEOUT=1860000"), accountEnv...) // wait_for_thread may wait 30 minutes
 	cmd.Stderr = &env.LogTail{Prefix: "claude " + sid[:8] + ": "}
 	in, err := cmd.StdinPipe()
 	if err != nil {
@@ -147,7 +150,7 @@ func Open(r protocol.OpenReq) (*hub.Thread, error) {
 		effort = lastEffort(r.Resume)
 	}
 	t := hub.New(sid, protocol.State{Provider: protocol.Claude, Session: sid, Cwd: r.Cwd, Mode: mode, Model: r.Model, Effort: effort})
-	rt := &runtime{t: t, cmd: cmd, in: in, toolsFile: toolsFile}
+	rt := &runtime{t: t, cmd: cmd, in: in, toolsFile: toolsFile, account: account}
 	t.SetRuntime(rt)
 	if r.Resume != "" {
 		t.SetHistory(history(r.Resume))
@@ -326,7 +329,7 @@ func (c *runtime) handle(line []byte) {
 			}
 
 		case "rate_limit_event":
-			saveLimits(r.RateLimit)
+			saveLimits(r.RateLimit, c.account)
 
 		case "control_request":
 			c.onRequest(r.RequestID, r.Request)
