@@ -144,3 +144,24 @@ footer.closing > .wrap { flex: 1 0 auto; height: auto; grid-template-rows: minma
   }
   main > :is(section, .section):not(.hero, .section--hero) > .wrap { flex: 1 0 auto; height: auto; min-height: 0; }
 }
+
+/* the theme toggle, top right: the menu button's outlined square, a moon in light and a sun in dark */
+.lu-theme { display: inline-grid; place-items: center; width: 44px; height: 44px; flex: none;
+            border: 1px solid var(--line-strong); border-radius: var(--r-btn); background: transparent; color: var(--ink); cursor: pointer;
+            transition: background-color var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.lu-theme:hover { background: color-mix(in oklab, var(--ink) 6%, transparent); }
+.lu-theme:active { transform: scale(.98); }
+.lu-theme svg { width: 18px; height: 18px; }
+.lu-theme__sun, :root[data-theme="dark"] .lu-theme__moon { display: none; }
+:root[data-theme="dark"] .lu-theme__sun { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lu-theme__moon { display: none; }
+  :root:not([data-theme="light"]) .lu-theme__sun { display: block; }
+}
+/* it sits in the bar's actions after the main button; the kit hides the actions' other items on a tablet or phone, not this one;
+   the open menu sheet leaves it out */
+.nav:not(.is-open) .nav__actions > .lu-theme { display: inline-grid; }
+.nav.is-open .lu-theme { display: none; }
+/* under 375 the name, main button, toggle and menu don't fit one line: the bar's button goes (the hero's and the menu sheet's stay) */
+@media (max-width: 639px) { .nav:not(.is-open) .nav__actions { gap: var(--s-2); } }
+@media (max-width: 374px) { .nav:not(.is-open) .nav__actions > .btn--primary { display: none; } }

@@ -194,6 +194,7 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [x] Site: on a short desktop window (1280+ wide, under 820 tall) sections grow past one screen instead of running into the next (Setup and Questions overlapped before). Checked at 375×812, 1280×680, 1440×760, 1440×900, light and dark
 - [x] White text on every heat fill (app and site, both modes); the tab bar, header back buttons and the mockups' active tab follow the theme's text colour, not heat. Icon, favicon and share image in `#FA5D19`
 - [x] Site checked with tasteskill's gate (`GATE: PASS`, waivers in `site/.taste-skill/waivers.json`: white-on-heat contrast by the user's choice, the final h1's line count, the centred screenshot pair, the kit diagram's first-view colour); the phone hero keeps its screenshot whole on the first screen
+- [x] Site theme toggle, top right in the bar's actions: a moon in light, a sun in dark; the choice (`data-theme`) is kept in `localStorage` and applied before first paint, else the system's setting holds. Under 375 wide the bar's main button steps aside for it
 - [ ] The site's app screenshots were recoloured from the teal captures (`site/public/screens/*.webp`), not retaken: they keep the old title weights and radii; retake them from the new build
 
 ### Phase 9l: More agents (Phase D, next)
