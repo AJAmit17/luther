@@ -46,7 +46,7 @@ export default function Send() {
         ListHeaderComponent={
           <View style={{ padding: 16, gap: 12 }}>
             <TextInput
-              style={{ color: c.text, backgroundColor: c.card, borderRadius: 14, borderCurve: 'continuous', padding: 12, fontSize: 16, minHeight: 90 }}
+              style={{ color: c.text, backgroundColor: c.card, borderRadius: 8, borderCurve: 'continuous', padding: 12, fontSize: 16, minHeight: 90 }}
               value={text}
               onChangeText={setText}
               placeholder="What should the agent do?"
@@ -56,7 +56,7 @@ export default function Send() {
             />
             <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
               {installed.map((p) => (
-                <Pressable key={p.id} onPress={() => setPicked(p.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: provider === p.id ? c.accent : c.card }}>
+                <Pressable key={p.id} onPress={() => setPicked(p.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: provider === p.id ? c.accent : c.card }}>
                   <ProviderMark p={p.id} size={14} color={provider === p.id ? c.onAccent : undefined} />
                   <Text style={{ color: provider === p.id ? c.onAccent : c.text, fontWeight: '500' }}>{p.name}</Text>
                 </Pressable>

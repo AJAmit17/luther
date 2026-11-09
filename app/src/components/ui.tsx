@@ -10,8 +10,10 @@ import { PALETTE as P } from '@/lib/palette';
 import { materialIcons } from '@/lib/icons';
 import { RowMenu } from '@/components/row-menu';
 
-// Luther's look: mineral neutrals and Relay teal, with a separate foreground
-// for filled actions. Amber marks what needs you; red remains destructive.
+// Luther's look (DESIGN.md): near-neutral greys and one heat orange, with a
+// separate foreground for filled actions. Amber marks what needs you; red
+// remains destructive. Titles at weight 500 with tight tracking; radii 8
+// (controls) and 12 (cards).
 //
 // One palette of plain hex, the same on iOS and Android: `c` holds the active
 // scheme's colours and applyTheme() repaints it in place (lib/theme.ts calls it
@@ -42,10 +44,10 @@ export const mono = ios ? 'Menlo' : 'monospace';
  *  recoloured in place would keep its old colour on screen. */
 const makeType = () =>
   ({
-    title: { fontSize: 28, fontWeight: '700', color: c.text },
-    title2: { fontSize: ios ? 22 : 24, fontWeight: '700', color: c.text },
-    title3: { fontSize: ios ? 20 : 22, fontWeight: '600', color: c.text },
-    headline: { fontSize: ios ? 17 : 16, fontWeight: ios ? '600' : '500', color: c.text },
+    title: { fontSize: 28, fontWeight: '500', letterSpacing: -0.28, color: c.text },
+    title2: { fontSize: ios ? 22 : 24, fontWeight: '500', letterSpacing: -0.22, color: c.text },
+    title3: { fontSize: ios ? 20 : 22, fontWeight: '500', letterSpacing: -0.2, color: c.text },
+    headline: { fontSize: ios ? 17 : 16, fontWeight: '500', color: c.text },
     body: { fontSize: ios ? 17 : 16, lineHeight: ios ? 23 : 24, color: c.text },
     callout: { fontSize: ios ? 16 : 15, lineHeight: 22, color: c.text },
     subhead: { fontSize: ios ? 15 : 14, lineHeight: 20, color: c.text },
@@ -55,11 +57,8 @@ const makeType = () =>
   }) satisfies Record<string, TextStyle>;
 export let type = makeType();
 
-/** Cards: a hairline outline on iOS, tonal (no border) on Android. */
-const makeCard = (): ViewStyle =>
-  ios
-    ? { backgroundColor: c.card, borderRadius: 16, borderCurve: 'continuous', borderWidth: StyleSheet.hairlineWidth, borderColor: c.line }
-    : { backgroundColor: c.card, borderRadius: 16 };
+/** Cards: surface fill, a 1px border, 12 radius. */
+const makeCard = (): ViewStyle => ({ backgroundColor: c.card, borderRadius: 12, borderCurve: 'continuous', borderWidth: 1, borderColor: c.line });
 export let card = makeCard();
 
 let scheme: Scheme = 'dark';
@@ -153,7 +152,7 @@ export function Pill({ label, tone = 'dim', live, icon }: { label: string; tone?
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: tint(tone, 0.14) }}>
       {icon ? <Icon name={icon} size={10} color={color} /> : live ? <PulsingDot size={6} color={color} /> : <Dot color={color} />}
-      <Text style={[type.caption2, { fontWeight: '600', color }]}>{label}</Text>
+      <Text style={[type.caption2, { fontWeight: '500', color }]}>{label}</Text>
     </View>
   );
 }
@@ -181,7 +180,7 @@ export function Row({ title, sub, icon, right, onPress, onLongPress, menu, onMen
     <Pressable onPress={onPress} onLongPress={open ?? onLongPress} style={({ pressed }) => [card, { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13, opacity: pressed ? 0.7 : 1 }]}>
       {icon}
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <Text style={[type.callout, { fontWeight: '600' }]} numberOfLines={1}>{title}</Text>
+        <Text style={[type.callout, { fontWeight: '500' }]} numberOfLines={1}>{title}</Text>
         {!!sub && <Text style={type.footnote} numberOfLines={subLines}>{sub}</Text>}
       </View>
       {right}
@@ -243,7 +242,7 @@ export function Button({ label, onPress, kind = 'plain', icon, disabled, busy }:
       onPress={onPress}
       disabled={disabled || busy}
       accessibilityRole="button"
-      style={({ pressed }) => ({ flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 14, borderRadius: 14, borderCurve: 'continuous', backgroundColor: kind === 'accent' ? c.accent : kind === 'danger' ? tint('red', 0.12) : c.muted, opacity: disabled ? 0.4 : pressed ? 0.75 : 1 })}
+      style={({ pressed }) => ({ flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', minHeight: 48, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, borderCurve: 'continuous', backgroundColor: kind === 'accent' ? c.accent : kind === 'danger' ? tint('red', 0.12) : c.muted, opacity: disabled ? 0.5 : pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] })}
     >
       {busy ? <ActivityIndicator size="small" color={fg as string} /> : icon ? <Icon name={icon} size={16} color={fg} /> : null}
       <Text style={[type.headline, { color: fg, fontSize: 16 }]}>{label}</Text>
@@ -257,7 +256,7 @@ export function TextButton({ label, onPress, tone = 'accent', icon }: { label: s
   return (
     <Pressable onPress={onPress} hitSlop={6} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: tint(tone, pressed ? 0.24 : 0.13) })}>
       {!!icon && <Icon name={icon} size={12} color={c[tone]} />}
-      <Text style={[type.footnote, { color: c[tone], fontWeight: '600' }]}>{label}</Text>
+      <Text style={[type.footnote, { color: c[tone], fontWeight: '500' }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -320,7 +319,7 @@ export function SectionTitle({ children, right }: { children: ReactNode; right?:
   useHex();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingTop: 10 }}>
-      <Text style={[type.footnote, { flex: 1, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4 }]}>{children}</Text>
+      <Text style={[type.footnote, { flex: 1, fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.4 }]}>{children}</Text>
       {right}
     </View>
   );

@@ -58,7 +58,7 @@ function SentImage({ name }: { name: string }) {
     };
   }, [name]);
   return (
-    <View style={{ width: 168, height: 168, borderRadius: 16, borderCurve: 'continuous', overflow: 'hidden', backgroundColor: c.muted, alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ width: 168, height: 168, borderRadius: 12, borderCurve: 'continuous', overflow: 'hidden', backgroundColor: c.muted, alignItems: 'center', justifyContent: 'center' }}>
       {uri ? <Image source={{ uri }} style={{ width: 168, height: 168 }} contentFit="cover" accessibilityLabel="Attached image" /> : <Icon name={failed ? 'photo' : 'photo.on.rectangle'} size={22} color={c.faint} />}
     </View>
   );
@@ -76,7 +76,7 @@ function UserBubble({ text, images }: { text: string; images?: string[] }) {
         </View>
       )}
       {!!text && (
-        <Text selectable style={[type.callout, { lineHeight: 22, backgroundColor: c.muted, borderRadius: 20, borderCurve: 'continuous', overflow: 'hidden', paddingHorizontal: 15, paddingVertical: 10 }]}>
+        <Text selectable style={[type.callout, { lineHeight: 22, backgroundColor: c.muted, borderRadius: 16, borderCurve: 'continuous', overflow: 'hidden', paddingHorizontal: 15, paddingVertical: 10 }]}>
           {text}
         </Text>
       )}
@@ -187,7 +187,7 @@ function Notice({ text }: { text: string }) {
 function ErrorRow({ text }: { text: string }) {
   useHex();
   return (
-    <View style={{ flexDirection: 'row', gap: 8, padding: 12, borderRadius: 14, borderCurve: 'continuous', backgroundColor: tint('red', 0.1) }}>
+    <View style={{ flexDirection: 'row', gap: 8, padding: 12, borderRadius: 8, borderCurve: 'continuous', backgroundColor: tint('red', 0.1) }}>
       <Icon name="exclamationmark.triangle.fill" size={15} color={c.red} />
       <Text selectable style={[type.subhead, { color: c.red, flex: 1 }]}>{text}</Text>
     </View>

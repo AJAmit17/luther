@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
 <title id="title">Luther app icon</title>
-<rect width="1024" height="1024" fill="#086B64"/>
+<rect width="1024" height="1024" fill="#FA5D19"/>
 <g transform="translate(52 52) scale(11.5)"><path d="M14 14 L14 43 C14 54.314 20.686 61 32 61 L47 61 L47 49 L32 49 C27.314 49 26 47.686 26 43 L26 14 L14 14 Z M66 66 L66 37 C66 25.686 59.314 19 48 19 L33 19 L33 31 L48 31 C52.686 31 54 32.314 54 37 L54 66 L66 66 Z" fill="#FFFFFF"/></g>
 </svg>

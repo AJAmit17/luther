@@ -11,7 +11,7 @@ const Step = ({ n, children }: { n: number; children: React.ReactNode }) => {
   return (
     <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
       <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: c.muted, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={[type.footnote, { color: c.text, fontWeight: '700' }]}>{n}</Text>
+        <Text style={[type.footnote, { color: c.text, fontWeight: '600' }]}>{n}</Text>
       </View>
       <Text style={[type.subhead, { flex: 1, paddingTop: 2 }]}>{children}</Text>
     </View>

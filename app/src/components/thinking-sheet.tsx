@@ -73,7 +73,7 @@ export function ThinkingSheet(p: {
     <Modal visible={p.open} transparent animationType="slide" onRequestClose={p.onClose} statusBarTranslucent navigationBarTranslucent>
       <Pressable style={{ flex: 1, backgroundColor: '#0006' }} onPress={p.onClose} accessibilityLabel="Close" />
       <View style={{ backgroundColor: c.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderCurve: 'continuous', padding: 16, paddingBottom: 16 + insets.bottom, gap: 12 }}>
-        <Text style={[type.footnote, { fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', paddingHorizontal: 4 }]}>Thinking</Text>
+        <Text style={[type.footnote, { fontWeight: '600', letterSpacing: 1.2, textTransform: 'uppercase', paddingHorizontal: 4 }]}>Thinking</Text>
         {stops.length > 1 ? (
           <View style={[card, { paddingVertical: 14, paddingHorizontal: 12, gap: 6, opacity: thinking ? 1 : 0.45 }]} pointerEvents={thinking ? 'auto' : 'none'}>
             {known ? (
@@ -92,7 +92,7 @@ export function ThinkingSheet(p: {
             <View style={{ height: 22, marginHorizontal: INSET }}>
               {stops.map((s, i) => (
                 <Pressable key={s} onPress={() => set(s)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Effort ${effortLabel(s)}`} style={{ position: 'absolute', left: `${(i / (stops.length - 1)) * 100}%`, width: 64, marginLeft: -32, alignItems: 'center' }}>
-                  <Text style={[type.footnote, { fontSize: 14 }, i === at && { color: c.accent, fontWeight: '700' }]}>{effortLabel(s)}</Text>
+                  <Text style={[type.footnote, { fontSize: 14 }, i === at && { color: c.accent, fontWeight: '600' }]}>{effortLabel(s)}</Text>
                 </Pressable>
               ))}
             </View>

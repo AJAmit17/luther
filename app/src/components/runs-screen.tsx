@@ -52,7 +52,7 @@ function RunRow({ r, onPress }: { r: JobRun; onPress: () => void }) {
         </Text>
         {!r.read && r.status !== 'working' && (
           <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: tint('accent', 0.15) }}>
-            <Text style={[type.caption2, { fontWeight: '700', color: c.accent }]}>NEW</Text>
+            <Text style={[type.caption2, { fontWeight: '600', color: c.accent }]}>NEW</Text>
           </View>
         )}
       </View>

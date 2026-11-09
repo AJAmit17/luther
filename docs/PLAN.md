@@ -37,7 +37,7 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 | Codex wire types generated from `codex app-server generate-json-schema` | The protocol is large and versioned; generate, don't hand-write. |
 | Reuse Burrow's Go engine (Claude stream-json, verified wire facts, session indexer, pairing, push) | Same author, already verified against the real CLI. |
 | Never write to `~/.claude` or `~/.codex` | Those are the CLIs' stores; Luther only reads them. |
-| Visual identity: Relay mark, mineral neutrals, deep teal / pale sea glass | User-approved direction. `app/src/lib/palette.ts` owns semantic colors; `scripts/generate-brand.swift` generates repo/mobile artwork. Filled actions use `onAccent`; attention remains distinct from the brand. |
+| Visual identity: Luther's own name, wordmark and Relay mark in the visual language of `DESIGN.md` (near-neutral greys, one heat orange, Inter/Geist Mono on the site, radii 8/12/16, titles at weight 500) | User choice (Nov 9): the style, not another company's brand — no borrowed logo, name, flame or copy; open fonts stand in for proprietary ones. `app/src/lib/palette.ts` owns semantic colors; `scripts/generate-brand.swift` generates repo/mobile artwork from it. Heat is `#FA5D19` with white on it in both modes, on the app, icon and site (user choice: 3.2:1, the large-text/UI level, not 4.5:1); heat marks actions only, navigation (tab bar, header back buttons, the mockups' active tab) follows the theme's text colour. |
 
 ## Phases
 
@@ -188,6 +188,15 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [x] Fixed by the pass: Gemini CLI lists its tools while its session is still opening, before the token is bound, so it never saw Luther's tools; `GET /agent-tools` now takes any issued token (calls still need the bound thread). Gemini reports models only in ACP's older `models` field: a chosen model was dropped and switching failed; now `session/set_model`, and its current model shows. A refused Claude one-off (usage limit) now says why, and Codex answers instead. Cursor and Gemini show their own marks in the app
 - [ ] Known: Ask mode on ACP agents relies on the agent asking; Cursor's default mode edits files without asking, also in an unattended Ask run. A Gemini thread on a model at capacity (503) shows "Thinking…" while the CLI retries
 - [ ] Not run: Claude-backed paths (conflict hand-off, Claude judge, Claude tools) until its usage resets; the new screens on a phone
+
+### Phase 9m: Design refresh (Nov 9)
+- [x] `DESIGN.md` mapped onto both clients: app palette (light and dark), type weights, card/button/input radii, generated icon, splash and widgets; site palette with a light default and a dark `prefers-color-scheme`, Inter + Geist Mono, heat-wash lit ground, primary-button shadow
+- [x] Site: on a short desktop window (1280+ wide, under 820 tall) sections grow past one screen instead of running into the next (Setup and Questions overlapped before). Checked at 375×812, 1280×680, 1440×760, 1440×900, light and dark
+- [x] White text on every heat fill (app and site, both modes); the tab bar, header back buttons and the mockups' active tab follow the theme's text colour, not heat. Icon, favicon and share image in `#FA5D19`
+- [x] Site checked with tasteskill's gate (`GATE: PASS`, waivers in `site/.taste-skill/waivers.json`: white-on-heat contrast by the user's choice, the final h1's line count, the centred screenshot pair, the kit diagram's first-view colour); the phone hero keeps its screenshot whole on the first screen
+- [x] Site theme toggle, top right in the bar's actions: a moon in light, a sun in dark; the choice (`data-theme`) is kept in `localStorage` and applied before first paint, else the system's setting holds. Under 375 wide the bar's main button steps aside for it
+- [x] Site layout, second pass (user's direction): a centred hero (x.ai's pattern, Firecrawl's spacing) with the Mac's terminal and the phone rising out of a window whose ground is an ASCII field (`assets/effects/ascii-shade`, redrawn on a theme switch); the whole phone on a phone; a slimmer bar (60px, 52 on a phone) with no button, only the theme toggle; the close as one centred band; the footer's columns then the name set huge, faint and centred, cut by the page's foot. Sections take their content's height (64px over, 48 under) instead of a screen each; tasteskill's one-section-per-screen, centred-text and band checks were closed at the user's word (`GATE: DONE`)
+- [ ] The site's app screenshots were recoloured from the teal captures (`site/public/screens/*.webp`), not retaken: they keep the old title weights and radii; retake them from the new build
 
 ### Phase 9l: More agents (Phase D, next)
 - [ ] GitHub Copilot CLI (#6), Kimi Code CLI (#11), Qwen Code (#12), Factory Droid (#13), Grok CLI (#14), Amp (#15): each over ACP where it has it; see the issues
