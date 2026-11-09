@@ -38,7 +38,7 @@ export default function GoalSheet() {
         multiline
         placeholder="e.g. All tests pass and the README documents the new flag"
         placeholderTextColor={c.dim}
-        style={{ minHeight: 110, color: c.text, backgroundColor: c.card, borderRadius: 14, borderCurve: 'continuous', padding: 14, fontSize: 16, textAlignVertical: 'top' }}
+        style={{ minHeight: 110, color: c.text, backgroundColor: c.card, borderRadius: 8, borderCurve: 'continuous', padding: 14, fontSize: 16, textAlignVertical: 'top' }}
       />
       <Group title="At most" footer="Each round is one turn. Stop anytime from the thread.">
         {ROUNDS.map((n, i) => (

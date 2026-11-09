@@ -17,9 +17,9 @@ const AgentsWidget = (props: AgentsWidgetProps, environment: WidgetEnvironment) 
   const projects = (props.projects ?? []).slice(0, Math.max(0, max - threads.length));
   const q = (s: string) => encodeURIComponent(s);
   return (
-    <VStack alignment="leading" spacing={9} modifiers={[frame({ maxWidth: 1000, maxHeight: 1000, alignment: 'topLeading' }), containerBackground('#101716', 'widget')]}>
+    <VStack alignment="leading" spacing={9} modifiers={[frame({ maxWidth: 1000, maxHeight: 1000, alignment: 'topLeading' }), containerBackground('#0A0A0A', 'widget')]}>
       <HStack>
-        <Text modifiers={[font({ textStyle: 'caption', weight: 'semibold' }), foregroundStyle('#89D5C7')]}>{(props.mac || 'LUTHER').toUpperCase()}</Text>
+        <Text modifiers={[font({ textStyle: 'caption', weight: 'semibold' }), foregroundStyle('#FA5D19')]}>{(props.mac || 'LUTHER').toUpperCase()}</Text>
         <Spacer />
         <Link destination="luther://send">
           <Image systemName="square.and.pencil" size={17} color="#FFFFFF" />
@@ -28,7 +28,7 @@ const AgentsWidget = (props: AgentsWidgetProps, environment: WidgetEnvironment) 
       {threads.map((t) => (
         <Link key={t.id} destination={`luther://thread/${q(t.id)}?cwd=${q(t.cwd)}`}>
           <HStack spacing={8}>
-            <Circle modifiers={[foregroundStyle(t.busy ? '#89D5C7' : '#8AD6A6'), frame({ width: 7, height: 7 })]} />
+            <Circle modifiers={[foregroundStyle(t.busy ? '#FA5D19' : '#4ED273'), frame({ width: 7, height: 7 })]} />
             <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle('#FFFFFF'), lineLimit(1)]}>{t.title}</Text>
             <Spacer />
             <Text modifiers={[font({ textStyle: 'caption2' }), foregroundStyle('#FFFFFF99'), lineLimit(1)]}>{t.busy ? 'Working' : 'Idle'}</Text>

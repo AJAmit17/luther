@@ -4,7 +4,7 @@ import Terminal from '../components/Terminal.astro';
 const ic = (n: string) => `assets/icons/${n}.svg`;
 ---
 <!doctype html>
-<html lang="en" data-type="software" data-radius="sharp" data-ground="sage" data-buttons="arrow" data-motion>
+<html lang="en" data-type="software" data-radius="soft" data-ground="heat" data-buttons="arrow" data-motion>
 <head>
 
 <meta charset="utf-8">
@@ -20,13 +20,15 @@ const ic = (n: string) => `assets/icons/${n}.svg`;
 <script is:inline type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Luther","alternateName":["Luther CLI","Luther Remote","Luther Mobile"],"url":"https://getluther.pages.dev/","image":"https://getluther.pages.dev/share.jpg","description":"Luther pairs a CLI on your Mac with an iPhone and Android app: a mobile remote for Claude Code, Codex, Devin, OpenCode, Oh My Pi, Gemini CLI and Cursor. End-to-end encrypted and self-hosted.","applicationCategory":"DeveloperApplication","operatingSystem":"macOS, iOS, Android","license":"https://www.apache.org/licenses/LICENSE-2.0","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}</script>
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<meta name="theme-color" content="#101716">
+<meta name="theme-color" content="#f9f9f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
 <link rel="canonical" href="https://getluther.pages.dev/">
 <meta name="site-kind" content="software">
 <meta name="page-type" content="software">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400..700&family=JetBrains+Mono:wght@400..500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..600&family=Geist+Mono:wght@400..500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/system.css">
 <link rel="stylesheet" href="assets/ui/cards.css">
 <link rel="stylesheet" href="assets/motion/motion.css">
@@ -35,16 +37,26 @@ const ic = (n: string) => `assets/icons/${n}.svg`;
 <link rel="stylesheet" href="assets/icons/icon.css">
 <style is:inline>
 :root {
-  --p-bg: #101716; --p-surface: #192321; --p-ink: #edf4f1; --p-muted: #a3b5ae;
-  --p-accent: #89d5c7; --p-accent-ink: #101716; --p-action: #89d5c7; --p-action-ink: #101716;
-  --p-inv-bg: #edf4f1; --p-inv-surface: #dbe2df; --p-inv-ink: #101716; --p-inv-muted: #5a6260;
-  --p-inv-accent: #101716; --p-inv-accent-ink: #edf4f1; --p-inv-action: #101716; --p-inv-action-ink: #edf4f1;
-  --font-display: "Onest", system-ui, sans-serif;
-  --font-text: "Onest", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  --display-weight: 400;
-  --display-tracking: -0.035em;
-  --display-tracking-xl: -0.04em;
+  /* DESIGN.md: near-neutral greys and one heat orange. Light by default, dark with the system.
+     Filled actions take #c2410c (light) / dark ink on #fa5d19 (dark) to hold 4.5:1, as the app does. */
+  --p-bg: #f9f9f9; --p-surface: #ffffff; --p-ink: #262626; --p-muted: #5c5c5c;
+  --p-accent: #fa5d19; --p-accent-ink: #ffffff; --p-action: #c2410c; --p-action-ink: #ffffff;
+  --p-inv-bg: #0a0a0a; --p-inv-surface: #171717; --p-inv-ink: #f5f5f5; --p-inv-muted: #a3a3a3;
+  --p-inv-accent: #fa5d19; --p-inv-accent-ink: #0a0a0a; --p-inv-action: #fa5d19; --p-inv-action-ink: #0a0a0a;
+  --font-display: "Inter", system-ui, sans-serif;
+  --font-text: "Inter", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --display-weight: 500;
+  --display-tracking: -0.01em;
+  --display-tracking-xl: -0.015em;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --p-bg: #0a0a0a; --p-surface: #171717; --p-ink: #f5f5f5; --p-muted: #a3a3a3;
+    --p-accent: #fa5d19; --p-accent-ink: #0a0a0a; --p-action: #fa5d19; --p-action-ink: #0a0a0a;
+    --p-inv-bg: #f9f9f9; --p-inv-surface: #ffffff; --p-inv-ink: #262626; --p-inv-muted: #5c5c5c;
+    --p-inv-accent: #c2410c; --p-inv-accent-ink: #ffffff; --p-inv-action: #c2410c; --p-inv-action-ink: #ffffff;
+  }
 }
 </style>
 <link rel="stylesheet" href="assets/ui/base.css">
@@ -61,9 +73,9 @@ const ic = (n: string) => `assets/icons/${n}.svg`;
 <!-- type: software (a developer tool: a Mac server and phone apps that drive coding agents)
      deal: hero collage, nav nav-centre (nav-cards dealt; no photographs, so dealt again without cards),
      close close-word, footer footer-columns, rhythm dark-band, buttons arrow, mark: the client's own (the Luther relay mark),
-     palette: the client's own (start.mjs brand: Luther's app colours, a dark terminal ground and its mint accent),
-     type onest (Onest + JetBrains Mono), radius sharp, lit ground sage,
-     hero frame on the kit's CSS lit ground (sage); card ground gradient-mesh, still; card ground gradient-mesh, still, sage
+     palette: DESIGN.md (near-neutral greys, heat orange; light and dark with the system),
+     type Inter + Geist Mono (open stand-ins for the design's fonts), radius soft (8/12/16), lit ground heat,
+     hero frame on the kit's CSS lit ground (heat); card ground gradient-mesh, still; card ground gradient-mesh, still, heat
      moments: iris-opens on #agents (the inverse band) -->
 <header class="nav nav--centre">
   <div class="wrap nav__bar">

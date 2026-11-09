@@ -10,8 +10,8 @@ const SendWidget = (_props: object, environment: WidgetEnvironment) => {
     return <Image systemName="paperplane.fill" size={22} modifiers={[widgetURL(url), containerBackground('#00000000', 'widget')]} />;
   }
   return (
-    <VStack alignment="leading" spacing={4} modifiers={[frame({ maxWidth: 1000, maxHeight: 1000, alignment: 'topLeading' }), widgetURL(url), containerBackground('#101716', 'widget')]}>
-      <Image systemName="paperplane.fill" size={24} color="#89D5C7" />
+    <VStack alignment="leading" spacing={4} modifiers={[frame({ maxWidth: 1000, maxHeight: 1000, alignment: 'topLeading' }), widgetURL(url), containerBackground('#0A0A0A', 'widget')]}>
+      <Image systemName="paperplane.fill" size={24} color="#FA5D19" />
       <Spacer />
       <Text modifiers={[font({ textStyle: 'headline' }), foregroundStyle('#FFFFFF')]}>Send to Luther</Text>
       <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle('#FFFFFF99'), padding({ bottom: 2 })]}>New task for an agent</Text>

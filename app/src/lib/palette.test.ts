@@ -13,7 +13,7 @@ function contrast(a: string, b: string) {
   return (values[0] + 0.05) / (values[1] + 0.05);
 }
 
-test('Relay text and functional colors remain readable in both appearances', () => {
+test('Text and functional colors and functional colors remain readable in both appearances', () => {
   for (const i of [0, 1]) {
     for (const background of ['bg', 'surface', 'card', 'muted'] as const) {
       for (const foreground of ['text', 'dim', 'faint', 'accent', 'blue', 'green', 'red', 'warn'] as const) {
@@ -25,10 +25,10 @@ test('Relay text and functional colors remain readable in both appearances', () 
   }
 });
 
-test('Relay uses an explicit dark foreground on its pale dark-mode action fill', () => {
-  assert.equal(PALETTE.accent[0], '#086B64');
-  assert.equal(PALETTE.accent[1], '#89D5C7');
+test('Heat takes a dark foreground on its bright dark-mode fill', () => {
+  assert.equal(PALETTE.accent[0], '#C2410C');
+  assert.equal(PALETTE.accent[1], '#FA5D19');
   assert.equal(PALETTE.onAccent[0], '#FFFFFF');
-  assert.equal(PALETTE.onAccent[1], '#102B26');
-  assert.ok(contrast('#FFFFFF', PALETTE.accent[1]) < 3);
+  assert.equal(PALETTE.onAccent[1], '#0A0A0A');
+  assert.ok(contrast('#FFFFFF', PALETTE.accent[1]) < 4.5);
 });

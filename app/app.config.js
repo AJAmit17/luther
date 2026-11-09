@@ -50,7 +50,7 @@ module.exports = {
     android: {
       package: 'dev.luther.app',
       adaptiveIcon: {
-        backgroundColor: '#086B64',
+        backgroundColor: '#C2410C',
         foregroundImage: './assets/images/luther-android-foreground.png',
         monochromeImage: './assets/images/luther-android-monochrome.png',
       },
@@ -60,7 +60,7 @@ module.exports = {
       withoutPush,
       withSceneLifecycle,
       'expo-router',
-      ['expo-splash-screen', { backgroundColor: '#F2F5F4', image: './assets/images/luther-splash.png', imageWidth: 76, dark: { backgroundColor: '#101716', image: './assets/images/luther-splash-dark.png' } }],
+      ['expo-splash-screen', { backgroundColor: '#F9F9F9', image: './assets/images/luther-splash.png', imageWidth: 76, dark: { backgroundColor: '#0A0A0A', image: './assets/images/luther-splash-dark.png' } }],
       'expo-secure-store',
       ['expo-camera', { cameraPermission: 'Luther uses the camera to scan the pairing code from your Mac.', microphonePermission: MIC, recordAudioAndroid: false }],
       'expo-notifications',
