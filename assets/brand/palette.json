@@ -1,6 +1,6 @@
 {
   "accent" : [
-    "#C2410C",
+    "#FA5D19",
     "#FA5D19"
   ],
   "bg" : [
@@ -41,7 +41,7 @@
   ],
   "onAccent" : [
     "#FFFFFF",
-    "#0A0A0A"
+    "#FFFFFF"
   ],
   "red" : [
     "#C4291B",

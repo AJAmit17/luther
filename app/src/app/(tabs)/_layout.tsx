@@ -11,7 +11,7 @@ export default function Tabs() {
   const { data: jobs } = useLoad(() => api<Job[]>('/schedules'), [], 'schedules');
   const unread = (jobs ?? []).reduce((n, j) => n + news(j), 0);
   return (
-    <NativeTabs minimizeBehavior="onScrollDown" tintColor={h.accent} {...(process.env.EXPO_OS === 'android' ? { labelVisibilityMode: 'labeled' as const, backgroundColor: h.card, indicatorColor: h.muted, iconColor: { default: h.dim, selected: h.accent }, labelStyle: { default: { color: h.dim }, selected: { color: h.accent } } } : {})}>
+    <NativeTabs minimizeBehavior="onScrollDown" tintColor={h.text} {...(process.env.EXPO_OS === 'android' ? { labelVisibilityMode: 'labeled' as const, backgroundColor: h.card, indicatorColor: h.muted, iconColor: { default: h.dim, selected: h.text }, labelStyle: { default: { color: h.dim }, selected: { color: h.text } } } : {})}>
       <NativeTabs.Trigger name="(home)">
         <NativeTabs.Trigger.Icon sf="desktopcomputer" md="computer" />
         <NativeTabs.Trigger.Label>Mac</NativeTabs.Trigger.Label>

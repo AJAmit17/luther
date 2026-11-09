@@ -38,11 +38,11 @@ const ic = (n: string) => `assets/icons/${n}.svg`;
 <style is:inline>
 :root {
   /* DESIGN.md: near-neutral greys and one heat orange. Light by default, dark with the system.
-     Filled actions take #c2410c (light) / dark ink on #fa5d19 (dark) to hold 4.5:1, as the app does. */
+     Filled actions are #fa5d19 with white text in both modes, as the app's. */
   --p-bg: #f9f9f9; --p-surface: #ffffff; --p-ink: #262626; --p-muted: #5c5c5c;
-  --p-accent: #fa5d19; --p-accent-ink: #ffffff; --p-action: #c2410c; --p-action-ink: #ffffff;
+  --p-accent: #fa5d19; --p-accent-ink: #ffffff; --p-action: #fa5d19; --p-action-ink: #ffffff;
   --p-inv-bg: #0a0a0a; --p-inv-surface: #171717; --p-inv-ink: #f5f5f5; --p-inv-muted: #a3a3a3;
-  --p-inv-accent: #fa5d19; --p-inv-accent-ink: #0a0a0a; --p-inv-action: #fa5d19; --p-inv-action-ink: #0a0a0a;
+  --p-inv-accent: #fa5d19; --p-inv-accent-ink: #ffffff; --p-inv-action: #fa5d19; --p-inv-action-ink: #ffffff;
   --font-display: "Inter", system-ui, sans-serif;
   --font-text: "Inter", system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -53,9 +53,9 @@ const ic = (n: string) => `assets/icons/${n}.svg`;
 @media (prefers-color-scheme: dark) {
   :root {
     --p-bg: #0a0a0a; --p-surface: #171717; --p-ink: #f5f5f5; --p-muted: #a3a3a3;
-    --p-accent: #fa5d19; --p-accent-ink: #0a0a0a; --p-action: #fa5d19; --p-action-ink: #0a0a0a;
+    --p-accent: #fa5d19; --p-accent-ink: #ffffff; --p-action: #fa5d19; --p-action-ink: #ffffff;
     --p-inv-bg: #f9f9f9; --p-inv-surface: #ffffff; --p-inv-ink: #262626; --p-inv-muted: #5c5c5c;
-    --p-inv-accent: #c2410c; --p-inv-accent-ink: #ffffff; --p-inv-action: #c2410c; --p-inv-action-ink: #ffffff;
+    --p-inv-accent: #fa5d19; --p-inv-accent-ink: #ffffff; --p-inv-action: #fa5d19; --p-inv-action-ink: #ffffff;
   }
 }
 </style>

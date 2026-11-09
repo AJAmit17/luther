@@ -13,22 +13,23 @@ function contrast(a: string, b: string) {
   return (values[0] + 0.05) / (values[1] + 0.05);
 }
 
-test('Text and functional colors and functional colors remain readable in both appearances', () => {
+test('Text and functional colors remain readable in both appearances', () => {
   for (const i of [0, 1]) {
     for (const background of ['bg', 'surface', 'card', 'muted'] as const) {
-      for (const foreground of ['text', 'dim', 'faint', 'accent', 'blue', 'green', 'red', 'warn'] as const) {
+      for (const foreground of ['text', 'dim', 'faint', 'blue', 'green', 'red', 'warn'] as const) {
         const ratio = contrast(PALETTE[foreground][i], PALETTE[background][i]);
         assert.ok(ratio >= 4.5, `${i} ${foreground}/${background}: ${ratio}`);
       }
     }
-    assert.ok(contrast(PALETTE.onAccent[i], PALETTE.accent[i]) >= 4.5);
+    // heat is a fill and a mark, held to the 3:1 of UI components and large text
+    assert.ok(contrast(PALETTE.accent[i], PALETTE.bg[i]) >= 3);
+    assert.ok(contrast(PALETTE.onAccent[i], PALETTE.accent[i]) >= 3);
   }
 });
 
-test('Heat takes a dark foreground on its bright dark-mode fill', () => {
-  assert.equal(PALETTE.accent[0], '#C2410C');
-  assert.equal(PALETTE.accent[1], '#FA5D19');
-  assert.equal(PALETTE.onAccent[0], '#FFFFFF');
-  assert.equal(PALETTE.onAccent[1], '#0A0A0A');
-  assert.ok(contrast('#FFFFFF', PALETTE.accent[1]) < 4.5);
+test('Heat is the design\'s orange with white on it in both modes', () => {
+  for (const i of [0, 1]) {
+    assert.equal(PALETTE.accent[i], '#FA5D19');
+    assert.equal(PALETTE.onAccent[i], '#FFFFFF');
+  }
 });

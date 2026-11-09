@@ -37,7 +37,7 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 | Codex wire types generated from `codex app-server generate-json-schema` | The protocol is large and versioned; generate, don't hand-write. |
 | Reuse Burrow's Go engine (Claude stream-json, verified wire facts, session indexer, pairing, push) | Same author, already verified against the real CLI. |
 | Never write to `~/.claude` or `~/.codex` | Those are the CLIs' stores; Luther only reads them. |
-| Visual identity: Luther's own name, wordmark and Relay mark in the visual language of `DESIGN.md` (near-neutral greys, one heat orange, Inter/Geist Mono on the site, radii 8/12/16, titles at weight 500) | User choice (Nov 9): the style, not another company's brand — no borrowed logo, name, flame or copy; open fonts stand in for proprietary ones. `app/src/lib/palette.ts` owns semantic colors; `scripts/generate-brand.swift` generates repo/mobile artwork from it. Heat is `#C2410C` in light mode (4.5:1 as text and under white) and `#FA5D19` with a dark foreground in dark mode; the site uses the same pair for actions and `#FA5D19` for the mark. |
+| Visual identity: Luther's own name, wordmark and Relay mark in the visual language of `DESIGN.md` (near-neutral greys, one heat orange, Inter/Geist Mono on the site, radii 8/12/16, titles at weight 500) | User choice (Nov 9): the style, not another company's brand — no borrowed logo, name, flame or copy; open fonts stand in for proprietary ones. `app/src/lib/palette.ts` owns semantic colors; `scripts/generate-brand.swift` generates repo/mobile artwork from it. Heat is `#FA5D19` with white on it in both modes, on the app, icon and site (user choice: 3.2:1, the large-text/UI level, not 4.5:1); heat marks actions only, navigation (tab bar, header back buttons, the mockups' active tab) follows the theme's text colour. |
 
 ## Phases
 
@@ -192,7 +192,9 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 ### Phase 9m: Design refresh (Nov 9)
 - [x] `DESIGN.md` mapped onto both clients: app palette (light and dark), type weights, card/button/input radii, generated icon, splash and widgets; site palette with a light default and a dark `prefers-color-scheme`, Inter + Geist Mono, heat-wash lit ground, primary-button shadow
 - [x] Site: on a short desktop window (1280+ wide, under 820 tall) sections grow past one screen instead of running into the next (Setup and Questions overlapped before). Checked at 375×812, 1280×680, 1440×760, 1440×900, light and dark
-- [ ] The site's app screenshots (`site/public/screens/*.webp`) still show the old teal app; retake them from the new build
+- [x] White text on every heat fill (app and site, both modes); the tab bar, header back buttons and the mockups' active tab follow the theme's text colour, not heat. Icon, favicon and share image in `#FA5D19`
+- [x] Site checked with tasteskill's gate (`GATE: PASS`, waivers in `site/.taste-skill/waivers.json`: white-on-heat contrast by the user's choice, the final h1's line count, the centred screenshot pair, the kit diagram's first-view colour); the phone hero keeps its screenshot whole on the first screen
+- [ ] The site's app screenshots were recoloured from the teal captures (`site/public/screens/*.webp`), not retaken: they keep the old title weights and radii; retake them from the new build
 
 ### Phase 9l: More agents (Phase D, next)
 - [ ] GitHub Copilot CLI (#6), Kimi Code CLI (#11), Qwen Code (#12), Factory Droid (#13), Grok CLI (#14), Amp (#15): each over ACP where it has it; see the issues

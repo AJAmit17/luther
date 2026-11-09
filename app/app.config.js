@@ -50,7 +50,7 @@ module.exports = {
     android: {
       package: 'dev.luther.app',
       adaptiveIcon: {
-        backgroundColor: '#C2410C',
+        backgroundColor: '#FA5D19',
         foregroundImage: './assets/images/luther-android-foreground.png',
         monochromeImage: './assets/images/luther-android-monochrome.png',
       },
