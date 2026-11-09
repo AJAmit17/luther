@@ -6,6 +6,7 @@ import { api, currentHostIdSync } from '@/lib/hosts';
 import type { Usage, UsageHistory } from '@/lib/protocol';
 import { chartDays, formatTokens, providerTotals, tokenTotal, type TokenFormat } from '@/lib/usage';
 import { UsageSection } from '@/components/usage-section';
+import { ClaudeAccountSection } from '@/components/claude-account-section';
 import { Group, Icon, Note, ProviderIcon, ago, c, card, providerName, type, useLoad, useHex } from '@/components/ui';
 
 const NUMBER_FORMAT_KEY = 'luther.usage-number-format';
@@ -95,6 +96,7 @@ export default function UsageScreen() {
         </View>)}
       </Group>
       {host ? <UsageSection refresh={data?.updated} /> : null}
+      {host ? <ClaudeAccountSection /> : null}
       {data?.notes.map((note) => <Text key={note} style={type.footnote}>{note}</Text>)}
     </ScrollView>
   );

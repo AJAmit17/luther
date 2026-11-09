@@ -24,6 +24,8 @@ import (
 	"github.com/AJAmit17/luther/server/internal/artifacts"
 	"github.com/AJAmit17/luther/server/internal/auth"
 	"github.com/AJAmit17/luther/server/internal/claude"
+	"github.com/AJAmit17/luther/server/internal/claudeaccounts"
+	"github.com/AJAmit17/luther/server/internal/claudedesktop"
 	"github.com/AJAmit17/luther/server/internal/codex"
 	"github.com/AJAmit17/luther/server/internal/config"
 	"github.com/AJAmit17/luther/server/internal/e2e"
@@ -87,6 +89,7 @@ func Handler(cfg *config.Config) http.Handler {
 	compareRoutes(mux, wrap)
 	workbenchRoutes(mux, wrap, cfg)
 	usage.Routes(mux, wrap)
+	claudeaccounts.Routes(mux, wrap)
 	schedule.Start(mux, wrap, open)
 	remote.Start(mux, wrap, func(r *http.Request) bool { return auth.DeviceID(r) == auth.Admin })
 	e2e.Routes(mux, a, mux, cfg.Port)
@@ -305,14 +308,23 @@ func dirs(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, out)
 }
 
-// limits: GET /usage. Both are asked fresh: Codex over its app-server,
-// Claude at Anthropic's usage endpoint (its turns report too).
+// limits: GET /usage. Asked fresh: Codex over its app-server, Claude at
+// Anthropic's usage endpoint (its turns report too), and the Claude desktop
+// app's account, when it's another one, from the app's own samples.
 func limits(w http.ResponseWriter, r *http.Request) {
 	if _, err := exec.LookPath(codex.Bin); err == nil {
 		codex.ReadLimits()
 	}
 	if err := claude.ReadLimits(); err != nil {
 		log.Print(err) // the last reported numbers still show
+	}
+	for name, tok := range claudeaccounts.Tokens() {
+		if err := claude.ReadLimitsAs(tok, name); err != nil {
+			log.Print(err)
+		}
+	}
+	if err := claudedesktop.ReadLimits(); err != nil {
+		log.Print(err)
 	}
 	httpx.WriteJSON(w, usage.All())
 }

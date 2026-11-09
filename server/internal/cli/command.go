@@ -147,6 +147,7 @@ func command(serve func(*config.Config)) *cobra.Command {
 		remote.AddCommand(cmd)
 	}
 	root.AddCommand(remote)
+	root.AddCommand(claudeAccountCmd(root.Args, groupHelp))
 	add("doctor", "Check agent CLIs, server, routes, and pairing", "manage", true, func(c *CLI, _ []string) error { c.Doctor(); return nil })
 	// Started by the agents Luther runs (their MCP server for Luther's tools), never by hand.
 	root.AddCommand(&cobra.Command{Use: "mcp", Short: "Luther's tools for the agents it runs (MCP over stdio)", Hidden: true, Args: cobra.NoArgs,

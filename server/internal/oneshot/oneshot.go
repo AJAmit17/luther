@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/AJAmit17/luther/server/internal/claudeaccounts"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -55,6 +56,8 @@ func byClaude(prompt, schema string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, ClaudeBin, "-p", "--no-session-persistence", "--tools", "", "--model", "haiku",
 		"--output-format", "json", "--json-schema", schema)
 	cmd.Dir = os.TempDir()
+	_, accountEnv := claudeaccounts.Env() // the account Claude threads run under
+	cmd.Env = append(os.Environ(), accountEnv...)
 	cmd.Stdin = strings.NewReader(prompt)
 	out, err := cmd.Output()
 	var res struct {
