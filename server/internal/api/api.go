@@ -24,6 +24,7 @@ import (
 	"github.com/AJAmit17/luther/server/internal/artifacts"
 	"github.com/AJAmit17/luther/server/internal/auth"
 	"github.com/AJAmit17/luther/server/internal/claude"
+	"github.com/AJAmit17/luther/server/internal/claudedesktop"
 	"github.com/AJAmit17/luther/server/internal/codex"
 	"github.com/AJAmit17/luther/server/internal/config"
 	"github.com/AJAmit17/luther/server/internal/e2e"
@@ -305,14 +306,18 @@ func dirs(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, out)
 }
 
-// limits: GET /usage. Both are asked fresh: Codex over its app-server,
-// Claude at Anthropic's usage endpoint (its turns report too).
+// limits: GET /usage. Asked fresh: Codex over its app-server, Claude at
+// Anthropic's usage endpoint (its turns report too), and the Claude desktop
+// app's account, when it's another one, from the app's own samples.
 func limits(w http.ResponseWriter, r *http.Request) {
 	if _, err := exec.LookPath(codex.Bin); err == nil {
 		codex.ReadLimits()
 	}
 	if err := claude.ReadLimits(); err != nil {
 		log.Print(err) // the last reported numbers still show
+	}
+	if err := claudedesktop.ReadLimits(); err != nil {
+		log.Print(err)
 	}
 	httpx.WriteJSON(w, usage.All())
 }

@@ -115,7 +115,8 @@ export type Run = {
 };
 
 export type Command = { name: string; desc: string };
-export type Limits = { provider: Provider; plan?: string; windows: Window[]; updated: number };
+// account: set when it isn't the CLI login Luther's agents run under ("Desktop app").
+export type Limits = { provider: Provider; account?: string; plan?: string; windows: Window[]; updated: number };
 export type Window = { label: string; used: number /* percent */; resetsAt?: number };
 export type Port = { port: number; command: string; cwd?: string };
 export type Job = {

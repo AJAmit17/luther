@@ -37,6 +37,7 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 | Codex wire types generated from `codex app-server generate-json-schema` | The protocol is large and versioned; generate, don't hand-write. |
 | Reuse Burrow's Go engine (Claude stream-json, verified wire facts, session indexer, pairing, push) | Same author, already verified against the real CLI. |
 | Never write to `~/.claude` or `~/.codex` | Those are the CLIs' stores; Luther only reads them. |
+| A second Claude account (the desktop app's) is reported, not used | The desktop app passes its own OAuth token to the Claude Code it runs (`CLAUDE_CODE_OAUTH_TOKEN`; same `~/.claude`) and keeps the token in its own store. Reading that would mean handling another app's credentials, so Luther's threads keep running under the CLI login, and the desktop account's usage comes from the app's own samples. |
 | Visual identity: Relay mark, mineral neutrals, deep teal / pale sea glass | User-approved direction. `app/src/lib/palette.ts` owns semantic colors; `scripts/generate-brand.swift` generates repo/mobile artwork. Filled actions use `onAccent`; attention remains distinct from the brand. |
 
 ## Phases
@@ -188,6 +189,11 @@ Mac: `luther serve` (Go, one binary, launchd), listens on 127.0.0.1 only
 - [x] Fixed by the pass: Gemini CLI lists its tools while its session is still opening, before the token is bound, so it never saw Luther's tools; `GET /agent-tools` now takes any issued token (calls still need the bound thread). Gemini reports models only in ACP's older `models` field: a chosen model was dropped and switching failed; now `session/set_model`, and its current model shows. A refused Claude one-off (usage limit) now says why, and Codex answers instead. Cursor and Gemini show their own marks in the app
 - [ ] Known: Ask mode on ACP agents relies on the agent asking; Cursor's default mode edits files without asking, also in an unattended Ask run. A Gemini thread on a model at capacity (503) shows "Thinking…" while the CLI retries
 - [ ] Not run: Claude-backed paths (conflict hand-off, Claude judge, Claude tools) until its usage resets; the new screens on a phone
+
+### Phase 9n: Two Claude accounts (Nov 9)
+- [x] Package `claudedesktop`: the Claude desktop app's account usage from `~/Library/Application Support/Claude/plan-usage-history.json` (newest sample: 5-hour/7-day percent, its org; dated when the app took it, no reset times), read on `GET /usage`. Skipped when its org matches the CLI's (`~/.claude.json` `oauthAccount.organizationUuid`): same account, already shown. Verified against the real file (a different org from the CLI here)
+- [x] `Limits.account` (empty = the CLI login Luther's agents use); `usage` keeps one entry per provider + account. App: the desktop app's own row, and the CLI row reads "Claude · Terminal" whenever a second account exists
+- [ ] Not done: choosing the account a new thread runs under (needs Luther to hold a second account's token, e.g. from `claude setup-token`); splitting the token-history charts by account (transcripts carry `entrypoint: claude-desktop`, but both accounts' sessions share `~/.claude/projects`)
 
 ### Phase 9l: More agents (Phase D, next)
 - [ ] GitHub Copilot CLI (#6), Kimi Code CLI (#11), Qwen Code (#12), Factory Droid (#13), Grok CLI (#14), Amp (#15): each over ACP where it has it; see the issues

@@ -18,37 +18,48 @@ import (
 
 var store = struct {
 	sync.Mutex
-	m map[protocol.Provider]protocol.Limits
+	m map[string]protocol.Limits // by key()
 }{}
+
+// key: one entry per provider and account ("claude", "claude/Desktop app").
+func key(l protocol.Limits) string {
+	if l.Account == "" {
+		return string(l.Provider)
+	}
+	return string(l.Provider) + "/" + l.Account
+}
 
 func file() string { return filepath.Join(config.Dir(), "usage.json") }
 
 // load: store lock held.
 func load() {
 	if store.m == nil {
-		store.m = map[protocol.Provider]protocol.Limits{}
+		store.m = map[string]protocol.Limits{}
 		if b, err := os.ReadFile(file()); err == nil {
 			json.Unmarshal(b, &store.m)
 		}
 	}
 }
 
-// Set records l as its agent's latest (an empty window list is ignored).
+// Set records l as its agent's (and account's) latest; an empty window list
+// is ignored. Updated defaults to now.
 func Set(l protocol.Limits) {
 	if len(l.Windows) == 0 {
 		return
 	}
-	l.Updated = time.Now().UnixMilli()
+	if l.Updated == 0 {
+		l.Updated = time.Now().UnixMilli()
+	}
 	store.Lock()
 	defer store.Unlock()
 	load()
-	store.m[l.Provider] = l
+	store.m[key(l)] = l
 	b, _ := json.MarshalIndent(store.m, "", "  ")
 	os.MkdirAll(config.Dir(), 0o700)
 	os.WriteFile(file(), b, 0o600)
 }
 
-// All: every agent's latest, by provider.
+// All: every agent's latest, by provider then account (the CLI login first).
 func All() []protocol.Limits {
 	store.Lock()
 	defer store.Unlock()
@@ -57,7 +68,7 @@ func All() []protocol.Limits {
 	for _, l := range store.m {
 		out = append(out, l)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Provider < out[j].Provider })
+	sort.Slice(out, func(i, j int) bool { return key(out[i]) < key(out[j]) })
 	return out
 }
 
