@@ -1,12 +1,13 @@
-// Heat on near-neutral greys (DESIGN.md): #FA5D19 with white on fills in both
-// modes, as the design specifies (3.2:1, the large-text/UI level). Navigation
-// chrome stays neutral; heat marks actions only. Status colours held to AA.
+// DESIGN.md: heat #FA5D19 with white on it (3.2:1, the UI level) marks actions only;
+// navigation stays neutral and status colours hold AA.
 export const PALETTE = {
   bg: ['#F9F9F9', '#0A0A0A'],
   surface: ['#FFFFFF', '#141414'],
   card: ['#FFFFFF', '#171717'],
   muted: ['#EFEFEF', '#262626'],
-  fill: ['#EFEFEF', '#262626'], // = muted (older name)
+  raised: ['#FFFFFF', '#262626'], // menus and dialogs over the page (DESIGN.md surface-raised)
+  thumb: ['#FFFFFF', '#3A3A3A'], // a segmented control's chosen segment, over `muted`
+  scrim: ['#0000001F', '#00000066'], // behind menus and dialogs
   line: ['#E8E8E8', '#333333'],
   text: ['#262626', '#F5F5F5'],
   dim: ['#5C5C5C', '#A3A3A3'],

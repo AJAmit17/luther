@@ -1,13 +1,12 @@
 import { RefreshControl, ScrollView } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Group, ListItem, Note, Pill, Skeleton, space, useTheme } from '@/design';
 import { HttpError, api } from '@/lib/hosts';
 import type { FileContent } from '@/lib/protocol';
-import { Badge, Icon, Note, Row, SectionTitle, c, useLoad , listStyle, useHex } from '@/components/ui';
+import { useLoad } from '@/lib/use-load';
 
-// The project's instruction files, the ones each agent reads at the start of a
-// conversation. Tap to edit; a missing one is created. Your personal ones
-// (~/.claude/CLAUDE.md, ~/.codex/AGENTS.md) stay Mac-only: Luther never writes
-// into the agents' own folders.
+// The project's instruction files each agent reads first. Personal ones (~/.claude,
+// ~/.codex) stay Mac-only: Luther never writes into the agents' own folders.
 const FILES = [
   { path: 'CLAUDE.md', who: 'Claude Code', about: 'Shared with the team (commit it)' },
   { path: 'CLAUDE.local.md', who: 'Claude Code', about: 'Just you (keep it out of git)' },
@@ -27,7 +26,7 @@ const TEMPLATE = `# Project instructions
 `;
 
 export default function Instructions() {
-  useHex();
+  const { color } = useTheme();
   const { cwd } = useLocalSearchParams<{ cwd: string }>();
   const { data, error, pull } = useLoad(
     () =>
@@ -42,24 +41,25 @@ export default function Instructions() {
     [cwd],
   );
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.bg }} contentContainerStyle={listStyle} contentInsetAdjustmentBehavior="automatic" refreshControl={<RefreshControl {...pull} />}>
+    <ScrollView style={{ flex: 1, backgroundColor: color.bg }} contentContainerStyle={{ padding: space.lg, gap: space.sm }} contentInsetAdjustmentBehavior="automatic" refreshControl={<RefreshControl {...pull} />}>
       <Stack.Screen options={{ title: 'Instructions' }} />
-      {!!error && <Note error>{error}</Note>}
-      <SectionTitle>{cwd.split('/').pop() ?? 'Project'}</SectionTitle>
-      {FILES.map((f, i) => {
-        const lines = data?.[i] ?? 0;
-        return (
-          <Row
-            key={f.path}
-            icon={<Icon name={lines ? 'doc.text' : 'doc.badge.plus'} size={20} color={lines ? c.accent : c.faint} />}
-            title={f.path}
-            sub={`${f.who} · ${f.about}`}
-            right={data ? lines ? <Badge label={`${lines} lines`} /> : <Badge label="create" color={c.accent} /> : undefined}
-            onPress={() => router.push({ pathname: '/edit', params: { cwd, path: f.path, template: f.path.endsWith('.local.md') ? '' : TEMPLATE } })}
-          />
-        );
-      })}
-      <Note>Agents read these when a conversation starts; a running one picks up changes in its next conversation.</Note>
+      {!!error && <Note tone="danger">{error}</Note>}
+      <Group title={cwd.split('/').pop() || 'Project'} footer="Agents read these when a conversation starts; a running one picks up changes in its next conversation.">
+        {FILES.map((f, i) => {
+          const lines = data?.[i] ?? 0;
+          return (
+            <ListItem
+              key={f.path}
+              icon={lines ? 'doc.text' : 'doc.badge.plus'}
+              iconColor={lines ? color.accent : color.faint}
+              title={f.path}
+              subtitle={`${f.who} · ${f.about}`}
+              trailing={data ? lines ? <Pill label={`${lines} lines`} /> : <Pill label="Create" tone="accent" icon="plus" /> : error ? undefined : <Skeleton width={56} height={16} round={8} />}
+              onPress={() => router.push({ pathname: '/edit', params: { cwd, path: f.path, template: f.path.endsWith('.local.md') ? '' : TEMPLATE } })}
+            />
+          );
+        })}
+      </Group>
     </ScrollView>
   );
 }

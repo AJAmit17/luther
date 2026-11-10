@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, RefreshControl, ScrollView, Text } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import { Chip, EmptyState, HeaderActions, Icon, ListItem, Note, Span, Text, alert, prompt, space, useTheme, type Palette } from '@/design';
+import { ListScreen } from '@/features/list-screen';
 import { api, del, post, uploadTo } from '@/lib/hosts';
 import type { FileContent, FileEntry } from '@/lib/protocol';
 import { highlight, langOf, type Kind } from '@/lib/highlight';
+import { useLoad } from '@/lib/use-load';
 import { Markdown } from '@/components/markdown';
-import { Icon, Note, Row, c, mono, useLoad, listStyle, useHex } from '@/components/ui';
-import { tb } from '@/components/toolbar-icon';
 
 const size = (n: number) => (n >= 1 << 20 ? (n / (1 << 20)).toFixed(1) + ' MB' : n >= 1024 ? Math.round(n / 1024) + ' KB' : n + ' B');
 const IMAGE = /\.(png|jpe?g|gif|webp|heic|bmp|ico|svg)$/i;
@@ -18,21 +19,23 @@ const HIGHLIGHT_MAX = 80 << 10; // larger files show plain: thousands of spans a
 // Project files: a folder lists its entries (add, upload, rename, delete); a
 // file shows highlighted, as Markdown, or as a picture (text files open in the editor).
 export default function Files() {
-  useHex();
+  const { color } = useTheme();
   const { cwd, path = '' } = useLocalSearchParams<{ cwd: string; path?: string }>();
   const { data, error, load, pull } = useLoad(
     () => api<FileEntry[] | FileContent>(`/files?cwd=${encodeURIComponent(cwd)}&path=${encodeURIComponent(path)}`),
     [cwd, path],
   );
-  const title = path ? path.split('/').pop() : cwd.split('/').pop();
-  if (data && !Array.isArray(data)) return <FileView cwd={cwd} path={path} title={title!} file={data} />;
+  const root = cwd.split('/').pop() || cwd;
+  const title = path ? path.split('/').pop()! : root;
+  if (data && !Array.isArray(data)) return <FileView cwd={cwd} path={path} title={title} file={data} />;
+  const entries = data as FileEntry[] | null;
 
   const at = (name: string) => (path ? `${path}/${name}` : name);
-  const act = (what: string, p: Promise<unknown>) => p.then(load, (e) => Alert.alert(`${what} failed`, e.message));
-  const newFile = () => Alert.prompt('New file', 'Its name (folders allowed: src/new.ts)', (name) => name.trim() && router.push({ pathname: '/edit', params: { cwd, path: at(name.trim()) } }));
-  const newFolder = () => Alert.prompt('New folder', undefined, (name) => name.trim() && act('New folder', post('/files/mkdir', { cwd, path: at(name.trim()) })));
+  const act = (what: string, p: Promise<unknown>) => p.then(load, (e) => alert(`${what} failed`, e.message));
+  const newFile = () => prompt('New File', 'Its name (folders allowed: src/new.ts)', (name) => name.trim() && router.push({ pathname: '/edit', params: { cwd, path: at(name.trim()) } }));
+  const newFolder = () => prompt('New Folder', undefined, (name) => name.trim() && act('New Folder', post('/files/mkdir', { cwd, path: at(name.trim()) })));
   const send = async (items: { uri: string; name: string }[]) => {
-    for (const it of items) await uploadTo(cwd, at(it.name), it.uri).catch((e) => Alert.alert(`Couldn’t upload ${it.name}`, e.message));
+    for (const it of items) await uploadTo(cwd, at(it.name), it.uri).catch((e) => alert(`Couldn’t upload ${it.name}`, e.message));
     load();
   };
   const photos = async () => {
@@ -44,11 +47,11 @@ export default function Files() {
     if (!r.canceled) await send(r.assets.map((a) => ({ uri: a.uri, name: a.name })));
   };
   const menu = (e: FileEntry) =>
-    Alert.alert(e.name, undefined, [
+    alert(e.name, undefined, [
       {
         text: 'Rename',
         onPress: () =>
-          Alert.prompt('Rename', undefined, (to) => to.trim() && to.trim() !== e.name && act('Rename', post('/files/rename', { cwd, from: at(e.name), to: at(to.trim()) })), 'plain-text', e.name),
+          prompt('Rename', undefined, (to) => to.trim() && to.trim() !== e.name && act('Rename', post('/files/rename', { cwd, from: at(e.name), to: at(to.trim()) })), 'plain-text', e.name),
       },
       {
         text: 'Move to Trash',
@@ -58,31 +61,53 @@ export default function Files() {
       { text: 'Cancel', style: 'cancel' },
     ]);
 
+  const parts = path ? path.split('/') : [];
+  const crumbs = path ? (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
+      {[root, ...parts].map((p, i) => (
+        <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
+          {i > 0 && <Icon name="chevron.right" size={11} />}
+          <Chip
+            label={p}
+            selected={i === parts.length}
+            onPress={i === parts.length ? undefined : () => router.push({ pathname: '/files', params: { cwd, path: parts.slice(0, i).join('/') } })}
+          />
+        </View>
+      ))}
+    </ScrollView>
+  ) : undefined;
+
   return (
     <>
       <Stack.Screen options={{ title }} />
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu icon={tb('plus')}>
-          <Stack.Toolbar.MenuAction icon={tb('doc')} onPress={newFile}>New file</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon={tb('folder.badge.plus')} onPress={newFolder}>New folder</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon={tb('photo.on.rectangle')} onPress={photos}>Upload photos</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon={tb('doc.on.clipboard')} onPress={documents}>Upload files</Stack.Toolbar.MenuAction>
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar>
-      <FlatList
-        contentContainerStyle={listStyle}
-        style={{ flex: 1, backgroundColor: c.bg as any }}
-        contentInsetAdjustmentBehavior="automatic"
-        data={(data as FileEntry[] | null) ?? []}
+      <HeaderActions
+        actions={[
+          {
+            icon: 'plus',
+            label: 'Add',
+            menu: [
+              { title: 'New File', icon: 'doc', onPress: newFile },
+              { title: 'New Folder', icon: 'folder.badge.plus', onPress: newFolder },
+              { title: 'Upload Photos', icon: 'photo.on.rectangle', onPress: photos },
+              { title: 'Upload Files', icon: 'doc.on.clipboard', onPress: documents },
+            ],
+          },
+        ]}
+      />
+      <ListScreen
+        data={entries}
+        error={error}
+        pull={pull}
         keyExtractor={(e) => e.name}
-        refreshControl={<RefreshControl {...pull} />}
-        ListHeaderComponent={error ? <Note error>{error}</Note> : undefined}
-        ListEmptyComponent={data ? <Note>Empty folder. Use + to add a file or upload one.</Note> : undefined}
+        header={crumbs}
+        empty={<EmptyState icon="folder" title="Empty folder" message="Use + to add a file or upload one." />}
         renderItem={({ item: e }) => (
-          <Row
-            icon={<Icon name={e.dir ? 'folder' : IMAGE.test(e.name) ? 'photo' : 'doc'} size={20} color={e.dir ? c.blue : c.dim} />}
+          <ListItem
+            icon={e.dir ? 'folder' : IMAGE.test(e.name) ? 'photo' : 'doc'}
+            iconColor={e.dir ? color.blue : color.dim}
             title={e.name}
-            right={e.dir ? <Icon name="chevron.right" size={13} color={c.faint} /> : <Text style={{ color: c.faint, fontSize: 12 }}>{size(e.size)}</Text>}
+            value={e.dir ? undefined : size(e.size)}
+            trailing={e.dir ? <Icon name="chevron.right" size={13} color={color.faint} /> : undefined}
             onPress={() => router.push({ pathname: '/files', params: { cwd, path: at(e.name) } })}
             onLongPress={() => menu(e)}
           />
@@ -92,10 +117,10 @@ export default function Files() {
   );
 }
 
-const color = (k: Kind) => (k === 'comment' ? c.faint : k === 'string' ? c.green : k === 'keyword' ? c.accent : k === 'number' ? c.blue : c.text);
+const hue = (color: Palette, k: Kind) => (k === 'comment' ? color.faint : k === 'string' ? color.green : k === 'keyword' ? color.accent : k === 'number' ? color.blue : color.text);
 
 function FileView({ cwd, path, title, file }: { cwd: string; path: string; title: string; file: FileContent }) {
-  useHex();
+  const { color } = useTheme();
   const md = /\.(md|markdown|mdx)$/i.test(path);
   const [source, setSource] = useState(false);
   const [pic, setPic] = useState<string>();
@@ -112,21 +137,23 @@ function FileView({ cwd, path, title, file }: { cwd: string; path: string; title
   return (
     <>
       <Stack.Screen options={{ title }} />
-      <Stack.Toolbar placement="right">
-        {md && <Stack.Toolbar.Button icon={tb(source ? 'doc.richtext' : 'doc.plaintext')} onPress={() => setSource(!source)} />}
-        {!!file.hash && <Stack.Toolbar.Button icon={tb('square.and.pencil')} onPress={() => router.push({ pathname: '/edit', params: { cwd, path } })} />}
-      </Stack.Toolbar>
-      <ScrollView style={{ flex: 1, backgroundColor: c.bg as any }} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={md && !source ? { padding: 16 } : undefined}>
+      <HeaderActions
+        actions={[
+          ...(md ? [{ icon: source ? 'doc.richtext' : 'doc.plaintext', label: source ? 'Show Rendered' : 'Show Source', onPress: () => setSource(!source) } as const] : []),
+          ...(file.hash ? [{ icon: 'square.and.pencil', label: 'Edit File', onPress: () => router.push({ pathname: '/edit', params: { cwd, path } }) } as const] : []),
+        ]}
+      />
+      <ScrollView style={{ flex: 1, backgroundColor: color.bg }} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={md && !source ? { padding: space.lg } : undefined}>
         {IMAGE.test(path) ? (
-          pic ? <Image source={{ uri: pic }} style={{ width: '100%', aspectRatio: 1 }} contentFit="contain" /> : <Note error={!!picError}>{picError || 'Loading the picture…'}</Note>
+          pic ? <Image source={{ uri: pic }} style={{ width: '100%', aspectRatio: 1 }} contentFit="contain" /> : <Note tone={picError ? 'danger' : 'neutral'}>{picError || 'Loading the picture…'}</Note>
         ) : file.binary ? (
           <Note>Binary file; not shown.</Note>
         ) : md && !source ? (
           <Markdown text={file.text} />
         ) : (
-          <ScrollView horizontal contentContainerStyle={{ padding: 12 }}>
-            <Text selectable style={{ color: c.text, fontFamily: mono, fontSize: 12, lineHeight: 17 }}>
-              {spans ? spans.map((s, i) => <Text key={i} style={{ color: color(s.kind), fontStyle: s.kind === 'comment' ? 'italic' : 'normal' }}>{s.text}</Text>) : file.text}
+          <ScrollView horizontal contentContainerStyle={{ padding: space.md }}>
+            <Text selectable mono variant="caption" color="text">
+              {spans ? spans.map((s, i) => <Span key={i} mono style={{ color: hue(color, s.kind), fontStyle: s.kind === 'comment' ? 'italic' : 'normal' }}>{s.text}</Span>) : file.text}
             </Text>
           </ScrollView>
         )}

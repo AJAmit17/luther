@@ -1,29 +1,30 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { RefreshControl, ScrollView, View } from 'react-native';
 import { Redirect, Stack, router } from 'expo-router';
 import { api, currentHost, del, hosts, keyFor, onHostsChange, routeInUse, setCurrent, type Host } from '@/lib/hosts';
 import type { Project, Session, Term, ThreadInfo } from '@/lib/protocol';
 import { SessionRow } from '@/components/project-screen';
 import { requestNotificationPermission } from '@/lib/notifier';
 import { updateWidgets } from '@/lib/widgets';
-import { Empty, Icon, IconTile, Note, Pill, ProviderIcon, Row, SectionTitle, ago, c, home, listStyle, providerName, type, useLoad, useHex, searchColors } from '@/components/ui';
-import { tb } from '@/components/toolbar-icon';
+import { EmptyState, HeaderActions, Icon, LargeTitle, ListItem, Note, Pill, SectionHeader, SkeletonList, Text, Tile, alert, space, useHeaderSearch, useTheme } from '@/design';
+import { AgentTile, agentName } from '@/features/agents';
+import { ago, home } from '@/lib/format';
+import { useLoad } from '@/lib/use-load';
 
-const threadTitle = (t: ThreadInfo) => t.title || `${providerName(t.provider)} · ${t.cwd.split('/').pop()}`;
+const threadTitle = (t: ThreadInfo) => t.title || `${agentName(t.provider)} · ${t.cwd.split('/').pop()}`;
 
 function ThreadRow({ t, onStop }: { t: ThreadInfo; onStop: () => void }) {
   const waiting = t.activity === 'Waiting for you';
   return (
-    <Row
-      icon={<ProviderIcon p={t.provider} />}
+    <ListItem
+      leading={<AgentTile p={t.provider} />}
       title={threadTitle(t)}
-      sub={t.busy ? t.activity || 'Working…' : `${home(t.cwd)}${t.clients ? ` · ${t.clients} watching` : ''}`}
-      subLines={1}
-      right={waiting ? <Pill label="Needs you" tone="warn" icon="hand.raised.fill" /> : t.busy ? <Pill label="Working" tone="accent" live /> : <Pill label="Ready" tone="green" />}
+      subtitle={t.busy ? t.activity || 'Working…' : `${home(t.cwd)}${t.clients ? ` · ${t.clients} watching` : ''}`}
+      trailing={waiting ? <Pill label="Needs you" tone="warning" icon="hand.raised.fill" /> : t.busy ? <Pill label="Working" tone="accent" live /> : <Pill label="Ready" tone="success" />}
       onPress={() => router.push({ pathname: '/thread/[id]', params: { id: t.id, cwd: t.cwd } })}
       menu={[
         { id: 'open', title: 'Open', image: 'arrow.up.right' },
-        { id: 'stop', title: 'Stop agent', image: 'stop.circle', attributes: { destructive: true } },
+        { id: 'stop', title: 'Stop Agent', image: 'stop.circle', attributes: { destructive: true } },
       ]}
       onMenu={(id) => (id === 'stop' ? onStop() : router.push({ pathname: '/thread/[id]', params: { id: t.id, cwd: t.cwd } }))}
     />
@@ -31,22 +32,21 @@ function ThreadRow({ t, onStop }: { t: ThreadInfo; onStop: () => void }) {
 }
 
 function ProjectRow({ p }: { p: Project }) {
-  useHex();
+  const { color } = useTheme();
   const open = (pathname: '/project' | '/new' | '/files' | '/git' | '/preview' | '/schedule') => router.push({ pathname, params: { cwd: p.cwd, name: p.name } });
   return (
-    <Row
-      icon={<IconTile name="folder.fill" color={c.blue} />}
+    <ListItem
+      leading={<Tile icon="folder.fill" color={color.blue} />}
       title={p.name}
-      sub={[home(p.cwd), p.sessions ? `${p.sessions} conversation${p.sessions === 1 ? '' : 's'}` : '', p.sessions && p.lastActive ? ago(p.lastActive) : ''].filter(Boolean).join(' · ')}
-      subLines={1}
-      right={p.live ? <Pill label={`${p.live} live`} tone="green" /> : <Icon name="chevron.right" size={13} color={c.faint} />}
+      subtitle={[home(p.cwd), p.sessions ? `${p.sessions} conversation${p.sessions === 1 ? '' : 's'}` : '', p.sessions && p.lastActive ? ago(p.lastActive) : ''].filter(Boolean).join(' · ')}
+      trailing={p.live ? <Pill label={`${p.live} live`} tone="success" /> : <Icon name="chevron.right" size={13} color={color.faint} />}
       onPress={() => open('/project')}
       menu={[
-        { id: '/new', title: 'New thread', image: 'square.and.pencil' },
+        { id: '/new', title: 'New Thread', image: 'square.and.pencil' },
         { id: '/files', title: 'Files', image: 'folder' },
         { id: '/git', title: 'Changes', image: 'arrow.triangle.branch' },
-        { id: '/preview', title: 'Preview dev server', image: 'globe' },
-        { id: '/schedule', title: 'Schedule a run', image: 'calendar.badge.plus' },
+        { id: '/preview', title: 'Preview Dev Server', image: 'globe' },
+        { id: '/schedule', title: 'Schedule a Run', image: 'calendar.badge.plus' },
       ]}
       onMenu={(id) => open(id as '/new')}
     />
@@ -55,7 +55,7 @@ function ProjectRow({ p }: { p: Project }) {
 
 // The current Mac: what's running on it now, then its projects.
 export default function Home() {
-  useHex();
+  const { color } = useTheme();
   const [host, setHost] = useState<Host | null | undefined>(undefined);
   const [all, setAll] = useState<Host[]>([]);
   useEffect(() => {
@@ -85,28 +85,16 @@ export default function Home() {
   }, [data, host]); // eslint-disable-line react-hooks/exhaustive-deps
   const [q, setQ] = useState('');
   const found = useLoad(() => (q ? api<Session[]>('/sessions?q=' + encodeURIComponent(q)) : Promise.resolve([])), [host?.id, q]);
-  // Header options built once: rebuilding them each render re-applies the native
-  // search bar, and a large title set after first layout overlaps it.
-  const hx = useHex();
-  const search = useMemo(
-    () => ({
-      ...searchColors(hx),
-      placeholder: 'Search all conversations',
-      onSearchButtonPress: (e: { nativeEvent: { text: string } }) => setQ(e.nativeEvent.text.trim()),
-      onChangeText: (e: { nativeEvent: { text: string } }) => !e.nativeEvent.text && setQ(''),
-      onCancelButtonPress: () => setQ(''),
-    }),
-    [hx],
-  );
+  const { headerSearchBarOptions, field: searchField } = useHeaderSearch({ placeholder: 'Search all conversations', onChange: setQ });
 
   const switchTo = async (h: Host) => {
     await setCurrent(h.id);
     setHost(h);
   };
   const stop = (what: string, body: string, path: string) =>
-    Alert.alert(`Stop ${what}?`, body, [
+    alert(`Stop ${what}?`, body, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Stop', style: 'destructive', onPress: () => del(path).then(load, (e) => Alert.alert('Error', e.message)) },
+      { text: 'Stop', style: 'destructive', onPress: () => del(path).then(load, (e) => alert('Error', e.message)) },
     ]);
 
   if (host === null) return <Redirect href="/pair" />;
@@ -117,60 +105,64 @@ export default function Home() {
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      style={{ flex: 1, backgroundColor: c.bg }}
-      contentContainerStyle={listStyle}
+      style={{ flex: 1, backgroundColor: color.bg }}
+      contentContainerStyle={{ padding: space.lg, gap: space.sm, paddingBottom: space.xxl + space.sm }}
       keyboardDismissMode="on-drag"
       refreshControl={<RefreshControl {...(q ? found.pull : pull)} />}
     >
       <Stack.Screen
-        options={{ title: host.name, headerSearchBarOptions: search }}
+        options={{ title: host.name, headerSearchBarOptions }}
       />
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu icon={tb('desktopcomputer')}>
-          <Stack.Toolbar.Menu inline title="Macs">
-            {all.map((h) => (
-              <Stack.Toolbar.MenuAction key={h.id} isOn={h.id === host?.id} onPress={() => switchTo(h)}>{h.name}</Stack.Toolbar.MenuAction>
-            ))}
-          </Stack.Toolbar.Menu>
-          <Stack.Toolbar.MenuAction icon={tb('plus')} onPress={() => router.push('/pair')}>Pair another Mac</Stack.Toolbar.MenuAction>
-        </Stack.Toolbar.Menu>
-        <Stack.Toolbar.Button icon={tb('square.and.pencil')} onPress={() => router.push('/browse')} />
-      </Stack.Toolbar>
+      <LargeTitle>{host.name}</LargeTitle>
+      {searchField}
+      <HeaderActions
+        actions={[
+          {
+            icon: 'desktopcomputer',
+            label: 'Macs',
+            menu: [
+              { section: 'Macs', items: all.map((h) => ({ title: h.name, on: h.id === host?.id, onPress: () => switchTo(h) })) },
+              { title: 'Pair Another Mac', icon: 'plus', onPress: () => router.push('/pair') },
+            ],
+          },
+          { icon: 'square.and.pencil', label: 'New Conversation', onPress: () => router.push('/browse') },
+        ]}
+      />
 
       {q ? (
         <>
-          {!!found.error && <Note error>{found.error}</Note>}
+          {!!found.error && <Note tone="danger">{found.error}</Note>}
           {found.data?.map((s) => <SessionRow key={s.provider + s.id} s={s} onChange={found.load} showDir />)}
-          {found.data && !found.data.length && !found.loading && <Empty icon="magnifyingglass" title={`No results for “${q}”`} sub="Titles, first messages and folders are searched." />}
+          {found.data && !found.data.length && !found.loading && <EmptyState icon="magnifyingglass" title={`No results for “${q}”`} message="Titles, first messages and folders are searched." />}
         </>
       ) : (
         <>
-          {!!error && <Note error>{error}</Note>}
-          {(open.length > 0 || terms.length > 0) && <SectionTitle>Running now</SectionTitle>}
+          {!!error && <Note tone="danger">{error}</Note>}
+          {(open.length > 0 || terms.length > 0 || (!data && !error)) && <SectionHeader title="Running now" />}
+          {!data && !error && <SkeletonList />}
           {open.map((t) => (
             <ThreadRow key={t.id} t={t} onStop={() => stop('this agent', 'It stops after the current turn. The conversation is saved; resume it from its project.', '/threads/' + encodeURIComponent(t.id))} />
           ))}
           {terms.map((t) => (
-            <Row
+            <ListItem
               key={t.name}
-              icon={<IconTile name="terminal.fill" color={c.dim} />}
+              leading={<Tile icon="terminal.fill" color={color.dim} />}
               title={`Terminal · ${t.cwd.split('/').pop()}`}
-              sub={`${home(t.cwd)} · ${ago(t.created * 1000)}${t.attached ? ' · open on the Mac' : ''}`}
-              subLines={1}
+              subtitle={`${home(t.cwd)} · ${ago(t.created * 1000)}${t.attached ? ' · open on the Mac' : ''}`}
               onPress={() => router.push({ pathname: '/term/[name]', params: { name: t.name, cwd: t.cwd } })}
-              menu={[{ id: 'stop', title: 'Stop terminal', image: 'xmark.circle', attributes: { destructive: true } }]}
+              menu={[{ id: 'stop', title: 'Stop Terminal', image: 'xmark.circle', attributes: { destructive: true } }]}
               onMenu={() => stop('this terminal', 'The shell and anything running in it stop.', '/terms/' + encodeURIComponent(t.name))}
             />
           ))}
-          {projects.length > 0 && <SectionTitle>Projects</SectionTitle>}
+          {projects.length > 0 && <SectionHeader title="Projects" />}
           {projects.map((p) => <ProjectRow key={p.cwd} p={p} />)}
           {data && !projects.length && !open.length && (
-            <Empty icon="folder.badge.plus" title="No projects yet" sub="Start an agent in any folder of your home folder; its conversations collect here." />
+            <EmptyState icon="folder.badge.plus" title="No projects yet" message="Start an agent in any folder of your home folder; its conversations collect here." />
           )}
           {!!host && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingTop: 14 }}>
-              <Icon name={keyFor(host) ? 'lock.fill' : 'lock.open'} size={11} color={keyFor(host) ? c.green : c.faint} />
-              <Text style={type.caption}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs + 2, paddingTop: space.md + 2 }}>
+              <Icon name={keyFor(host) ? 'lock.fill' : 'lock.open'} size={11} color={keyFor(host) ? color.green : color.faint} />
+              <Text variant="caption">
                 {via ? `Connected over ${via}` : 'Not connected'}
                 {keyFor(host) ? ' · end-to-end encrypted' : ''}
               </Text>

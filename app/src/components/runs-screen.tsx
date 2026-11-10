@@ -1,15 +1,38 @@
 import { useEffect } from 'react';
-import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { View } from 'react-native';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { EmptyState, HeaderActions, Note, Pill, Press, StatusDot, Surface, Text, space, useTheme, type Tone } from '@/design';
+import { ListScreen } from '@/features/list-screen';
 import { api, post } from '@/lib/hosts';
+import { useLoad } from '@/lib/use-load';
 import type { Job, JobRun } from '@/lib/protocol';
 import { openThread } from '@/lib/threads';
-import { Icon, Note, PulsingDot, c, card, ago, tint, type, useLoad, listStyle, useHex } from '@/components/ui';
+
+const STATUS: Record<JobRun['status'], { label: string; tone: Tone }> = {
+  working: { label: 'Running', tone: 'accent' },
+  finished: { label: 'Done', tone: 'success' },
+  failed: { label: 'Failed', tone: 'danger' },
+};
+
+/** "Tue 02:00" within the week, "Nov 3, 02:00" before it. */
+function when(t: number) {
+  const d = new Date(t);
+  const clock = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const day = Date.now() - t < 6 * 86400e3 ? d.toLocaleDateString(undefined, { weekday: 'short' }) : `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })},`;
+  return `${day} ${clock}`;
+}
+
+/** "6m 12s", "1h 4m". */
+function took(ms: number) {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+}
 
 // A schedule's runs, newest first: how each went and the agent's report. Open
 // one to continue its conversation. Seeing them marks them read.
 export default function Runs() {
-  useHex();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, error, load, pull } = useLoad(() => api<Job[]>('/schedules'), [], 'schedules');
   const job = data?.find((j) => j.id === id);
@@ -25,38 +48,40 @@ export default function Runs() {
   return (
     <>
       <Stack.Screen options={{ title: job?.name ?? 'Reports' }} />
-      <FlatList
-        contentContainerStyle={listStyle}
-        style={{ flex: 1, backgroundColor: c.bg as any }}
-        contentInsetAdjustmentBehavior="automatic"
-        data={job?.runs ?? []}
+      {!!job && (
+        <HeaderActions actions={[{ icon: 'pencil', label: 'Edit Schedule', onPress: () => router.push({ pathname: '/schedule', params: { id: job.id } }) }]} />
+      )}
+      <ListScreen
+        data={data ? (job?.runs ?? []) : null}
+        error={error}
+        pull={pull}
         keyExtractor={(r) => r.id}
-        refreshControl={<RefreshControl {...pull} />}
-        ListHeaderComponent={error ? <Note error>{error}</Note> : <Note>Scheduled runs are unattended: anything that needed your approval or an answer was declined, and the agent was told to list it in its report.</Note>}
-        ListEmptyComponent={data ? <Note>No runs yet.</Note> : undefined}
-        renderItem={({ item: r }) => <RunRow r={r} onPress={() => open(r)} />}
+        empty={<EmptyState icon="clock.arrow.circlepath" title="No runs yet" message="Each run’s report shows up here." />}
+        footer={<Note>Scheduled runs are unattended: anything that needed your approval or an answer was declined, and the agent was told to list it in its report.</Note>}
+        renderItem={({ item: r }) => <RunCard r={r} onPress={() => open(r)} />}
       />
     </>
   );
 }
 
-function RunRow({ r, onPress }: { r: JobRun; onPress: () => void }) {
-  useHex();
-  const failed = r.status === 'failed';
+function RunCard({ r, onPress }: { r: JobRun; onPress: () => void }) {
+  const { color } = useTheme();
+  const s = STATUS[r.status] ?? STATUS.finished;
+  const fresh = !r.read && r.status !== 'working';
   return (
-    <Pressable onPress={onPress} disabled={!r.session} style={({ pressed }) => [card, { padding: 13, gap: 8, opacity: pressed ? 0.75 : 1 }]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        {r.status === 'working' ? <PulsingDot size={7} /> : <Icon name={failed ? 'exclamationmark.triangle.fill' : 'checkmark.circle.fill'} size={15} color={failed ? c.red : c.green} />}
-        <Text style={[type.subhead, { fontWeight: '600', flex: 1 }]}>
-          {r.status === 'working' ? 'Running' : failed ? 'Failed' : 'Finished'} · {ago(r.at)} ago{r.manual ? ' · run by hand' : ''}
-        </Text>
-        {!r.read && r.status !== 'working' && (
-          <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: tint('accent', 0.15) }}>
-            <Text style={[type.caption2, { fontWeight: '600', color: c.accent }]}>NEW</Text>
-          </View>
-        )}
-      </View>
-      {!!r.report && <Text selectable style={type.footnote} numberOfLines={8}>{r.report}</Text>}
-    </Pressable>
+    <Press onPress={r.session ? onPress : undefined} accessibilityRole={r.session ? 'button' : undefined}>
+      <Surface style={{ padding: space.md + 2, gap: space.sm }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+          <Pill label={s.label} tone={s.tone} live={r.status === 'working'} />
+          <Text variant="caption" style={{ flex: 1 }} numberOfLines={1}>
+            {when(r.at)}
+            {r.ended ? ` · ${took(r.ended - r.at)}` : ''}
+            {r.manual ? ' · run by hand' : ''}
+          </Text>
+          {fresh && <StatusDot color={color.accent} size={7} />}
+        </View>
+        {!!r.report && <Text selectable variant="callout" numberOfLines={8}>{r.report}</Text>}
+      </Surface>
+    </Press>
   );
 }

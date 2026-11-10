@@ -1,26 +1,41 @@
-import { useState } from 'react';
-import { Alert, ScrollView, Text, TextInput, View } from 'react-native';
+import { Fragment, useState, type ReactNode } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Device from 'expo-device';
 import { router } from 'expo-router';
+import { Button, Field, RelayMark, SectionHeader, Span, Surface, Text, alert, radius, size, space, useTheme } from '@/design';
 import { pair } from '@/lib/hosts';
-import { Button, Group, IconTile, c, card, mono, type, useHex } from '@/components/ui';
 
-const Step = ({ n, children }: { n: number; children: React.ReactNode }) => {
-  useHex();
+const STEPS: ReactNode[] = [
+  'Turn on Tailscale here if your Mac uses it',
+  <>Run <Span mono>luther pair</Span> on your Mac</>,
+  'Scan the code it shows',
+  'Name this phone and you’re in',
+];
+
+/** The steps, numbered, as rows of one card. */
+function Steps() {
+  const { color } = useTheme();
   return (
-    <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-      <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: c.muted, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={[type.footnote, { color: c.text, fontWeight: '600' }]}>{n}</Text>
-      </View>
-      <Text style={[type.subhead, { flex: 1, paddingTop: 2 }]}>{children}</Text>
-    </View>
+    <Surface style={{ overflow: 'hidden' }}>
+      {STEPS.map((step, i) => (
+        <Fragment key={i}>
+          {i > 0 && <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: color.line }} />}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: size.row, paddingHorizontal: space.lg, paddingVertical: space.md }}>
+            <View style={{ width: 22, height: 22, borderRadius: radius.full, backgroundColor: color.muted, alignItems: 'center', justifyContent: 'center' }}>
+              <Text variant="caption" weight="medium" color="text">{i + 1}</Text>
+            </View>
+            <Text variant="callout" style={{ flex: 1 }}>{step}</Text>
+          </View>
+        </Fragment>
+      ))}
+    </Surface>
   );
-};
+}
 
 // Pair: run `luther pair` on the Mac, then scan its QR (or paste the code under it).
 export default function Pair() {
-  useHex();
+  const { color } = useTheme();
   const [perm, requestPerm] = useCameraPermissions();
   const [paste, setPaste] = useState('');
   const [showPaste, setShowPaste] = useState(false);
@@ -35,7 +50,7 @@ export default function Pair() {
       router.dismissAll();
       router.replace('/');
     } catch (e: any) {
-      Alert.alert('Pairing failed', e.message);
+      alert('Pairing failed', e.message);
     } finally {
       setBusy(false);
     }
@@ -45,11 +60,11 @@ export default function Pair() {
   // focus, guidance and dismissal, and works inside a modal.
   const scan = async () => {
     if (!(perm?.granted || (await requestPerm()).granted)) {
-      Alert.alert('Camera access needed', 'Allow camera access in Settings, or paste the code instead.');
+      alert('Camera access needed', 'Allow camera access in Settings, or paste the code instead.');
       return;
     }
     if (!CameraView.isModernBarcodeScannerAvailable) {
-      Alert.alert('Scanner unavailable', "This iPhone can't scan here; paste the code instead.");
+      alert('Scanner unavailable', "This iPhone can't scan here; paste the code instead.");
       return;
     }
     const sub = CameraView.onModernBarcodeScanned(({ data }) => {
@@ -61,50 +76,44 @@ export default function Pair() {
       await CameraView.launchScanner({ barcodeTypes: ['qr'], isGuidanceEnabled: true, isHighlightingEnabled: true });
     } catch (e: any) {
       sub.remove();
-      Alert.alert("Couldn't open the scanner", e.message);
+      alert("Couldn't open the scanner", e.message);
     }
   };
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" style={{ flex: 1, backgroundColor: c.bg }} contentContainerStyle={{ padding: 20, gap: 22, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
-      <View style={{ alignItems: 'center', gap: 10, paddingTop: 8 }}>
-        <IconTile name="desktopcomputer" color={c.accent} size={72} />
-        <Text style={[type.title2, { textAlign: 'center' }]}>Drive your Mac’s agents</Text>
-        <Text style={[type.subhead, { color: c.dim, textAlign: 'center' }]}>Claude Code, Codex and others keep running on your Mac. This phone steers them over your tailnet or tunnel, end-to-end encrypted.</Text>
+    <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
+      style={{ flex: 1, backgroundColor: color.bg }}
+      contentContainerStyle={{ flexGrow: 1, padding: space.xl, gap: space.xl, paddingBottom: space.xxl + space.lg }}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={{ alignItems: 'center', gap: space.md, paddingTop: space.xl }}>
+        <RelayMark size={104} animate />
+        <Text variant="title" style={{ textAlign: 'center', marginTop: space.sm }}>Drive your Mac’s agents</Text>
+        <Text variant="subhead" color="dim" style={{ textAlign: 'center' }}>Claude Code, Codex, Gemini and more, from your phone, over your tailnet or a tunnel. End-to-end encrypted.</Text>
       </View>
 
-      <View style={[card, { padding: 16, gap: 14 }]}>
-        <Step n={1}>Turn on Tailscale here if your Mac uses it.</Step>
-        <Step n={2}>
-          On the Mac, run <Text style={{ fontFamily: mono, color: c.text }}>luther pair</Text>. It shows a QR code that works once, for 10 minutes.
-        </Step>
-        <Step n={3}>Scan it.</Step>
+      <Steps />
+
+      <View style={{ gap: space.xs + 2 }}>
+        <SectionHeader title="This Phone" />
+        <Field value={name} onChangeText={setName} accessibilityLabel="This phone’s name" />
+        <Text variant="footnote" style={{ paddingHorizontal: space.lg }}>How it shows on the Mac’s list of devices.</Text>
       </View>
 
-      <View style={{ gap: 10 }}>
-        <Button kind="accent" icon="qrcode.viewfinder" label="Scan QR code" busy={busy} onPress={scan} />
-        <Button icon="doc.on.clipboard" label={showPaste ? 'Hide' : 'Paste the code instead'} onPress={() => setShowPaste((s) => !s)} />
+      <View style={{ flex: 1 }} />
+
+      <View style={{ gap: space.sm }}>
+        <Button variant="primary" icon="qrcode.viewfinder" label="Scan QR Code" busy={busy} onPress={scan} />
+        <Button variant="tertiary" label={showPaste ? 'Hide the Code Field' : 'Paste the Code Instead'} onPress={() => setShowPaste((s) => !s)} />
       </View>
 
       {showPaste && (
-        <View style={{ gap: 10 }}>
-          <TextInput
-            style={[card, { ...type.footnote, color: c.text, fontFamily: mono, padding: 12, minHeight: 96 }]}
-            placeholder="The text under the QR code"
-            placeholderTextColor={c.faint as string}
-            value={paste}
-            onChangeText={setPaste}
-            multiline
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <Button kind="accent" label="Pair" busy={busy} disabled={!paste.trim()} onPress={() => go(paste)} />
+        <View style={{ gap: space.sm + 2 }}>
+          <Field mono lines={4} placeholder="The text under the QR code" value={paste} onChangeText={setPaste} autoCapitalize="none" autoCorrect={false} />
+          <Button variant="primary" label="Pair" busy={busy} disabled={!paste.trim()} onPress={() => go(paste)} />
         </View>
       )}
-
-      <Group title="This phone" footer="How it shows on the Mac's list of devices.">
-        <TextInput style={{ ...type.body, paddingHorizontal: 16, paddingVertical: 13 }} value={name} onChangeText={setName} />
-      </Group>
     </ScrollView>
   );
 }

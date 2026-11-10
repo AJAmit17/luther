@@ -1,21 +1,25 @@
 import { Stack } from 'expo-router';
-import { useHex } from '@/components/ui';
+import { useTheme } from '@/design';
 
-// A tab's own stack: large title drawn over the list (which insets itself).
+const ios = process.env.EXPO_OS === 'ios';
+
+// iOS draws the native large title over the list; Android's bar has no large title,
+// so it keeps only the actions and the screen draws <LargeTitle />.
 export default function TabStack() {
-  const h = useHex();
+  const { color } = useTheme();
   return (
     <Stack
       screenOptions={{
         headerLargeTitle: true,
-        headerTransparent: process.env.EXPO_OS === 'ios',
+        headerTransparent: ios,
         headerLargeTitleShadowVisible: false,
         headerShadowVisible: false,
-        headerTintColor: h.accent,
-        headerTitleStyle: { color: h.text },
-        headerLargeTitleStyle: { color: h.text },
+        headerTintColor: color.text,
+        headerTitleStyle: { color: color.text },
+        headerLargeTitleStyle: { color: color.text },
         headerBackButtonDisplayMode: 'minimal',
-        contentStyle: { backgroundColor: h.bg },
+        contentStyle: { backgroundColor: color.bg },
+        ...(ios ? {} : { headerTitle: '' }),
       }}
     />
   );

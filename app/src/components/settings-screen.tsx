@@ -1,16 +1,18 @@
 import { useCallback, useState } from 'react';
-import { Alert, ScrollView, Text, TextInput, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { Stack, router, useFocusEffect } from 'expo-router';
+import { RouteMark, isTailnet } from '@/features/route-mark';
 import { api, currentHost, del, keyFor, removeHost, resolve, routeInUse, upsertHost, type Host } from '@/lib/hosts';
 import type { Device } from '@/lib/protocol';
-import { Group, GroupRow, Icon, IconTile, Note, Pill, ago, c, card, mono, type, useHex } from '@/components/ui';
+import { Group, LargeTitle, ListItem, Note, Pill, Surface, Text, TextInput, Tile, alert, space, useTheme } from '@/design';
+import { since } from '@/lib/format';
 import { AppearancePicker } from '@/components/appearance-picker';
 import { PermissionsSection } from '@/components/permissions-section';
 
 // The current Mac: usage, routes (in order), Cloudflare Access token, paired devices.
 export default function Settings() {
-  useHex();
-  const input = { ...type.subhead, fontFamily: mono, paddingHorizontal: 16, paddingVertical: 13 } as const;
+  const { color } = useTheme();
+  const input = { paddingHorizontal: space.lg, paddingVertical: space.md + 1 } as const;
   const [h, setH] = useState<Host | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [status, setStatus] = useState('');
@@ -41,7 +43,7 @@ export default function Settings() {
   };
   const revoke = (d: Device) =>
     h &&
-    Alert.alert(`Revoke ${d.name}?`, d.id === h.id ? 'This phone loses access until you pair it again.' : 'That device loses access right away.', [
+    alert(`Revoke ${d.name}?`, d.id === h.id ? 'This phone loses access until you pair it again.' : 'That device loses access right away.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Revoke',
@@ -52,12 +54,12 @@ export default function Settings() {
               await removeHost(h.id);
               router.replace('/');
             } else void loadDevices();
-          }, (e) => Alert.alert('Error', e.message)),
+          }, (e) => alert('Error', e.message)),
       },
     ]);
   const forget = () =>
     h &&
-    Alert.alert(`Forget ${h.name}?`, 'Removes it from this phone. Revoke this device too if you won’t pair again.', [
+    alert(`Forget ${h.name}?`, 'Removes it from this phone. Revoke this device too if you won’t pair again.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Forget', style: 'destructive', onPress: async () => { await removeHost(h.id); router.replace('/'); } },
     ]);
@@ -65,8 +67,9 @@ export default function Settings() {
   const using = h ? routeInUse(h) : null;
   const encrypted = !!h && !!keyFor(h);
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" style={{ flex: 1, backgroundColor: c.bg }} contentContainerStyle={{ padding: 16, gap: 22, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
+    <ScrollView contentInsetAdjustmentBehavior="automatic" style={{ flex: 1, backgroundColor: color.bg }} contentContainerStyle={{ padding: space.lg, gap: space.xl, paddingBottom: space.xxl + space.lg }} keyboardShouldPersistTaps="handled">
       <Stack.Screen options={{ title: 'Settings' }} />
+      <LargeTitle>Settings</LargeTitle>
       {!h ? (
         <>
           <AppearancePicker />
@@ -75,68 +78,62 @@ export default function Settings() {
         </>
       ) : (
         <>
-          <View style={[card, { padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }]}>
-            <IconTile name="desktopcomputer" color={c.accent} size={48} />
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={type.title3} numberOfLines={1}>{h.name}</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                <Icon name={encrypted ? 'lock.fill' : 'lock.open'} size={11} color={encrypted ? c.green : c.warn} />
-                <Text style={type.footnote}>{encrypted ? 'End-to-end encrypted' : 'Not encrypted: pair again to encrypt'}</Text>
-              </View>
+          <Surface style={{ padding: space.lg, flexDirection: 'row', alignItems: 'center', gap: space.md + 2 }}>
+            <Tile icon="desktopcomputer" color={color.text} size={48} />
+            <View style={{ flex: 1, gap: space.xs }}>
+              <Text variant="title3" numberOfLines={1}>{h.name}</Text>
+              {!encrypted && <Text variant="footnote">Not encrypted. Pair again to encrypt.</Text>}
             </View>
-          </View>
+            {encrypted ? <Pill label="Encrypted" tone="success" icon="lock.fill" /> : <Pill label="Not encrypted" tone="warning" icon="lock.open" />}
+          </Surface>
 
           <AppearancePicker />
           <PermissionsSection />
 
           <Group title="Connection" footer={status || 'Tried in this order; tap one to try it first.'}>
             {h.routes.map((u, i) => (
-              <GroupRow
+              <ListItem
                 key={u}
-                first={i === 0}
-                icon={u.includes('.ts.net') ? 'network' : 'cloud'}
-                iconColor={c.blue}
-                label={u.replace(/^https:\/\//, '')}
-                sub={`${u.includes('.ts.net') ? 'Tailnet' : 'Cloudflare tunnel'}${u.includes('/r/') ? ' · relayed by another machine' : ''}`}
-                right={u === using ? <Pill label="In use" tone="green" /> : i > 0 ? <Text style={[type.footnote, { color: c.accent }]}>Prefer</Text> : <View />}
+                leading={<RouteMark url={u} />}
+                title={u.replace(/^https:\/\//, '')}
+                subtitle={`${isTailnet(u) ? 'Tailnet' : 'Cloudflare tunnel'}${u.includes('/r/') ? ' · relayed by another machine' : ''}`}
+                trailing={u === using ? <Pill label="In use" tone="success" /> : i > 0 ? <Text variant="footnote" color="accent">Prefer</Text> : <View />}
                 onPress={i > 0 ? () => save({ ...h, routes: [u, ...h.routes.filter((x) => x !== u)] }) : undefined}
               />
             ))}
-            <GroupRow icon="bolt.horizontal" iconColor={c.accent} label="Test connection" onPress={test} right={<View />} />
+            <ListItem icon="bolt.horizontal" iconColor={color.accent} title="Test Connection" onPress={test} trailing={<View />} />
           </Group>
 
           <Group title="Cloudflare Access" footer="Only if your tunnel sits behind Cloudflare Access with a service token. Stored in this phone’s secure storage.">
-            <TextInput style={input} placeholder="CF-Access-Client-Id" placeholderTextColor={c.faint as string} autoCapitalize="none" autoCorrect={false}
-              value={h.cfId ?? ''} onChangeText={(v) => setH({ ...h, cfId: v.trim() })} onEndEditing={() => save(h)} />
-            <View style={{ height: 1, backgroundColor: c.line }} />
-            <TextInput style={input} placeholder="CF-Access-Client-Secret" placeholderTextColor={c.faint as string} autoCapitalize="none" autoCorrect={false} secureTextEntry
-              value={h.cfSecret ?? ''} onChangeText={(v) => setH({ ...h, cfSecret: v.trim() })} onEndEditing={() => save(h)} />
+              <TextInput mono style={input} placeholder="CF-Access-Client-Id" autoCapitalize="none" autoCorrect={false}
+                value={h.cfId ?? ''} onChangeText={(v) => setH({ ...h, cfId: v.trim() })} onEndEditing={() => save(h)} />
+              <View style={{ height: 1, backgroundColor: color.line }} />
+              <TextInput mono style={input} placeholder="CF-Access-Client-Secret" autoCapitalize="none" autoCorrect={false} secureTextEntry
+                value={h.cfSecret ?? ''} onChangeText={(v) => setH({ ...h, cfSecret: v.trim() })} onEndEditing={() => save(h)} />
           </Group>
 
-          <Group title="Paired devices" footer={error || 'Any paired device can revoke another, so a lost phone can be cut off from this one.'}>
-            {devices.map((d, i) => (
-              <GroupRow
+          <Group title="Paired Devices" footer={error || 'Any paired device can revoke another, so a lost phone can be cut off from this one.'}>
+            {devices.map((d) => (
+              <ListItem
                 key={d.id}
-                first={i === 0}
-                icon={d.encrypted ? 'lock.iphone' : 'iphone'}
-                iconColor={d.encrypted ? c.green : c.dim}
-                label={d.name + (d.id === h.id ? ' (this phone)' : '')}
-                sub={`Paired ${ago(d.created)} ago · seen ${ago(d.lastSeen)} ago`}
-                right={<Text style={[type.footnote, { color: c.red }]}>Revoke</Text>}
+                leading={<Tile icon="iphone" color={d.id === h.id ? color.accent : color.text} size={32} />}
+                title={d.name + (d.id === h.id ? ' (this phone)' : '')}
+                subtitle={[d.encrypted ? 'Encrypted' : 'Not encrypted', `paired ${since(d.created)}`, `seen ${since(d.lastSeen)}`].join(' · ')}
+                trailing={<Text variant="footnote" color="red">Revoke</Text>}
                 onPress={() => revoke(d)}
               />
             ))}
-            {!devices.length && <GroupRow first label="Loading…" />}
+            {!devices.length && <ListItem title="Loading…" />}
           </Group>
 
           <Group title="This Mac" footer="Luther's version, each agent and its process, and the server's log.">
-            <GroupRow first icon="heart.text.square" iconColor={c.accent} label="Health" onPress={() => router.push('/health')} right={<Icon name="chevron.right" size={13} color={c.faint} />} />
-            <GroupRow icon="doc.plaintext" iconColor={c.dim} label="Server log" onPress={() => router.push('/log')} right={<Icon name="chevron.right" size={13} color={c.faint} />} />
+            <ListItem icon="heart.text.square" iconColor={color.accent} title="Health" onPress={() => router.push('/health')} />
+            <ListItem icon="doc.plaintext" iconColor={color.dim} title="Server Log" onPress={() => router.push('/log')} />
           </Group>
 
           <Group>
-            <GroupRow first icon="plus.circle" iconColor={c.accent} label="Pair another Mac" onPress={() => router.push('/pair')} />
-            <GroupRow icon="trash" destructive label="Forget this Mac" onPress={forget} />
+            <ListItem icon="plus.circle" iconColor={color.accent} title="Pair Another Mac" onPress={() => router.push('/pair')} />
+            <ListItem icon="trash" destructive title="Forget This Mac" onPress={forget} />
           </Group>
         </>
       )}

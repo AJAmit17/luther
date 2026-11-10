@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, SectionList, Text, TextInput, View } from 'react-native';
+import { Modal, SectionList, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Icon, Press, Text, TextInput, radius, space, useTheme } from '@/design';
 import { api } from '@/lib/hosts';
 import type { Model, Provider } from '@/lib/protocol';
-import { Icon, c, type, useHex } from '@/components/ui';
 
 /** An agent's models, as it lists them itself (the Mac keeps the lists, so they
  *  come at once, before any session). */
@@ -36,7 +36,7 @@ export function ModelPicker({ open, models, selected, onPick, onClose, withDefau
   onClose: () => void;
   withDefault?: boolean;
 }) {
-  const h = useHex();
+  const { color } = useTheme();
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
   const sections = useMemo(() => {
@@ -57,17 +57,17 @@ export function ModelPicker({ open, models, selected, onPick, onClose, withDefau
 
   return (
     <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: h.surface, paddingTop: process.env.EXPO_OS === 'android' ? insets.top : 0 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 }}>
-          <Text style={[type.title3, { flex: 1 }]}>Model</Text>
-          <Pressable onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
-            <Text style={[type.headline, { color: c.accent }]}>Done</Text>
-          </Pressable>
+      <View style={{ flex: 1, backgroundColor: color.surface, paddingTop: process.env.EXPO_OS === 'android' ? insets.top : 0 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.xl - 4, paddingTop: space.lg + 2, paddingBottom: space.sm + 2 }}>
+          <Text variant="title3" style={{ flex: 1 }}>Model</Text>
+          <Press onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
+            <Text variant="headline" color="accent">Done</Text>
+          </Press>
         </View>
         {models.length > 12 && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: c.muted }}>
-            <Icon name="magnifyingglass" size={15} color={c.dim} />
-            <TextInput value={q} onChangeText={setQ} placeholder={`Search ${models.length} models`} placeholderTextColor={c.faint} autoCorrect={false} autoCapitalize="none" style={[type.body, { flex: 1, paddingVertical: 10 }]} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, marginHorizontal: space.lg, marginBottom: space.sm, paddingHorizontal: space.md, borderRadius: radius.card, backgroundColor: color.muted }}>
+            <Icon name="magnifyingglass" size={15} color={color.dim} />
+            <TextInput value={q} onChangeText={setQ} placeholder={`Search ${models.length} models`} autoCorrect={false} autoCapitalize="none" style={{ flex: 1, paddingVertical: space.sm + 2 }} />
           </View>
         )}
         <SectionList
@@ -76,17 +76,21 @@ export function ModelPicker({ open, models, selected, onPick, onClose, withDefau
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           stickySectionHeadersEnabled={false}
-          contentContainerStyle={{ paddingBottom: 24 + insets.bottom }}
-          ListEmptyComponent={<Text style={[type.subhead, { color: c.dim, textAlign: 'center', padding: 32 }]}>{models.length ? 'No model matches.' : 'Asking the agent for its models…'}</Text>}
-          renderSectionHeader={({ section }) => (section.title ? <Text style={[type.footnote, { fontWeight: '600', textTransform: 'uppercase', paddingHorizontal: 20, paddingTop: 18, paddingBottom: 6 }]}>{section.title}</Text> : null)}
+          contentContainerStyle={{ paddingBottom: space.xl + insets.bottom }}
+          ListEmptyComponent={<Text variant="subhead" color="dim" style={{ textAlign: 'center', padding: space.xxl }}>{models.length ? 'No model matches.' : 'Asking the agent for its models…'}</Text>}
+          renderSectionHeader={({ section }) =>
+            section.title ? (
+              <Text variant="footnote" weight="medium" style={{ textTransform: 'uppercase', paddingHorizontal: space.xl - 4, paddingTop: space.lg + 2, paddingBottom: space.xs + 2 }}>{section.title}</Text>
+            ) : null
+          }
           renderItem={({ item: m }) => (
-            <Pressable onPress={() => pick(m.id)} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 12, backgroundColor: pressed ? c.muted : 'transparent' })}>
+            <Press onPress={() => pick(m.id)} scale={1} accessibilityRole="button" accessibilityState={{ selected: isOn(m) }} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.xl - 4, paddingVertical: space.md }}>
               <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                <Text style={[type.body, isOn(m) && { color: c.accent, fontWeight: '600' }]} numberOfLines={1}>{m.name}</Text>
-                {!!(m.desc || (m.id && m.id !== m.name)) && <Text style={type.footnote} numberOfLines={1}>{m.desc || m.id}</Text>}
+                <Text color={isOn(m) ? 'accent' : undefined} weight={isOn(m) ? 'medium' : undefined} numberOfLines={1}>{m.name}</Text>
+                {!!(m.desc || (m.id && m.id !== m.name)) && <Text variant="footnote" numberOfLines={1}>{m.desc || m.id}</Text>}
               </View>
-              {isOn(m) && <Icon name="checkmark" size={16} color={c.accent} />}
-            </Pressable>
+              {isOn(m) && <Icon name="checkmark" size={16} color={color.accent} />}
+            </Press>
           )}
         />
       </View>

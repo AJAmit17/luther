@@ -1,19 +1,17 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
+import { Icon, Press, Text, alert, palettes, radius, space, tint, useTheme } from '@/design';
 import { upload } from '@/lib/hosts';
-import { Icon, c, type, useHex } from '@/components/ui';
 
 type Item = { key: string; uri: string; name: string; image: boolean; path?: string };
 
-// Android may kill Luther while the camera or photo picker is open; it then
-// starts again on Home and the photo is lost. So the conversation is noted
-// before the picker opens, and on the next launch restorePick() takes the
-// photo back (the picker keeps it) and reopens that conversation with it.
+// Android may kill Luther while a picker is open; the conversation is noted first,
+// and restorePick() reopens it with the photo on the next launch.
 const PICKING = 'luther.picking';
 type Where = { id: string; cwd?: string };
 let restored: { id: string; assets: ImagePicker.ImagePickerAsset[] } | null = null;
@@ -48,7 +46,7 @@ export function useAttachments(where?: Where) {
         (path) => setItems((xs) => xs.map((x) => (x.key === it.key ? { ...x, path } : x))),
         (e) => {
           setItems((xs) => xs.filter((x) => x.key !== it.key));
-          Alert.alert(`Couldn't attach ${it.name}`, e.message);
+          alert(`Couldn't attach ${it.name}`, e.message);
         },
       );
     }
@@ -80,7 +78,7 @@ export function useAttachments(where?: Where) {
   const pick = async (from: 'photos' | 'camera' | 'files') => {
     if (from === 'photos') await picking(() => ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 0.8 }));
     if (from === 'camera') {
-      if (!(await ImagePicker.requestCameraPermissionsAsync()).granted) return Alert.alert('Camera access is off', 'Turn it on for Luther in Settings.');
+      if (!(await ImagePicker.requestCameraPermissionsAsync()).granted) return alert('Camera access is off', 'Turn it on for Luther in Settings.');
       await picking(() => ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 }));
     }
     if (from === 'files') {
@@ -100,28 +98,29 @@ export function useAttachments(where?: Where) {
 }
 
 export function AttachmentStrip({ items, onRemove }: { items: Item[]; onRemove: (key: string) => void }) {
-  useHex();
+  const { color } = useTheme();
   if (!items.length) return null;
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8 }}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: space.sm }}>
       {items.map((x) => (
-        <View key={x.key} style={{ width: 56, height: 56, borderRadius: 12, borderCurve: 'continuous', backgroundColor: c.muted, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+        <View key={x.key} style={{ width: 56, height: 56, borderRadius: radius.card, borderCurve: 'continuous', backgroundColor: color.muted, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
           {x.image ? (
             <Image source={{ uri: x.uri }} style={{ width: 56, height: 56 }} contentFit="cover" />
           ) : (
-            <View style={{ alignItems: 'center', gap: 2, padding: 4 }}>
+            <View style={{ alignItems: 'center', gap: 2, padding: space.xs }}>
               <Icon name="doc" size={18} />
-              <Text style={[type.caption2, { fontSize: 9 }]} numberOfLines={1}>{x.name}</Text>
+              <Text variant="caption2" numberOfLines={1}>{x.name}</Text>
             </View>
           )}
           {!x.path && (
-            <View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0007' }}>
-              <ActivityIndicator color="#fff" />
+            // Over a photo, so dark in both schemes.
+            <View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: tint(palettes.dark.bg, 0.45) }}>
+              <ActivityIndicator color={color.onAccent} />
             </View>
           )}
-          <Pressable onPress={() => onRemove(x.key)} hitSlop={8} accessibilityLabel={`Remove ${x.name}`} style={{ position: 'absolute', top: 3, right: 3 }}>
-            <Icon name="xmark.circle.fill" size={17} color="#FFFFFFE6" />
-          </Pressable>
+          <Press onPress={() => onRemove(x.key)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Remove ${x.name}`} style={{ position: 'absolute', top: 3, right: 3 }}>
+            <Icon name="xmark.circle.fill" size={17} color={tint(color.onAccent, 0.9)} />
+          </Press>
         </View>
       ))}
     </ScrollView>

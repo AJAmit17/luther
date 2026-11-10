@@ -1,8 +1,10 @@
-import { Platform, Text } from 'react-native';
+import { Span, Text, palettes } from '@/design';
 
 // Renders `tmux capture-pane -e` output (SGR escapes) as native Text spans.
-const BASE = ['#1d1f21', '#cc6666', '#b5bd68', '#f0c674', '#81a2be', '#b294bb', '#8abeb7', '#c5c8c6'];
-const BRIGHT = ['#666666', '#ff7b72', '#7ee787', '#f2cc60', '#79c0ff', '#d2a8ff', '#a5d6ff', '#ffffff'];
+// The terminal is always dark; the palette has no magenta or cyan, so those borrow accent and blue.
+const t = palettes.dark;
+const BASE = [t.muted, t.red, t.green, t.warn, t.blue, t.accent, t.blue, t.text];
+const BRIGHT = [t.faint, t.red, t.green, t.warn, t.blue, t.accent, t.blue, t.text];
 
 function xterm256(n: number) {
   if (n < 8) return BASE[n];
@@ -57,9 +59,9 @@ export function AnsiText({ text, fontSize = 11 }: { text: string; fontSize?: num
   }
   spans.push({ t: text.slice(last).replace(/\x1b\[[\d;?]*[A-Za-z]/g, ''), s: st });
   return (
-    <Text selectable style={{ fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }), fontSize, lineHeight: fontSize * 1.3, color: '#c5c8c6' }}>
+    <Text selectable mono style={{ fontSize, lineHeight: fontSize * 1.3, color: t.text }}>
       {spans.map((x, i) => (
-        <Text key={i} style={x.s}>{x.t}</Text>
+        <Span key={i} mono style={x.s}>{x.t}</Span>
       ))}
     </Text>
   );
