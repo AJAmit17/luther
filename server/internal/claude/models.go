@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/AJAmit17/luther/server/internal/claudeaccounts"
 	"os"
 	"os/exec"
 	"time"
@@ -30,6 +31,8 @@ func Models() ([]protocol.Model, error) {
 	// --fast-mode on only asks; this process never sends a prompt.
 	cmd := exec.CommandContext(ctx, Bin, "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--fast-mode", "on")
 	cmd.Dir = dir
+	_, accountEnv := claudeaccounts.Env()
+	cmd.Env = append(os.Environ(), accountEnv...)
 	in, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err

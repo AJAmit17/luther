@@ -10,6 +10,7 @@ import { Group, Icon, LargeTitle, Note, Press, Segmented, space, Surface, Text, 
 import { AgentTile, agentName } from '@/features/agents';
 import { since } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
+import { ClaudeAccountSection } from '@/components/claude-account-section';
 
 const NUMBER_FORMAT_KEY = 'luther.usage-number-format';
 
@@ -96,6 +97,7 @@ export default function UsageScreen() {
         </View>)}
       </Group>
       {host ? <UsageSection refresh={data?.updated} /> : null}
+      {host ? <ClaudeAccountSection /> : null}
       {data?.notes.map((note) => <Text key={note} variant="footnote">{note}</Text>)}
     </ScrollView>
   );

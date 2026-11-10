@@ -6,22 +6,22 @@ import { useLoad } from '@/lib/use-load';
 import { api, currentHostIdSync } from '@/lib/hosts';
 import type { Limits } from '@/lib/protocol';
 
-/** Group's header and footer around free-form card content (Group itself holds only ListItems). */
-// Each agent's plan windows: how much is used and when it resets, asked fresh
-// (Claude at Anthropic's usage endpoint, Codex over its app-server).
+// Each agent's plan windows, asked fresh (Claude at Anthropic's usage endpoint, Codex over its app-server).
+// A second Claude account (the desktop app's) gets its own row; the CLI login is then labelled Terminal.
 export function UsageSection({ refresh }: { refresh?: number }) {
   const { color } = useTheme();
   const host = currentHostIdSync();
   const { data, error } = useLoad(() => api<Limits[]>('/usage'), [host, refresh], 'usage');
   if (!data?.length && !error) return null;
   return (
-    <Group title="Usage" footer={error || 'Asked fresh each time you open this: Claude from Anthropic, Codex from its own server.'}>
+    <Group title="Usage" footer={error || 'Asked fresh each time you open this: Claude from Anthropic (the desktop app\'s account from the app\'s own samples), Codex from its own server.'}>
       {data?.map((l, i) => (
-        <View key={l.provider} style={{ padding: space.lg, gap: space.sm + 2, borderTopWidth: i ? 1 : 0, borderTopColor: color.line }}>
+        <View key={l.provider + (l.account ?? '')} style={{ padding: space.lg, gap: space.sm + 2, borderTopWidth: i ? 1 : 0, borderTopColor: color.line }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm + 2 }}>
             <AgentTile p={l.provider} size={26} />
             <Text variant="headline" style={{ flex: 1 }}>
               {agentName(l.provider)}
+              {accountLabel(l, data ?? []) ? <Span color="dim" weight="regular"> · {accountLabel(l, data ?? [])}</Span> : null}
               {l.plan ? <Span color="dim" weight="regular"> · {l.plan}</Span> : null}
             </Text>
             <Text variant="caption">{since(l.updated)}</Text>
@@ -43,4 +43,9 @@ export function UsageSection({ refresh }: { refresh?: number }) {
       ))}
     </Group>
   );
+}
+
+/** The entry's account, or "Terminal" for the CLI login when the same agent has another account here. */
+function accountLabel(l: Limits, all: Limits[]) {
+  return l.account ?? (all.some((o) => o.provider === l.provider && o.account) ? 'Terminal' : undefined);
 }

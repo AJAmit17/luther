@@ -264,9 +264,12 @@ type Msg struct {
 // Codex answers on request.
 type Limits struct {
 	Provider Provider `json:"provider"`
-	Plan     string   `json:"plan,omitempty"`
-	Windows  []Window `json:"windows"`
-	Updated  int64    `json:"updated"` // ms
+	// Account: set when it isn't the CLI login Luther's agents run under, e.g.
+	// "Desktop app" for the Claude desktop app's own account.
+	Account string   `json:"account,omitempty"`
+	Plan    string   `json:"plan,omitempty"`
+	Windows []Window `json:"windows"`
+	Updated int64    `json:"updated"` // ms
 }
 
 type Window struct {

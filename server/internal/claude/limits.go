@@ -18,12 +18,14 @@ import (
 
 	"github.com/AJAmit17/luther/server/internal/paths"
 	"github.com/AJAmit17/luther/server/internal/protocol"
+	"github.com/AJAmit17/luther/server/internal/text"
 	"github.com/AJAmit17/luther/server/internal/usage"
 )
 
-// saveLimits: a rate_limit_event's rate_limit_info. Verified on 2.1.318:
+// saveLimits: a rate_limit_event's rate_limit_info, for the account the claude
+// that sent it runs under. Verified on 2.1.318:
 // {unifiedWindows: {five_hour: {utilization 0–1, resetsAt s}, seven_day: …}}.
-func saveLimits(raw json.RawMessage) {
+func saveLimits(raw json.RawMessage, account string) {
 	var info struct {
 		Windows map[string]struct {
 			Utilization float64 `json:"utilization"`
@@ -34,7 +36,7 @@ func saveLimits(raw json.RawMessage) {
 		return
 	}
 	mins := map[string]int{"five_hour": 300, "seven_day": 10080}
-	l := protocol.Limits{Provider: protocol.Claude}
+	l := protocol.Limits{Provider: protocol.Claude, Account: account}
 	for k, w := range info.Windows {
 		label := strings.ReplaceAll(k, "_", " ")
 		if m, ok := mins[k]; ok {
@@ -56,6 +58,13 @@ func ReadLimits() error {
 	if err != nil {
 		return err
 	}
+	return ReadLimitsAs(tok, "")
+}
+
+// ReadLimitsAs: the same for one of Luther's Claude accounts (its token from
+// `claude setup-token`). Such a token may lack the scope this endpoint asks
+// for; that account's turns still report.
+func ReadLimitsAs(tok, account string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, "GET", "https://api.anthropic.com/api/oauth/usage", nil)
@@ -69,20 +78,20 @@ func ReadLimits() error {
 	defer res.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
 	if res.StatusCode != 200 {
-		return fmt.Errorf("claude usage: HTTP %d", res.StatusCode)
+		return fmt.Errorf("claude usage (%s): HTTP %d", text.OrDefault(account, "CLI login"), res.StatusCode)
 	}
-	return saveUsage(body)
+	return saveUsage(body, account)
 }
 
 // saveUsage: {"five_hour": {"utilization": 53, "resets_at": "…"}, "seven_day": …,
 // other windows (some null)}; utilization in percent.
-func saveUsage(body []byte) error {
+func saveUsage(body []byte, account string) error {
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(body, &m); err != nil {
 		return fmt.Errorf("claude usage: %w", err)
 	}
 	mins := map[string]int{"five_hour": 300, "seven_day": 10080}
-	l := protocol.Limits{Provider: protocol.Claude}
+	l := protocol.Limits{Provider: protocol.Claude, Account: account}
 	for k, raw := range m {
 		var w struct {
 			Utilization *float64 `json:"utilization"`
