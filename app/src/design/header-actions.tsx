@@ -12,13 +12,12 @@ export type HeaderAction =
 
 const sf = (name?: IconName) => name as SFSymbol | undefined;
 
-function Item({ item }: { item: HeaderItem }) {
-  return (
-    <Stack.Toolbar.MenuAction icon={sf(item.icon)} isOn={item.on} destructive={item.destructive} disabled={item.disabled} onPress={item.onPress}>
-      {item.title}
-    </Stack.Toolbar.MenuAction>
-  );
-}
+// The toolbar reads its children by type, so items must be MenuAction elements, not components wrapping them.
+const item = (it: HeaderItem, key: number) => (
+  <Stack.Toolbar.MenuAction key={key} icon={sf(it.icon)} isOn={it.on} destructive={it.destructive} disabled={it.disabled} onPress={it.onPress}>
+    {it.title}
+  </Stack.Toolbar.MenuAction>
+);
 
 /** A screen's header buttons and menus. iOS: the native toolbar. */
 export function HeaderActions({ actions }: { actions: HeaderAction[] }) {
@@ -30,10 +29,10 @@ export function HeaderActions({ actions }: { actions: HeaderAction[] }) {
             {a.menu.map((entry, j) =>
               'section' in entry ? (
                 <Stack.Toolbar.Menu key={j} inline title={entry.section}>
-                  {entry.items.map((item, k) => <Item key={k} item={item} />)}
+                  {entry.items.map(item)}
                 </Stack.Toolbar.Menu>
               ) : (
-                <Item key={j} item={entry} />
+                item(entry, j)
               ),
             )}
           </Stack.Toolbar.Menu>
