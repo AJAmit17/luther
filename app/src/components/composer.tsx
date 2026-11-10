@@ -6,7 +6,7 @@ import { modelName } from '@/components/model-picker';
 import { effortLabel, type ThinkingProps } from '@/components/thinking';
 import { ThreadSheet } from '@/components/thread-sheet';
 import { Chip, Icon, IconButton, MenuView, Press, TextInput, radius, space, type, useTheme } from '@/design';
-import { modeOf } from '@/features/agents';
+import { AgentMark, agentName, modeOf } from '@/features/agents';
 import type { Mode, Model, Provider, Usage } from '@/lib/protocol';
 import type { useVoice } from '@/lib/voice';
 
@@ -40,7 +40,7 @@ export function Composer(p: {
   const [sheet, setSheet] = useState(false);
   const t = p.think;
   // One pill for the thread's knobs: model · effort · permissions (the sheet has the rest).
-  const summary = [modelName(p.models, p.model) || 'Default', t?.effort ? effortLabel(t.effort) + (t.fast === 'on' ? ' Fast' : '') : '', modeOf(p.mode).short].filter(Boolean).join(' · ');
+  const summary = [p.provider ? agentName(p.provider) : '', modelName(p.models, p.model) || 'Default', t?.effort ? effortLabel(t.effort) + (t.fast === 'on' ? ' Fast' : '') : '', modeOf(p.mode).short].filter(Boolean).join(' · ');
   const empty = !p.text.trim() && !p.att.items.length;
   return (
     <View style={{ padding: space.sm + 2, gap: space.sm, backgroundColor: color.card, borderRadius: radius.sheet, borderCurve: 'continuous', borderWidth: 1, borderColor: color.line }}>
@@ -74,7 +74,7 @@ export function Composer(p: {
           </MenuView>
         )}
         <View style={{ flex: 1, minWidth: 0, flexDirection: 'row' }}>
-          <Chip icon="slider.horizontal.3" label={summary} tone={p.mode === 'full' ? 'danger' : 'neutral'} onPress={() => setSheet(true)} accessibilityLabel={`Thread settings: ${summary}`} />
+          <Chip icon="slider.horizontal.3" leading={p.provider ? <AgentMark p={p.provider} size={16} /> : undefined} label={summary} tone={p.mode === 'full' ? 'danger' : 'neutral'} onPress={() => setSheet(true)} accessibilityLabel={`Thread settings: ${summary}`} />
         </View>
         {focused && <IconButton icon="keyboard.chevron.compact.down" label="Hide keyboard" onPress={() => input.current?.blur()} />}
         {empty && (
