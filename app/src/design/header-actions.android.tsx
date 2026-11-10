@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useNavigation } from 'expo-router';
 import { Button, IconButton } from './button';
@@ -14,7 +14,7 @@ const entries = (menu: (HeaderItem | HeaderSection)[]) => menu.flatMap((e) => ('
 const toMenu = (menu: (HeaderItem | HeaderSection)[]): MenuAction[] =>
   entries(menu).map((item, i) => ({ id: String(i), title: item.title, image: item.icon, state: item.on ? 'on' : 'off', attributes: { destructive: item.destructive, disabled: item.disabled } }));
 
-/** What the actions look like, without their handlers: the header is rebuilt only when this changes. */
+/** What the actions look like, without their handlers: the header redraws only when this changes. */
 const shape = (actions: HeaderAction[]) =>
   JSON.stringify(actions, (key, value) => (typeof value === 'function' ? undefined : value));
 
@@ -25,8 +25,13 @@ export function HeaderActions({ actions }: { actions: HeaderAction[] }) {
     latest.current = actions;
   });
   const key = shape(actions);
+  // One component for the screen's life: swapping it on every change makes the title re-lay out around an empty header.
+  const shown = useRef<{ list: HeaderAction[]; set?: (l: HeaderAction[]) => void }>({ list: actions });
+  useEffect(() => {
+    shown.current.list = latest.current;
+    shown.current.set?.(latest.current);
+  }, [key]);
   const headerRight = useMemo(() => {
-    const drawn = JSON.parse(key) as HeaderAction[];
     const run = (i: number, j?: number) => {
       const a = latest.current[i];
       if (!a) return;
@@ -34,6 +39,14 @@ export function HeaderActions({ actions }: { actions: HeaderAction[] }) {
       else a.onPress();
     };
     function Actions() {
+      const [drawn, setDrawn] = useState(shown.current.list);
+      useEffect(() => {
+        shown.current.set = setDrawn;
+        setDrawn(shown.current.list);
+        return () => {
+          shown.current.set = undefined;
+        };
+      }, []);
       return (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
           {drawn.map((a, i) =>
@@ -52,8 +65,11 @@ export function HeaderActions({ actions }: { actions: HeaderAction[] }) {
         </View>
       );
     }
-    return Actions;
-  }, [key]);
+    // Navigation calls headerRight as a function, so the hooks need a component of their own.
+    return function Right() {
+      return <Actions />;
+    };
+  }, []);
   const navigation = useNavigation();
   useLayoutEffect(() => {
     navigation.setOptions({ headerRight });
