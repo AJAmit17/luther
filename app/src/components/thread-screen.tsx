@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Keyboard, View } from 'react-native';
+import { FlatList, Keyboard, View, useWindowDimensions } from 'react-native';
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -71,6 +71,8 @@ function WorkingPill({ busy, since, away, jump, provider }: { busy: boolean; sin
 
 // One conversation with an agent on the Mac. Every phone attached to it (and
 // anything else attached to the same thread) sees the same stream.
+
+const HEADER_SIDE = 112;
 export default function ThreadScreen() {
   const { id, cwd, send } = useLocalSearchParams<{ id: string; cwd?: string; send?: string }>();
   const ev = useThread(id);
@@ -230,9 +232,11 @@ export default function ThreadScreen() {
   const conn = ev.status === 'connecting' ? 'Connecting…' : ev.status === 'closed' ? 'Reconnecting…' : '';
 
   // Memoized: a new headerTitle each render would redraw the native header on every streamed token.
+  // Room for a centred title between the back button and the two buttons on the right; longer names truncate.
+  const titleWidth = useWindowDimensions().width - 2 * HEADER_SIDE;
   const headerTitle = useCallback(
     () => (
-      <View style={{ alignItems: 'center' }}>
+      <View style={{ alignItems: 'center', maxWidth: titleWidth }}>
         <Text variant="headline" numberOfLines={1}>{dir}</Text>
         {!!provider && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
@@ -242,7 +246,7 @@ export default function ThreadScreen() {
         )}
       </View>
     ),
-    [dir, provider, color.dim],
+    [dir, provider, color.dim, titleWidth],
   );
 
   return (
