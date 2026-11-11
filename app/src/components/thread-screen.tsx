@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, Keyboard, Pressable, Text, View } from 'react-native';
+import { FlatList, Keyboard, View } from 'react-native';
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -11,18 +11,17 @@ import { Composer } from '@/components/composer';
 import { PromptCard } from '@/components/prompt-card';
 import { useAttachments } from '@/components/attachments';
 import { useModels } from '@/components/model-picker';
-import { knobs } from '@/components/thinking-sheet';
+import { knobs } from '@/components/thinking';
 import { TaskPanel } from '@/components/task-panel';
 import { GoalPanel } from '@/components/goal-panel';
-import { toBlocks, type Block } from '@/lib/blocks';
-import type { Command, Prompt, Turn } from '@/lib/protocol';
+import { blockBuilder, type Block } from '@/lib/blocks';
+import type { Command, Prompt, Provider, Turn } from '@/lib/protocol';
 import { openThread } from '@/lib/threads';
 import { setWatching } from '@/lib/feed';
 import { useThread } from '@/lib/socket';
 import { useVoice } from '@/lib/voice';
-import { formatTokens as fmt } from '@/lib/usage';
-import { Banner, Empty, Icon, ProviderMark, PulsingDot, c, card, mono, providerName, type, useHex } from '@/components/ui';
-import { tb } from '@/components/toolbar-icon';
+import { Banner, EmptyState, HeaderActions, Icon, Press, Span, StatusDot, Surface, Text, WorkingRing, alert, radius, shadow, space, type, useTheme } from '@/design';
+import { AgentMark, agentName } from '@/features/agents';
 
 function useKeyboardShown() {
   const [shown, setShown] = useState(false);
@@ -33,9 +32,9 @@ function useKeyboardShown() {
   return shown;
 }
 
-/** Floats above the composer: how long the agent has been at it, and a way back to the newest message. */
-function WorkingPill({ busy, since, away, jump }: { busy: boolean; since?: number; away: boolean; jump: () => void }) {
-  useHex();
+/** Floats above the composer: the agent at work and for how long, and a way back to the newest message. */
+function WorkingPill({ busy, since, away, jump, provider }: { busy: boolean; since?: number; away: boolean; jump: () => void; provider?: Provider }) {
+  const { color } = useTheme();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!busy) return;
@@ -46,20 +45,26 @@ function WorkingPill({ busy, since, away, jump }: { busy: boolean; since?: numbe
   const s = since ? Math.max(0, Math.floor((now - since) / 1000)) : undefined;
   const elapsed = s === undefined ? '' : s < 3600 ? ` · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : ` · ${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
   return (
-    <View pointerEvents="box-none" style={{ position: 'absolute', bottom: 8, left: 0, right: 0, alignItems: 'center' }}>
-      <Pressable
-        onPress={away ? jump : undefined}
-        style={[card, { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, boxShadow: '0 2px 10px rgba(0,0,0,0.18)' }]}
-      >
-        {busy && <PulsingDot size={7} />}
-        {busy && <Text style={[type.footnote, { color: c.text, fontWeight: '600', fontVariant: ['tabular-nums'] }]}>Working{elapsed}</Text>}
-        {away && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Icon name="arrow.down" size={12} color={c.accent} />
-            <Text style={[type.footnote, { color: c.accent, fontWeight: '600' }]}>Latest</Text>
-          </View>
-        )}
-      </Pressable>
+    <View pointerEvents="box-none" style={{ position: 'absolute', bottom: space.sm, left: 0, right: 0, alignItems: 'center' }}>
+      <Press onPress={away ? jump : undefined} disabled={!away && !busy} accessibilityRole={away ? 'button' : undefined}>
+        <Surface style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm + 2, paddingHorizontal: space.md + 2, paddingVertical: space.sm, borderRadius: radius.full, boxShadow: shadow.raised }}>
+          {busy &&
+            (provider ? (
+              <WorkingRing size={14} active>
+                <AgentMark p={provider} size={14} />
+              </WorkingRing>
+            ) : (
+              <StatusDot color={color.accent} live size={7} />
+            ))}
+          {busy && <Text variant="footnote" weight="medium" color="text" style={{ fontVariant: ['tabular-nums'] }}>Working{elapsed}</Text>}
+          {away && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
+              <Icon name="arrow.down" size={12} color={color.accent} />
+              <Text variant="footnote" weight="medium" color="accent">Latest</Text>
+            </View>
+          )}
+        </Surface>
+      </Press>
     </View>
   );
 }
@@ -71,7 +76,7 @@ export default function ThreadScreen() {
   const ev = useThread(id);
   const att = useAttachments({ id, cwd });
   const headerHeight = useHeaderHeight();
-  const hx = useHex();
+  const { color } = useTheme();
   const inset = useSafeAreaInsets().bottom;
   const keyboard = useKeyboardShown();
   const list = useRef<FlatList<Block>>(null);
@@ -140,7 +145,9 @@ export default function ThreadScreen() {
         ? allCmds.filter((x) => x.name.startsWith(text)).slice(0, 5).map((x) => ({ key: x.name, label: x.name, desc: x.desc, pick: () => setText(x.name + ' ') }))
         : [];
 
-  const blocks = useMemo(() => toBlocks(ev.messages).reverse(), [ev.messages]);
+  // Unchanged blocks keep their identity, so only the streaming row re-renders per token.
+  const [build] = useState(blockBuilder);
+  const blocks = useMemo(() => [...build(ev.messages)].reverse(), [build, ev.messages]);
 
   const answerQuestion = (p: Prompt, labels: string[]) => {
     const qs = p.questions ?? [];
@@ -169,12 +176,12 @@ export default function ThreadScreen() {
     post<{ output: string; code: number }>('/shell', { cwd: st.cwd, command }).then(
       (r) => {
         const out = r.output.trim() || '(no output)';
-        Alert.alert(`$ ${command}`, `${out.length > 1500 ? '…' + out.slice(-1500) : out}\n\nexit ${r.code}`, [
+        alert(`$ ${command}`, `${out.length > 1500 ? '…' + out.slice(-1500) : out}\n\nexit ${r.code}`, [
           { text: 'Close', style: 'cancel' },
           { text: 'Send to agent', onPress: () => ev.sendText(`I ran \`${command}\` (exit ${r.code}):\n\n\`\`\`\n${out.length > 12000 ? '…' + out.slice(-12000) : out}\n\`\`\``) },
         ]);
       },
-      (e) => Alert.alert(`$ ${command}`, e.message),
+      (e) => alert(`$ ${command}`, e.message),
     );
   };
 
@@ -182,15 +189,15 @@ export default function ThreadScreen() {
   // changed can be undone too. The earlier exchange stays in the conversation.
   const editLast = () => {
     const last = [...ev.messages].reverse().find((m) => m.role === 'user' && !m.parent);
-    if (!last?.text) return Alert.alert('Nothing to edit', 'There’s no message of yours in this conversation yet.');
+    if (!last?.text) return alert('Nothing to edit', 'There’s no message of yours in this conversation yet.');
     api<Turn[]>(`/threads/${encodeURIComponent(id)}/turns`).then(
       (turns) => {
         const t = turns[0];
         const back = () => setText(last.text);
         if (!t?.endedAt || !t.files) return back();
-        Alert.alert('Undo what it changed too?', `That turn changed ${t.files === 1 ? '1 file' : `${t.files} files`}. Put them back as they were before it, then edit your message?`, [
+        alert('Undo what it changed too?', `That turn changed ${t.files === 1 ? '1 file' : `${t.files} files`}. Put them back as they were before it, then edit your message?`, [
           { text: 'Just edit', onPress: back },
-          { text: 'Undo and edit', style: 'destructive', onPress: () => post(`/threads/${encodeURIComponent(id)}/turns/${t.n}/revert`, {}).then(back, (e) => Alert.alert('Undo failed', e.message)) },
+          { text: 'Undo and edit', style: 'destructive', onPress: () => post(`/threads/${encodeURIComponent(id)}/turns/${t.n}/revert`, {}).then(back, (e) => alert('Undo failed', e.message)) },
           { text: 'Cancel', style: 'cancel' },
         ]);
       },
@@ -199,7 +206,7 @@ export default function ThreadScreen() {
   };
   const fork = () => st && provider && openThread({ provider, cwd: st.cwd, resume: st.session, fork: true });
   const compact = () =>
-    Alert.alert('Compact the conversation?', 'The agent summarizes it so far, freeing context for what comes next.', [
+    alert('Compact the conversation?', 'The agent summarizes it so far, freeing context for what comes next.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Compact', onPress: () => ev.compact() },
     ]);
@@ -208,12 +215,12 @@ export default function ThreadScreen() {
     st?.cwd &&
     post<{ name: string }>('/terms', { cwd: st.cwd }).then(
       (r) => router.push({ pathname: '/term/[name]', params: { name: r.name, cwd: st.cwd } }),
-      (e) => Alert.alert('Could not open a terminal', e.message),
+      (e) => alert('Could not open a terminal', e.message),
     );
   const stop = () =>
-    Alert.alert(`Stop ${provider ? providerName(provider) : 'the agent'}?`, 'The conversation is saved; resume it from its project.', [
+    alert(`Stop ${provider ? agentName(provider) : 'the agent'}?`, 'The conversation is saved; resume it from its project.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Stop', style: 'destructive', onPress: () => del('/threads/' + encodeURIComponent(id)).then(() => router.back(), (e) => Alert.alert('Error', e.message)) },
+      { text: 'Stop', style: 'destructive', onPress: () => del('/threads/' + encodeURIComponent(id)).then(() => router.back(), (e) => alert('Error', e.message)) },
     ]);
   const go = (pathname: '/files' | '/git' | '/preview' | '/instructions') => st?.cwd && router.push({ pathname, params: { cwd: st.cwd } });
 
@@ -222,58 +229,38 @@ export default function ThreadScreen() {
   const usage = st?.usage;
   const conn = ev.status === 'connecting' ? 'Connecting…' : ev.status === 'closed' ? 'Reconnecting…' : '';
 
-  // Memoized: a new headerTitle each render would redraw the native header on every streamed token.
-  const headerTitle = useCallback(
-    () => (
-      <View style={{ alignItems: 'center' }}>
-        <Text style={[type.headline, { color: hx.text }]} numberOfLines={1}>{dir}</Text>
-        {!!provider && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <ProviderMark p={provider} size={12} color={hx.dim} />
-            <Text style={[type.caption2, { color: hx.dim }]} numberOfLines={1}>{providerName(provider)}</Text>
-          </View>
-        )}
-      </View>
-    ),
-    [dir, provider, hx.text, hx.dim],
-  );
-
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: dir,
-          headerTitle,
-        }}
+      <Stack.Screen options={{ title: dir }} />
+      <HeaderActions
+        actions={[
+          { icon: 'terminal', label: 'Open Terminal', onPress: terminal },
+          {
+            icon: 'ellipsis',
+            label: 'More',
+            menu: [
+              { title: 'Files', icon: 'folder', onPress: () => go('/files') },
+              { title: 'Changes', icon: 'arrow.triangle.branch', onPress: () => go('/git') },
+              { title: 'Turns and Undo', icon: 'clock.arrow.circlepath', onPress: () => router.push({ pathname: '/turns', params: { id } }) },
+              { title: 'Work Toward a Goal', icon: 'target', onPress: () => router.push({ pathname: '/goal', params: { id } }) },
+              { title: 'Edit Last Message', icon: 'pencil', disabled: busy, onPress: editLast },
+              { title: 'Fork Conversation', icon: 'arrow.triangle.branch', onPress: fork },
+              ...(provider === 'claude' || provider === 'codex'
+                ? [{ title: 'Compact Conversation', icon: 'arrow.down.right.and.arrow.up.left', disabled: busy, onPress: compact } as const]
+                : []),
+              { title: 'Preview Dev Server', icon: 'globe', onPress: () => go('/preview') },
+              { title: 'Instructions', icon: 'text.book.closed', onPress: () => go('/instructions') },
+              { title: 'Stop Agent', icon: 'stop.circle', destructive: true, onPress: stop },
+            ],
+          },
+        ]}
       />
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button icon={tb('terminal')} onPress={terminal} />
-        <Stack.Toolbar.Menu icon={tb('ellipsis')}>
-          <Stack.Toolbar.MenuAction icon={tb('folder')} onPress={() => go('/files')}>Files</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon={tb('arrow.triangle.branch')} onPress={() => go('/git')}>Changes</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon={tb('clock.arrow.circlepath')} onPress={() => router.push({ pathname: '/turns', params: { id } })}>Turns and undo</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon={tb('target')} onPress={() => router.push({ pathname: '/goal', params: { id } })}>Work toward a goal</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon={tb('pencil')} disabled={busy} onPress={editLast}>Edit last message</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon={tb('arrow.triangle.branch')} onPress={fork}>Fork conversation</Stack.Toolbar.MenuAction>
-          {provider === 'claude' || provider === 'codex' ? (
-            <Stack.Toolbar.MenuAction icon={tb('arrow.down.right.and.arrow.up.left')} disabled={busy} onPress={compact}>Compact conversation</Stack.Toolbar.MenuAction>
-          ) : null}
-          <Stack.Toolbar.MenuAction icon={tb('globe')} onPress={() => go('/preview')}>Preview dev server</Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon={tb('text.book.closed')} onPress={() => go('/instructions')}>Instructions</Stack.Toolbar.MenuAction>
-          {usage ? (
-            <Stack.Toolbar.MenuAction icon={tb('chart.bar')} disabled onPress={() => {}}>
-              {`${fmt(usage.inputTokens)} in · ${fmt(usage.outputTokens)} out${usage.costUsd ? ` · $${usage.costUsd.toFixed(2)}` : ''}`}
-            </Stack.Toolbar.MenuAction>
-          ) : null}
-          <Stack.Toolbar.MenuAction icon={tb('stop.circle')} destructive onPress={stop}>Stop agent</Stack.Toolbar.MenuAction>
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar>
 
-      <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={headerHeight} style={{ flex: 1, backgroundColor: c.surface }}>
+      <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={headerHeight} style={{ flex: 1, backgroundColor: color.surface }}>
         {ev.status === 'ended' && <Banner icon="stop.circle" text="The agent stopped. Reopen the conversation from its project to resume." />}
         {!!conn && <Banner icon="arrow.triangle.2.circlepath" text={conn} />}
-        {!!st?.dup && <Banner error icon="exclamationmark.triangle" text="Also open in a terminal on the Mac. Both are writing to it." />}
-        {!!ev.error && <Banner error text={ev.error} onPress={() => ev.setError('')} />}
+        {!!st?.dup && <Banner tone="danger" icon="exclamationmark.triangle" text="Also open in a terminal on the Mac. Both are writing to it." />}
+        {!!ev.error && <Banner tone="danger" text={ev.error} onPress={() => ev.setError('')} />}
 
         <View style={{ flex: 1 }}>
           <FlatList
@@ -281,11 +268,14 @@ export default function ThreadScreen() {
             inverted
             data={blocks}
             keyExtractor={(b) => b.id}
-            renderItem={({ item, index }) => <BlockRow b={item} live={busy && index === 0 && item.kind !== 'msg'} activity={st?.activity} />}
+            renderItem={({ item, index }) => {
+              const live = busy && index === 0 && item.kind !== 'msg';
+              return <BlockRow b={item} live={live} activity={live ? st?.activity : undefined} />;
+            }}
             ItemSeparatorComponent={Gap}
             ListHeaderComponent={
               // Inverted: the header is the bottom edge, under the newest block.
-              <View style={{ gap: 16, paddingTop: blocks.length ? 16 : 0 }}>
+              <View style={{ gap: space.lg, paddingTop: blocks.length ? space.lg : 0 }}>
                 {!!ev.draft && <BlockRow b={{ kind: 'msg', id: '__draft', m: { id: '__draft', role: 'assistant', text: ev.draft + ' ▍' } }} live={false} />}
               </View>
             }
@@ -293,32 +283,32 @@ export default function ThreadScreen() {
             scrollEventThrottle={100}
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: busy || away ? 56 : 12, paddingBottom: 16, flexGrow: 1 }}
+            contentContainerStyle={{ paddingHorizontal: space.lg, paddingTop: busy || away ? 56 : space.md, paddingBottom: space.lg, flexGrow: 1 }}
           />
           {!blocks.length && !ev.draft && (
             // Over the list, not its empty view: an inverted list draws that upside down (differently per platform).
             <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>
               {ev.status === 'open' ? (
-                <Empty icon="bubble.left.and.text.bubble.right" title={`Ask ${provider ? providerName(provider) : 'the agent'}`} sub={`Anything about ${dir}. It runs on your Mac, with your files.`} />
+                <EmptyState icon="bubble.left.and.text.bubble.right" title={`Ask ${provider ? agentName(provider) : 'the agent'}`} message={`Anything about ${dir}. It runs on your Mac, with your files.`} />
               ) : (
-                <Empty icon="antenna.radiowaves.left.and.right" title="Connecting" sub="Reaching your Mac…" />
+                <EmptyState icon="antenna.radiowaves.left.and.right" title="Connecting" message="Reaching your Mac…" />
               )}
             </View>
           )}
-          <WorkingPill busy={busy} since={ev.since} away={away} jump={() => list.current?.scrollToOffset({ offset: 0, animated: true })} />
+          <WorkingPill busy={busy} since={ev.since} away={away} jump={() => list.current?.scrollToOffset({ offset: 0, animated: true })} provider={provider} />
         </View>
 
-        <View style={{ paddingHorizontal: 12, paddingTop: 6, paddingBottom: keyboard ? 6 : Math.max(inset, 8), gap: 8 }}>
+        <View style={{ paddingHorizontal: space.md, paddingTop: space.xs + 2, paddingBottom: keyboard ? space.xs + 2 : Math.max(inset, space.sm), gap: space.sm }}>
           {suggest.length > 0 && (
-            <View style={[card, { overflow: 'hidden' }]}>
+            <Surface style={{ overflow: 'hidden' }}>
               {suggest.map((x, i) => (
-                <Pressable key={x.key} onPress={x.pick} style={({ pressed }) => ({ paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderTopColor: c.line, backgroundColor: pressed ? c.muted : 'transparent' })}>
-                  <Text style={{ fontFamily: mono, fontSize: 14, color: c.text }} numberOfLines={1} ellipsizeMode="head">
-                    {x.label} {!!x.desc && <Text style={[type.caption, { fontFamily: undefined }]}>{x.desc}</Text>}
+                <Press key={x.key} onPress={x.pick} scale={1} accessibilityRole="button" style={{ paddingHorizontal: space.md + 2, paddingVertical: space.sm + 2, borderTopWidth: i ? 1 : 0, borderTopColor: color.line }}>
+                  <Text variant="subhead" mono numberOfLines={1} ellipsizeMode="head">
+                    {x.label} {!!x.desc && <Span color="dim" style={{ fontSize: type.caption.fontSize }}>{x.desc}</Span>}
                   </Text>
-                </Pressable>
+                </Press>
               ))}
-            </View>
+            </Surface>
           )}
           {!top && !!st?.goal && <GoalPanel thread={id} goal={st.goal} />}
           {!top && !!st?.tasks?.length && <TaskPanel tasks={st.tasks} />}
@@ -351,6 +341,7 @@ export default function ThreadScreen() {
             canStop={busy && !top}
             stop={ev.interrupt}
             voice={voice}
+            usage={usage}
           />
         </View>
       </KeyboardAvoidingView>
@@ -358,4 +349,4 @@ export default function ThreadScreen() {
   );
 }
 
-const Gap = () => <View style={{ height: 16 }} />;
+const Gap = () => <View style={{ height: space.lg }} />;

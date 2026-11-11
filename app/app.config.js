@@ -8,9 +8,8 @@ const withoutPush = (config) =>
     return c;
   });
 
-// iOS 27 traps at launch unless the app adopts the scene life cycle. SDK 58 ships
-// ExpoAppSceneDelegate for it, but its prebuild template still starts React Native
-// from the app delegate's own window; hand that to the scene delegate instead.
+// iOS 27 traps at launch without the scene life cycle; SDK 58's template still
+// starts React Native from the app delegate's window, so hand it to the scene delegate.
 const withSceneLifecycle = (config) =>
   withInfoPlist(
     withAppDelegate(config, (c) => {
@@ -29,6 +28,10 @@ const withSceneLifecycle = (config) =>
       return c;
     },
   );
+
+// Geist Mono for code, embedded (no load at launch); text uses the system face.
+const geist = [[400, '400Regular'], [500, '500Medium']].map(([weight, w]) => ({ weight, path: `node_modules/@expo-google-fonts/geist-mono/${w}/GeistMono_${w}.ttf` }));
+const fonts = ['expo-font', { ios: { fonts: geist.map((f) => f.path) }, android: { fonts: [{ fontFamily: 'Geist Mono', fontDefinitions: geist }] } }];
 
 const MIC = "Luther listens while you hold the mic button, to type your message.";
 
@@ -60,6 +63,7 @@ module.exports = {
       withoutPush,
       withSceneLifecycle,
       'expo-router',
+      fonts,
       ['expo-splash-screen', { backgroundColor: '#F9F9F9', image: './assets/images/luther-splash.png', imageWidth: 76, dark: { backgroundColor: '#0A0A0A', image: './assets/images/luther-splash-dark.png' } }],
       'expo-secure-store',
       ['expo-camera', { cameraPermission: 'Luther uses the camera to scan the pairing code from your Mac.', microphonePermission: MIC, recordAudioAndroid: false }],
@@ -80,8 +84,7 @@ module.exports = {
       'expo-background-task',
     ],
     web: { favicon: './assets/images/luther-favicon.png' },
-    // No React Compiler: the theme repaints one palette in place (components/ui.tsx),
-    // which compiled components would keep cached in their old colours.
+    // React Compiler not enabled yet: untested with Reanimated worklets and the native menus here.
     experiments: { typedRoutes: true },
   },
 };

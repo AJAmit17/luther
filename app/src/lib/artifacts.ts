@@ -1,4 +1,4 @@
-import { Alert } from 'react-native';
+import { alert } from '@/design';
 import * as WebBrowser from 'expo-web-browser';
 import { currentHost, post, resolve } from '@/lib/hosts';
 
@@ -17,6 +17,6 @@ export async function openArtifact(id: string, title: string) {
     const { path } = await post<{ path: string }>(`/artifacts/${encodeURIComponent(id)}/link`, {});
     await openOnMac(path);
   } catch (e: any) {
-    Alert.alert(`Couldn't open “${title}”`, e.message);
+    alert(`Couldn't open “${title}”`, e.message);
   }
 }

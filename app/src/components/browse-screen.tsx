@@ -1,41 +1,46 @@
-import { Alert, FlatList, RefreshControl, View } from 'react-native';
+import { View } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Button, EmptyState, Group, ListItem, alert, space, useTheme } from '@/design';
+import { ListScreen } from '@/features/list-screen';
 import { api, post } from '@/lib/hosts';
-import { Button, Icon, Note, Row, c, useLoad, listStyle, useHex } from '@/components/ui';
+import { useLoad } from '@/lib/use-load';
 
 // Walk folders under the Mac's home folder to start an agent where none has run yet.
 export default function Browse() {
-  useHex();
+  const { color } = useTheme();
   const { path } = useLocalSearchParams<{ path?: string }>();
   const { data, error, pull } = useLoad(() => api<string[]>('/dirs' + (path ? '?path=' + encodeURIComponent(path) : '')), [path]);
 
   const terminal = () =>
-    path && post<{ name: string }>('/terms', { cwd: path }).then((r) => router.push({ pathname: '/term/[name]', params: { name: r.name, cwd: path } }), (e) => Alert.alert('Could not open a terminal', e.message));
+    path && post<{ name: string }>('/terms', { cwd: path }).then((r) => router.push({ pathname: '/term/[name]', params: { name: r.name, cwd: path } }), (e) => alert('Could not open a terminal', e.message));
 
   return (
     <>
       <Stack.Screen options={{ title: path ? path.split('/').pop() : 'Home' }} />
-      <FlatList
-        contentContainerStyle={listStyle}
-        style={{ flex: 1, backgroundColor: c.bg as any }}
-        contentInsetAdjustmentBehavior="automatic"
-        data={data ?? []}
-        keyExtractor={(d) => d}
-        refreshControl={<RefreshControl {...pull} />}
-        ListHeaderComponent={
-          <>
-            {!!path && (
-              <View style={{ flexDirection: 'row', gap: 8, padding: 12 }}>
-                <View style={{ flex: 1 }}><Button kind="accent" icon="square.and.pencil" label="New thread here" onPress={() => router.push({ pathname: '/new', params: { cwd: path } })} /></View>
-                <View style={{ flex: 1 }}><Button icon="terminal" label="Terminal" onPress={terminal} /></View>
+      <ListScreen
+        data={data && (data.length ? [data] : [])}
+        error={error}
+        pull={pull}
+        keyExtractor={() => 'dirs'}
+        header={
+          path ? (
+            <View style={{ flexDirection: 'row', gap: space.sm, paddingBottom: space.sm }}>
+              <View style={{ flex: 1 }}>
+                <Button variant="primary" icon="square.and.pencil" label="New Thread Here" onPress={() => router.push({ pathname: '/new', params: { cwd: path } })} />
               </View>
-            )}
-            {!!error && <Note error>{error}</Note>}
-          </>
+              <View style={{ flex: 1 }}>
+                <Button icon="terminal" label="Terminal" onPress={terminal} />
+              </View>
+            </View>
+          ) : undefined
         }
-        ListEmptyComponent={data ? <Note>No subfolders.</Note> : undefined}
-        renderItem={({ item: d }) => (
-          <Row icon={<Icon name="folder" size={20} color={c.blue} />} title={d.split('/').pop()!} right={<Icon name="chevron.right" size={13} color={c.faint} />} onPress={() => router.push({ pathname: '/browse', params: { path: d } })} />
+        empty={<EmptyState icon="folder" title="No subfolders" message="Start a thread or open a terminal right here." />}
+        renderItem={({ item }) => (
+          <Group>
+            {item.map((d) => (
+              <ListItem key={d} icon="folder" iconColor={color.blue} title={d.split('/').pop()!} onPress={() => router.push({ pathname: '/browse', params: { path: d } })} />
+            ))}
+          </Group>
         )}
       />
     </>

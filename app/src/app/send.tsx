@@ -1,1 +1,1 @@
-export { default } from '@/components/send-screen';
+export { SendTask as default } from '@/components/new-thread-screen';

@@ -1,38 +1,46 @@
-import { FlatList, RefreshControl, View } from 'react-native';
+import { View } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Button, EmptyState, HeaderActions, ListItem, space } from '@/design';
+import { AgentMark } from '@/features/agents';
+import { ListScreen } from '@/features/list-screen';
 import { api } from '@/lib/hosts';
+import { since } from '@/lib/format';
+import { useLoad } from '@/lib/use-load';
 import type { Compare } from '@/lib/protocol';
-import { Icon, Note, ProviderMark, Row, ago, c, useLoad, listStyle, useHex } from '@/components/ui';
-import { tb } from '@/components/toolbar-icon';
 
 // A project's comparisons, newest first.
 export default function Compares() {
-  useHex();
   const { cwd } = useLocalSearchParams<{ cwd: string }>();
   const { data, error, pull } = useLoad(() => api<Compare[]>('/compares?cwd=' + encodeURIComponent(cwd)), [cwd]);
+  const add = () => router.push({ pathname: '/compare-new', params: { cwd } });
   return (
     <>
-      <Stack.Screen options={{ title: 'Compare agents' }} />
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button icon={tb('plus')} onPress={() => router.push({ pathname: '/compare-new', params: { cwd } })} />
-      </Stack.Toolbar>
-      <FlatList
-        contentContainerStyle={listStyle}
-        style={{ flex: 1, backgroundColor: c.bg as any }}
-        contentInsetAdjustmentBehavior="automatic"
-        data={data ?? []}
+      <Stack.Screen options={{ title: 'Compare Agents' }} />
+      <HeaderActions actions={[{ icon: 'plus', label: 'Compare Agents', onPress: add }]} />
+      <ListScreen
+        data={data}
+        error={error}
+        pull={pull}
         keyExtractor={(x) => x.id}
-        refreshControl={<RefreshControl {...pull} />}
-        ListHeaderComponent={error ? <Note error>{error}</Note> : undefined}
-        ListEmptyComponent={data ? <Note>Give one task to several agents at once, each in its own worktree, and keep the best result. Tap + to start.</Note> : undefined}
+        empty={
+          <EmptyState
+            icon="arrow.left.and.right"
+            title="No comparisons yet"
+            message="Give one task to several agents at once, each in its own worktree, and keep the best result."
+            action={<Button variant="primary" label="Compare Agents" onPress={add} />}
+          />
+        }
         renderItem={({ item: x }) => {
           const live = x.runs.filter((r) => r.status === 'working' || r.status === 'waiting').length;
           return (
-            <Row
-              icon={<View style={{ flexDirection: 'row', gap: 2 }}>{x.runs.slice(0, 3).map((r, i) => <ProviderMark key={i} p={r.provider} size={14} />)}</View>}
+            <ListItem
+              leading={
+                <View style={{ flexDirection: 'row', gap: space.xxs }}>
+                  {x.runs.slice(0, 3).map((r, i) => <AgentMark key={i} p={r.provider} size={14} />)}
+                </View>
+              }
               title={x.prompt}
-              sub={`${x.runs.length} agents · ${ago(x.created)} ago${live ? ` · ${live} working` : ''}${x.kept ? ' · kept one' : ''}`}
-              right={<Icon name="chevron.right" size={13} color={c.faint} />}
+              subtitle={`${x.runs.length} agents · ${since(x.created)}${live ? ` · ${live} working` : ''}${x.kept ? ' · kept one' : ''}`}
               onPress={() => router.push({ pathname: '/compare/[id]', params: { id: x.id } })}
             />
           );

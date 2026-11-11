@@ -1,28 +1,30 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, RefreshControl } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
+import { EmptyState, Icon, ListItem, Note, Spinner, Tile, alert, useTheme } from '@/design';
+import { ListScreen } from '@/features/list-screen';
 import { post, api } from '@/lib/hosts';
 import { openOnMac } from '@/lib/artifacts';
 import type { Port } from '@/lib/protocol';
-import { Icon, Note, Row, c, home, useLoad, listStyle, useHex } from '@/components/ui';
+import { home } from '@/lib/format';
+import { useLoad } from '@/lib/use-load';
 
 // Dev servers on the Mac (anything of yours listening on a port), opened in
 // Safari on the phone through Luther's route: tap localhost:3000, see the app.
 export default function Preview() {
-  useHex();
+  const { color } = useTheme();
   const { cwd } = useLocalSearchParams<{ cwd?: string }>();
   const { data, error, pull } = useLoad(() => api<Port[]>('/ports'), []);
   const [opening, setOpening] = useState<number | null>(null);
   // This project's servers first.
-  const ports = [...(data ?? [])].sort((a, b) => Number(!!cwd && b.cwd?.startsWith(cwd)) - Number(!!cwd && a.cwd?.startsWith(cwd)));
+  const ports = data && [...data].sort((a, b) => Number(!!cwd && b.cwd?.startsWith(cwd)) - Number(!!cwd && a.cwd?.startsWith(cwd)));
 
   const open = async (p: Port) => {
     setOpening(p.port);
     try {
       const { path } = await post<{ path: string }>('/previews', { port: p.port });
       await openOnMac(path);
-    } catch (e: any) {
-      Alert.alert(`Couldn't open port ${p.port}`, e.message);
+    } catch (e) {
+      alert(`Couldn't open port ${p.port}`, e instanceof Error ? e.message : String(e));
     } finally {
       setOpening(null);
     }
@@ -31,23 +33,19 @@ export default function Preview() {
   return (
     <>
       <Stack.Screen options={{ title: 'Preview' }} />
-      <FlatList
-        contentContainerStyle={listStyle}
-        style={{ flex: 1, backgroundColor: c.bg as any }}
-        contentInsetAdjustmentBehavior="automatic"
+      <ListScreen
         data={ports}
+        error={error}
+        pull={pull}
         keyExtractor={(p) => String(p.port)}
-        refreshControl={<RefreshControl {...pull} />}
-        ListHeaderComponent={
-          error ? <Note error>{error}</Note> : <Note>Pick your dev server. It opens through Luther; paths Luther uses itself (/files, /events…) won&apos;t reach the app.</Note>
-        }
-        ListEmptyComponent={data ? <Note>Nothing is listening. Start your dev server on the Mac (or ask the agent to), then pull to refresh.</Note> : undefined}
+        header={error ? undefined : <Note>Pick your dev server. It opens through Luther; paths Luther uses itself (/files, /events…) won&apos;t reach the app.</Note>}
+        empty={<EmptyState icon="globe" title="Nothing is listening" message="Start your dev server on the Mac (or ask the agent to), then pull to refresh." />}
         renderItem={({ item: p }) => (
-          <Row
-            icon={<Icon name="globe" size={20} color={c.blue} />}
+          <ListItem
+            leading={<Tile icon="globe" color={color.blue} />}
             title={`localhost:${p.port}`}
-            sub={`${p.command}${p.cwd ? ' · ' + home(p.cwd) : ''}`}
-            right={opening === p.port ? <ActivityIndicator /> : <Icon name="arrow.up.right.square" size={16} color={c.faint} />}
+            subtitle={`${p.command}${p.cwd ? ' · ' + home(p.cwd) : ''}`}
+            trailing={opening === p.port ? <Spinner /> : <Icon name="arrow.up.right.square" size={16} color={color.faint} />}
             onPress={() => open(p)}
           />
         )}

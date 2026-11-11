@@ -62,10 +62,10 @@ Use temporary directories and fake protocol peers. Tests must not require person
 
 ## App conventions
 
-- Use Expo Router with thin route files. Keep screens in `src/components` and reusable logic in `src/lib`.
+- Use Expo Router with thin route files. Screens live in `src/components`, the design system in `src/design` (import from `@/design`), Luther-specific building blocks in `src/features`, and logic in `src/lib`.
 - Read the documentation matching Expo SDK 58 before changing its APIs/config plugins.
 - Use `npx expo install` for compatible app dependencies; do not upgrade React Native independently.
-- Reuse UI primitives and semantic palette roles. Filled actions use `onAccent`, not assumed white.
+- Build screens from `@/design`: tokens for spacing, radius and type, `useTheme()` colours, `Press` (or a component on it) for every tap; no hex literals or font sizes in screens. Filled actions use `onAccent`, not assumed white.
 - Differentiate working, waiting, completion, and failure with text/symbols, not color alone.
 - Check both appearances, long labels, large text, keyboards, and actual native rendering for visual changes.
 - Keep generated native directories out of source changes. Fix configuration through `app.config.js` and plugins.

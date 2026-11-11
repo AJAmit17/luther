@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
-import { c, card, mono, tint, type, useHex } from '@/components/ui';
+import { Linking, ScrollView, StyleSheet, View, type StyleProp, type TextStyle } from 'react-native';
+import { Span, Surface, Text, space, tint, type, useTheme } from '@/design';
 
 // An agent reply, block by block: headings, paragraphs, lists, quotes, code
 // fences, and inline `code`, **bold**, *italic*, [links](url) and bare URLs.
@@ -67,16 +67,16 @@ function parse(src: string): Block[] {
 
 const SPAN = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*\s][^*]*\*|\[[^\]]+\]\([^)\s]+\)|https?:\/\/[^\s)]+)/g;
 
-function Inline({ text, style }: { text: string; style?: TextStyle | TextStyle[] }) {
-  useHex();
+function Inline({ text, variant = 'callout', style }: { text: string; variant?: 'callout' | 'footnote' | 'title3' | 'headline'; style?: StyleProp<TextStyle> }) {
+  const { color } = useTheme();
   return (
-    <Text selectable style={[type.callout, { lineHeight: 23 }, style]}>
+    <Text selectable variant={variant} color="text" style={[variant === 'callout' && { lineHeight: 23 }, style]}>
       {text.split(SPAN).map((p, i) => {
         if (!p) return null;
         if (p.startsWith('`') && p.endsWith('`') && p.length > 2)
-          return <Text key={i} style={{ fontFamily: mono, fontSize: 14, backgroundColor: tint('text', 0.07), color: c.text }}>{p.slice(1, -1)}</Text>;
-        if (p.startsWith('**') && p.endsWith('**') && p.length > 4) return <Text key={i} style={{ fontWeight: '700' }}>{p.slice(2, -2)}</Text>;
-        if (p.startsWith('*') && p.endsWith('*') && p.length > 2) return <Text key={i} style={{ fontStyle: 'italic' }}>{p.slice(1, -1)}</Text>;
+          return <Span key={i} mono style={{ fontSize: type.subhead.fontSize, backgroundColor: tint(color.text, 0.07) }}>{p.slice(1, -1)}</Span>;
+        if (p.startsWith('**') && p.endsWith('**') && p.length > 4) return <Span key={i} style={{ fontWeight: '600' }}>{p.slice(2, -2)}</Span>;
+        if (p.startsWith('*') && p.endsWith('*') && p.length > 2) return <Span key={i} style={{ fontStyle: 'italic' }}>{p.slice(1, -1)}</Span>;
         // Only web links open: agent output can carry text from anywhere, and a
         // luther:// or other app scheme must not be one tap away.
         const link = p.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/);
@@ -84,9 +84,9 @@ function Inline({ text, style }: { text: string; style?: TextStyle | TextStyle[]
         if (link && !url) return link[1];
         if (url)
           return (
-            <Text key={i} onPress={() => void Linking.openURL(url)} style={{ color: c.accent, textDecorationLine: 'underline' }}>
+            <Span key={i} color="accent" onPress={() => void Linking.openURL(url)} style={{ textDecorationLine: 'underline' }}>
               {link ? link[1] : p}
-            </Text>
+            </Span>
           );
         return p;
       })}
@@ -95,16 +95,22 @@ function Inline({ text, style }: { text: string; style?: TextStyle | TextStyle[]
 }
 
 function Piece({ b }: { b: Block }) {
-  useHex();
+  const { color } = useTheme();
   switch (b.kind) {
     case 'heading':
-      return <Inline text={b.text} style={[b.level === 1 ? type.title3 : b.level === 2 ? type.headline : { ...type.callout, fontWeight: '600' }, { marginTop: 4 }]} />;
+      return b.level === 1 ? (
+        <Inline text={b.text} variant="title3" style={{ marginTop: space.xs }} />
+      ) : b.level === 2 ? (
+        <Inline text={b.text} variant="headline" style={{ marginTop: space.xs }} />
+      ) : (
+        <Inline text={b.text} style={{ fontWeight: '600', marginTop: space.xs }} />
+      );
     case 'para':
       return <Inline text={b.text} />;
     case 'item':
       return (
-        <View style={{ flexDirection: 'row', gap: 8, paddingLeft: b.indent * 16 }}>
-          <Text style={[type.callout, { color: c.dim, lineHeight: 23, minWidth: 14, fontVariant: ['tabular-nums'] }]}>{b.marker}</Text>
+        <View style={{ flexDirection: 'row', gap: space.sm, paddingLeft: b.indent * space.lg }}>
+          <Text variant="callout" color="dim" style={{ lineHeight: 23, minWidth: 14, fontVariant: ['tabular-nums'] }}>{b.marker}</Text>
           <View style={{ flex: 1 }}>
             <Inline text={b.text} />
           </View>
@@ -112,36 +118,38 @@ function Piece({ b }: { b: Block }) {
       );
     case 'quote':
       return (
-        <View style={{ borderLeftWidth: 3, borderLeftColor: c.line, paddingLeft: 12 }}>
-          <Inline text={b.text} style={{ color: c.dim }} />
+        <View style={{ borderLeftWidth: 3, borderLeftColor: color.line, paddingLeft: space.md }}>
+          <Inline text={b.text} style={{ color: color.dim }} />
         </View>
       );
     case 'rule':
-      return <View style={{ height: 1, backgroundColor: c.line, marginVertical: 4 }} />;
+      return <View style={{ height: 1, backgroundColor: color.line, marginVertical: space.xs }} />;
     case 'table':
       return (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[card, { overflow: 'hidden' }]}>
-          <View>
-            {b.rows.map((r, i) => (
-              <View key={i} style={{ flexDirection: 'row', borderTopWidth: i ? StyleSheet.hairlineWidth : 0, borderTopColor: c.line, backgroundColor: i ? undefined : c.muted }}>
-                {r.map((cell, j) => (
-                  <View key={j} style={{ width: 150, paddingHorizontal: 10, paddingVertical: 8 }}>
-                    <Inline text={cell} style={[type.footnote, { color: c.text, lineHeight: 18 }, i ? {} : { fontWeight: '600' }]} />
-                  </View>
-                ))}
-              </View>
-            ))}
-          </View>
-        </ScrollView>
+        <Surface style={{ overflow: 'hidden' }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View>
+              {b.rows.map((r, i) => (
+                <View key={i} style={{ flexDirection: 'row', borderTopWidth: i ? StyleSheet.hairlineWidth : 0, borderTopColor: color.line, backgroundColor: i ? undefined : color.muted }}>
+                  {r.map((cell, j) => (
+                    <View key={j} style={{ width: 150, paddingHorizontal: space.sm + 2, paddingVertical: space.sm }}>
+                      <Inline text={cell} variant="footnote" style={i ? undefined : { fontWeight: '600' }} />
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+        </Surface>
       );
     case 'code':
       return (
-        <View style={[card, { backgroundColor: c.bg, overflow: 'hidden' }]}>
-          {!!b.lang && <Text style={[type.caption2, { fontFamily: mono, paddingHorizontal: 12, paddingTop: 8 }]}>{b.lang}</Text>}
+        <Surface style={{ backgroundColor: color.bg, overflow: 'hidden' }}>
+          {!!b.lang && <Text variant="caption2" mono style={{ paddingHorizontal: space.md, paddingTop: space.sm }}>{b.lang}</Text>}
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <Text selectable style={{ fontFamily: mono, fontSize: 13, lineHeight: 19, color: c.text, padding: 12, paddingTop: b.lang ? 4 : 12 }}>{b.text}</Text>
+            <Text selectable variant="footnote" mono color="text" style={{ lineHeight: 19, padding: space.md, paddingTop: b.lang ? space.xs : space.md }}>{b.text}</Text>
           </ScrollView>
-        </View>
+        </Surface>
       );
   }
 }
@@ -149,7 +157,7 @@ function Piece({ b }: { b: Block }) {
 export function Markdown({ text }: { text: string }) {
   const blocks = useMemo(() => parse(text), [text]);
   return (
-    <View style={{ gap: 10, alignSelf: 'stretch' }}>
+    <View style={{ gap: space.sm + 2, alignSelf: 'stretch' }}>
       {blocks.map((b, i) => (
         <Piece key={i} b={b} />
       ))}

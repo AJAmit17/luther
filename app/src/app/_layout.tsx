@@ -4,9 +4,8 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { useQuickActionRouting } from 'expo-quick-actions/router';
-import { useHex } from '@/components/ui';
+import { DialogHost, useTheme } from '@/design';
 import { StatusBar } from 'expo-status-bar';
-import '@/lib/theme'; // applies the saved appearance before the first render
 import { onActivityStop } from '@/lib/activities';
 import { scheduleBackgroundRefresh } from '@/lib/background'; // also defines the task at import
 import { useFeed } from '@/lib/feed';
@@ -18,7 +17,7 @@ import { restorePick } from '@/components/attachments';
 
 export default function Layout() {
   const [host, setHost] = useState<string | null>(null);
-  const h = useHex();
+  const { color, dark } = useTheme();
   useQuickActionRouting();
 
   useEffect(() => {
@@ -57,44 +56,44 @@ export default function Layout() {
 
   // Pushed screens get an opaque header: content (the chat above all) must not
   // scroll under a see-through bar.
-  const sheet = { headerShown: false, presentation: 'formSheet', sheetGrabberVisible: true, contentStyle: { backgroundColor: h.surface } } as const;
-  const base = h.dark ? DarkTheme : DefaultTheme;
-  const theme = { ...base, colors: { ...base.colors, primary: h.accent, background: h.bg, card: h.bg, text: h.text, border: h.line, notification: h.red } };
+  const sheet = { headerShown: false, presentation: 'formSheet', sheetGrabberVisible: true, contentStyle: { backgroundColor: color.surface } } as const;
+  const base = dark ? DarkTheme : DefaultTheme;
+  const theme = { ...base, colors: { ...base.colors, primary: color.accent, background: color.bg, card: color.bg, text: color.text, border: color.line, notification: color.red } };
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: h.bg }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: color.bg }}>
       <KeyboardProvider>
         <ThemeProvider value={theme}>
-        <StatusBar style={h.dark ? 'light' : 'dark'} />
+        <StatusBar style={dark ? 'light' : 'dark'} />
         <Stack
           screenOptions={{
-            headerTintColor: h.text,
-            headerTitleStyle: { color: h.text },
-            headerLargeTitleStyle: { color: h.text },
-            headerStyle: { backgroundColor: h.bg },
+            headerTintColor: color.text,
+            headerTitleStyle: { color: color.text },
+            headerLargeTitleStyle: { color: color.text },
+            headerStyle: { backgroundColor: color.bg },
             headerShadowVisible: false,
             headerTransparent: false,
             headerBackButtonDisplayMode: 'minimal',
             headerTitleAlign: 'center', // Android too, as on iOS
-            contentStyle: { backgroundColor: h.bg },
+            contentStyle: { backgroundColor: color.bg },
           }}
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="thread/[id]" options={{ headerStyle: { backgroundColor: h.surface }, contentStyle: { backgroundColor: h.surface } }} />
+          <Stack.Screen name="thread/[id]" options={{ headerStyle: { backgroundColor: color.surface }, contentStyle: { backgroundColor: color.surface } }} />
           <Stack.Screen name="project" />
           <Stack.Screen name="pair" options={{ title: 'Pair a Mac', presentation: 'modal' }} />
           <Stack.Screen name="new" options={{ ...sheet, sheetAllowedDetents: [0.75, 1] }} />
           <Stack.Screen name="goal" options={{ ...sheet, sheetAllowedDetents: [0.75, 1] }} />
           <Stack.Screen name="compare-new" options={{ ...sheet, sheetAllowedDetents: [1] }} />
-          <Stack.Screen name="compares" options={{ title: 'Compare agents' }} />
+          <Stack.Screen name="compares" options={{ title: 'Compare Agents' }} />
           <Stack.Screen name="compare/[id]" options={{ title: 'Comparison' }} />
           <Stack.Screen name="send" options={{ title: 'Send to Luther', presentation: 'modal' }} />
-          <Stack.Screen name="browse" options={{ title: 'Pick a folder' }} />
+          <Stack.Screen name="browse" options={{ title: 'Pick a Folder' }} />
           <Stack.Screen name="files" options={{ title: 'Files' }} />
           <Stack.Screen name="git" options={{ title: 'Changes' }} />
           <Stack.Screen name="diff" options={{ title: 'Diff' }} />
-          <Stack.Screen name="branches" options={{ title: 'Branches and stashes' }} />
+          <Stack.Screen name="branches" options={{ title: 'Branches and Stashes' }} />
           <Stack.Screen name="health" options={{ title: 'Health' }} />
-          <Stack.Screen name="log" options={{ title: 'Server log' }} />
+          <Stack.Screen name="log" options={{ title: 'Server Log' }} />
           <Stack.Screen name="worktrees" options={{ title: 'Worktrees' }} />
           <Stack.Screen name="turns" options={{ title: 'Turns' }} />
           <Stack.Screen name="runs" options={{ title: 'Reports' }} />
@@ -105,6 +104,7 @@ export default function Layout() {
           <Stack.Screen name="term/[name]" options={{ title: 'Terminal' }} />
         </Stack>
         {host && <Feed key={host} host={host} />}
+        <DialogHost />
         </ThemeProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>
@@ -116,3 +116,5 @@ function Feed({ host }: { host: string }) {
   useFeed(host);
   return null;
 }
+
+export { ErrorBoundary } from '@/components/error-boundary';

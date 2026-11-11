@@ -41,8 +41,8 @@ func load() {
 	}
 }
 
-// Set records l as its agent's (and account's) latest; an empty window list
-// is ignored. Updated defaults to now.
+// Set records l as its agent's (and account's) latest; an empty window list,
+// or one older than what's stored (the desktop app's last sample after a turn's report), is ignored.
 func Set(l protocol.Limits) {
 	if len(l.Windows) == 0 {
 		return
@@ -53,6 +53,9 @@ func Set(l protocol.Limits) {
 	store.Lock()
 	defer store.Unlock()
 	load()
+	if old, ok := store.m[key(l)]; ok && old.Updated > l.Updated {
+		return
+	}
 	store.m[key(l)] = l
 	b, _ := json.MarshalIndent(store.m, "", "  ")
 	os.MkdirAll(config.Dir(), 0o700)

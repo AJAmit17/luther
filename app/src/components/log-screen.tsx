@@ -1,12 +1,13 @@
 import { useEffect, useRef, type ComponentRef } from 'react';
-import { RefreshControl, ScrollView, Text } from 'react-native';
+import { RefreshControl, ScrollView, View } from 'react-native';
 import { Stack } from 'expo-router';
+import { Note, Text, space, useTheme } from '@/design';
+import { useLoad } from '@/lib/use-load';
 import { api } from '@/lib/hosts';
-import { Note, c, mono, useLoad, useHex } from '@/components/ui';
 
 // The end of the server's log (~/.luther/serve.log), newest at the bottom.
 export default function LogScreen() {
-  useHex();
+  const { color } = useTheme();
   const { data, error, pull } = useLoad(() => api<string>('/logs?lines=600'), []);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   useEffect(() => {
@@ -14,11 +15,15 @@ export default function LogScreen() {
   }, [data]);
   return (
     <>
-      <Stack.Screen options={{ title: 'Server log' }} />
-      <ScrollView ref={scroll} style={{ flex: 1, backgroundColor: c.bg as any }} contentInsetAdjustmentBehavior="automatic" refreshControl={<RefreshControl {...pull} />}>
-        {!!error && <Note error>{error}</Note>}
-        <ScrollView horizontal contentContainerStyle={{ padding: 12 }}>
-          <Text selectable style={{ color: c.text, fontFamily: mono, fontSize: 11, lineHeight: 16 }}>{data ?? ''}</Text>
+      <Stack.Screen options={{ title: 'Server Log' }} />
+      <ScrollView ref={scroll} style={{ flex: 1, backgroundColor: color.bg }} contentInsetAdjustmentBehavior="automatic" refreshControl={<RefreshControl {...pull} />}>
+        {!!error && (
+          <View style={{ padding: space.md, paddingBottom: 0 }}>
+            <Note tone="danger">{error}</Note>
+          </View>
+        )}
+        <ScrollView horizontal contentContainerStyle={{ padding: space.md }}>
+          <Text selectable mono variant="caption2" color="text">{data ?? ''}</Text>
         </ScrollView>
       </ScrollView>
     </>

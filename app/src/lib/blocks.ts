@@ -1,8 +1,7 @@
 import type { Msg } from './protocol.ts';
 
-/** The chat as it reads: messages, the agent's steps between two messages folded
- *  into one work card, and each subagent call as its own card with its steps.
- *  No React Native imports: node --test runs it. */
+/** Messages, with the agent's steps between two folded into one work card and each subagent
+ *  call as its own card. No React Native imports: node --test runs it. */
 export type Block =
   | { kind: 'msg'; id: string; m: Msg }
   | { kind: 'work'; id: string; steps: Msg[] }
@@ -10,7 +9,18 @@ export type Block =
 
 export const isAgentTool = (m: Msg) => m.role === 'tool' && (m.tool === 'Task' || m.tool === 'Agent');
 
-export function toBlocks(msgs: Msg[]): Block[] {
+const sameSteps = (a: Msg[], b: Msg[]) => a.length === b.length && a.every((m, i) => m === b[i]);
+
+/** A block's previous object when nothing in it changed, so memoized rows skip re-rendering. */
+function reuse(b: Block, old: Block | undefined): Block {
+  if (!old || old.kind !== b.kind) return b;
+  if (b.kind === 'msg') return old.kind === 'msg' && old.m === b.m ? old : b;
+  if (b.kind === 'work') return old.kind === 'work' && sameSteps(old.steps, b.steps) ? old : b;
+  return old.kind === 'agent' && old.m === b.m && sameSteps(old.steps, b.steps) ? old : b;
+}
+
+/** `prev`: the last result, whose unchanged blocks are returned as the same objects. */
+export function toBlocks(msgs: Msg[], prev: Block[] = []): Block[] {
   const out: Block[] = [];
   const agents = new Map<string, Msg[]>();
   let work: Msg[] | null = null;
@@ -30,7 +40,14 @@ export function toBlocks(msgs: Msg[]): Block[] {
     work = null;
     out.push(isAgentTool(m) ? { kind: 'agent', id: m.id, m, steps: [] } : { kind: 'msg', id: m.id, m });
   }
-  return out.map((b) => (b.kind === 'agent' ? { ...b, steps: agents.get(b.id) ?? [] } : b));
+  const before = new Map(prev.map((b) => [b.id, b]));
+  return out.map((b) => reuse(b.kind === 'agent' ? { ...b, steps: agents.get(b.id) ?? [] } : b, before.get(b.id)));
+}
+
+/** A toBlocks that remembers its last result, for a screen that rebuilds on every event. */
+export function blockBuilder() {
+  let prev: Block[] = [];
+  return (msgs: Msg[]) => (prev = toBlocks(msgs, prev));
 }
 
 const kinds: [RegExp, string, string][] = [

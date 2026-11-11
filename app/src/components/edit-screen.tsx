@@ -1,18 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, TextInput } from 'react-native';
+import { View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { Stack, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HttpError, api } from '@/lib/hosts';
 import type { FileContent } from '@/lib/protocol';
-import { Banner, Note, c, mono, useHex } from '@/components/ui';
+import { Banner, HeaderActions, Note, TextInput, alert, space, type as scale, useTheme } from '@/design';
 
-// Edit a text file in the project (instructions like CLAUDE.md, mostly). A file
-// that doesn't exist yet is created on save. Saving is refused if the file
+// Edit a project text file (created on save if missing). Saving is refused if the file
 // changed on the Mac meanwhile, so an agent's edit is never overwritten.
 export default function Edit() {
-  useHex();
+  const { color } = useTheme();
   const { cwd, path, template } = useLocalSearchParams<{ cwd: string; path: string; template?: string }>();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
@@ -49,8 +48,8 @@ export default function Edit() {
   // Discard: stop preventing first (a render), then let the back navigation go.
   const leave = useRef<(() => void) | null>(null);
   usePreventRemove(dirty, ({ repeat }) =>
-    Alert.alert('Discard your changes?', `${path} isn't saved.`, [
-      { text: 'Keep editing', style: 'cancel' },
+    alert('Discard your changes?', `${path} isn't saved.`, [
+      { text: 'Keep Editing', style: 'cancel' },
       { text: 'Discard', style: 'destructive', onPress: () => { leave.current = repeat; setSaved(text); } },
     ]),
   );
@@ -73,32 +72,29 @@ export default function Edit() {
         },
         (e) =>
           e instanceof HttpError && e.status === 409
-            ? Alert.alert('Changed on the Mac', `${e.message}\n\nYour text stays here; copy what you need, then reload.`, [
-                { text: 'Keep mine', style: 'cancel' },
-                { text: 'Reload theirs', style: 'destructive', onPress: () => void load() },
+            ? alert('Changed on the Mac', `${e.message}\n\nYour text stays here; copy what you need, then reload.`, [
+                { text: 'Keep Mine', style: 'cancel' },
+                { text: 'Reload Theirs', style: 'destructive', onPress: () => void load() },
               ])
-            : Alert.alert('Could not save', e.message),
+            : alert('Could not save', e.message),
       )
       .finally(() => setBusy(false));
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg as any }} behavior="padding" keyboardVerticalOffset={headerHeight}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: color.bg }} behavior="padding" keyboardVerticalOffset={headerHeight}>
       <Stack.Screen options={{ title: path.split('/').pop() }} />
-      <Stack.Toolbar placement="right">
-        {busy ? (
-          <Stack.Toolbar.View>
-            <ActivityIndicator />
-          </Stack.Toolbar.View>
-        ) : (
-          <Stack.Toolbar.Button disabled={!dirty && exists} onPress={save}>{exists ? 'Save' : 'Create'}</Stack.Toolbar.Button>
-        )}
-      </Stack.Toolbar>
+      <HeaderActions actions={[{ text: exists ? 'Save' : 'Create', disabled: !dirty && exists, busy, onPress: save }]} />
       {!exists && <Banner text={`${path} doesn't exist yet. Write it and tap Create.`} />}
-      {!!error && <Note error>{error}</Note>}
+      {!!error && (
+        <View style={{ padding: space.lg }}>
+          <Note tone="danger">{error}</Note>
+        </View>
+      )}
       {saved !== null && !error && (
         <TextInput
-          style={{ flex: 1, color: c.text, fontFamily: mono, fontSize: 13, lineHeight: 19, padding: 14, paddingBottom: Math.max(insets.bottom, 14), textAlignVertical: 'top' }}
+          mono
+          style={[scale.footnote, { flex: 1, padding: space.md + 2, paddingBottom: Math.max(insets.bottom, space.md + 2), textAlignVertical: 'top' }]}
           value={text}
           onChangeText={setText}
           multiline

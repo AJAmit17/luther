@@ -53,4 +53,12 @@ USB debugging must be enabled and authorised on the phone. The APK embeds its Ja
 
 The generated template signs local Release APKs with its development keystore. That is suitable for this device test, **not production/Play Store signing**. Do not commit signing secrets or generated native/build folders.
 
-On Android, icons are Material Symbols (`src/lib/icons.ts`, and `src/components/android/toolbar-icon.android.ts` for header toolbars) and long-press menus are bottom sheets. Platform-specific components live in `src/components/ios/` and `src/components/android/`; `@/components/<name>` resolves to the platform's file (see `metro.config.js`). Widgets and Live Activities remain iOS-only.
+## Layout of the code
+
+- `src/design/`: the design system. Tokens (`space`, `radius`, `size`, `shadow`, `motion`, `type`), the theme (`useTheme()`, `setAppearance`), and every component screens use: `Text`, `Icon`, `Press`, `Surface`, `Button`, `Chip`, `ListItem` + `Group`, `Field`, `EmptyState`, `Sheet`, menus, dialogs and the rest. Import from `@/design`.
+- `src/features/`: building blocks that know about Luther: agents (`AgentMark`, `AgentPicker`, `ModePicker`) and `ListScreen`.
+- `src/components/`: screens. `src/app/`: one-line route files.
+- Platform differences are sibling files (`menu.tsx` for iOS, `menu.android.tsx` for Android); Metro picks the right one. iOS keeps native chrome (tab bar, headers, context menus, alerts, SF Symbols in toolbars); Android draws the same components instead of Material ones.
+- Text is the system face (SF Pro, Roboto) with Geist Mono for code. Header buttons and menus go through `HeaderActions`, search through `useHeaderSearch`: native on iOS, drawn by the app on Android (no Material).
+- Icons are Phosphor on both platforms, named by SF Symbol in code (`<Icon name="folder" />`) and mapped in `src/design/icons.ts`; a test fails if a name has no match or a mapped icon is unused.
+- Call `alert`/`prompt` from `@/design`, never `Alert` directly. Widgets and Live Activities remain iOS-only.

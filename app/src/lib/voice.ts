@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert } from 'react-native';
+import { alert } from '@/design';
 import * as Haptics from 'expo-haptics';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 
@@ -31,14 +31,14 @@ export function useVoice(onDone: (text: string) => void) {
   });
   useSpeechRecognitionEvent('error', (e) => {
     setListening(false);
-    if (e.error !== 'aborted' && e.error !== 'no-speech' && e.error !== 'speech-timeout') Alert.alert("Couldn't listen", e.message);
+    if (e.error !== 'aborted' && e.error !== 'no-speech' && e.error !== 'speech-timeout') alert("Couldn't listen", e.message);
   });
 
   const start = async () => {
     released.current = false;
     const p = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
     if (!p.granted) {
-      Alert.alert('Microphone or speech access is off', 'Turn both on for Luther in Settings to talk to your agents.');
+      alert('Microphone or speech access is off', 'Turn both on for Luther in Settings to talk to your agents.');
       return;
     }
     if (released.current) return; // the permission sheet ate the hold

@@ -9,7 +9,7 @@ let root = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
     .deletingLastPathComponent().deletingLastPathComponent()
 let source = try String(contentsOf: root.appendingPathComponent("app/src/lib/palette.ts"), encoding: .utf8)
 let pattern = try NSRegularExpression(pattern: #"""
-(\w+): \['(#[A-Fa-f0-9]{6})', '(#[A-Fa-f0-9]{6})'\]
+(\w+): \['(#[A-Fa-f0-9]{6}(?:[A-Fa-f0-9]{2})?)', '(#[A-Fa-f0-9]{6}(?:[A-Fa-f0-9]{2})?)'\]
 """#)
 var palette: [String: [String]] = [:]
 for match in pattern.matches(in: source, range: NSRange(source.startIndex..., in: source)) {

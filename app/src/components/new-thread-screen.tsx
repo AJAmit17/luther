@@ -1,21 +1,27 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-import { MenuView } from '@expo/ui/community/menu';
-import { api } from '@/lib/hosts';
-import type { Mode, Provider, ProviderInfo, Repository, Template } from '@/lib/protocol';
-import { openThread } from '@/lib/threads';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, View } from 'react-native';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Button, Field, Group, Icon, IconButton, ListItem, Note, SectionHeader, Toggle, space, useTheme, MenuRow, SheetFooter, SheetHeader, type MenuChoice } from '@/design';
+import { AgentPicker, ModePicker } from '@/features/agents';
 import { ModelPicker, modelName, useModels } from '@/components/model-picker';
-import { Button, Group, GroupRow, Icon, MODES, Note, ProviderIcon, c, card, home, tint, type, useLoad, useScheme } from '@/components/ui';
+import { api } from '@/lib/hosts';
+import { home } from '@/lib/format';
+import { useLoad } from '@/lib/use-load';
+import type { Mode, Project, Provider, ProviderInfo, Repository, Template } from '@/lib/protocol';
+import { openThread } from '@/lib/threads';
 
-// New thread in a folder (a sheet): the agent, its model, permissions, worktree.
-export default function NewThread() {
-  const scheme = useScheme();
-  const insets = useSafeAreaInsets();
-  const { cwd } = useLocalSearchParams<{ cwd: string }>();
+// New task from a project (/new) or "Send to Luther" (/send). A luther://send link only
+// prefills, never starts a thread, and its cwd and agent count only if the Mac lists them.
+function NewTask({ send }: { send?: boolean }) {
+  const { color } = useTheme();
+  const params = useLocalSearchParams<{ cwd?: string; text?: string; provider?: Provider }>();
+  const [text, setText] = useState(params.text ?? '');
+  const [chosen, setCwd] = useState('');
   const { data: providers, error } = useLoad(() => api<ProviderInfo[]>('/providers'), [], 'providers');
+  const { data: projects, error: projectsError } = useLoad(() => (send ? api<Project[]>('/projects') : Promise.resolve<Project[]>([])), [send], 'projects');
   const installed = (providers ?? []).filter((p) => p.installed);
+  const linked = send ? projects?.find((x) => x.cwd === params.cwd)?.cwd : params.cwd;
+  const cwd = chosen || linked || '';
   const [provider, setProvider] = useState<Provider | null>(null);
   const [picking, setPicking] = useState(false);
   const [model, setModel] = useState('');
@@ -34,110 +40,124 @@ export default function NewThread() {
   };
   const roleInfo = roles?.find((r) => r.name === role);
   const [repo, setRepo] = useState('');
-  const { data: repos, error: repoError, loading: loadingRepos } = useLoad(
-    () => worktree ? api<Repository[]>('/git/repos?cwd=' + encodeURIComponent(cwd)) : Promise.resolve<Repository[]>([]),
-    [worktree, cwd],
-  );
+  const {
+    data: repos,
+    error: repoError,
+    loading: loadingRepos,
+  } = useLoad(() => (worktree && cwd ? api<Repository[]>('/git/repos?cwd=' + encodeURIComponent(cwd)) : Promise.resolve<Repository[]>([])), [worktree, cwd]);
   const [busy, setBusy] = useState(false);
-  const p = provider ?? installed[0]?.id ?? null;
+  const p = provider ?? installed.find((x) => x.id === params.provider)?.id ?? installed[0]?.id ?? null;
   const worktreeCwd = repos?.find((r) => r.cwd === repo && !r.error)?.cwd ?? (repos?.length === 1 && !repos[0].error ? repos[0].cwd : '');
-
   const models = useModels(p);
-
+  const project = projects?.find((x) => x.cwd === cwd);
+  const go = () => {
+    setBusy(true);
+    const dir = worktree && !cwd.startsWith(worktreeCwd + '/') ? worktreeCwd : cwd;
+    openThread({ provider: p!, cwd: dir, mode, model: model || undefined, worktree: worktree || undefined, template: role || undefined }, true, text.trim() || undefined).finally(() => setBusy(false));
+  };
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.surface }} contentContainerStyle={{ padding: 20, paddingTop: 28, gap: 20, paddingBottom: 40 + Math.max(insets.bottom, process.env.EXPO_OS === 'android' ? 48 : 0) }}>
-      <View style={{ gap: 4 }}>
-        <Text style={type.title2}>New thread</Text>
-        <Text selectable style={type.footnote} numberOfLines={1}>{home(cwd)}</Text>
-      </View>
-      {!!error && <Note error>{error}</Note>}
-      {providers && !installed.length && <Note error>No agent CLI is installed on this Mac (claude, codex, opencode, gemini, cursor, devin).</Note>}
-
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-        {installed.map((x) => {
-          const on = p === x.id;
-          return (
-            <Pressable
-              key={x.id}
-              onPress={() => {
-                setProvider(x.id);
-                setModel('');
-              }}
-              style={({ pressed }) => [card, { width: '47%', flexGrow: 1, padding: 12, gap: 8, borderColor: on ? c.accent : c.line, borderWidth: on ? 1.5 : 1, backgroundColor: on ? tint('accent', 0.08) : c.card, opacity: pressed ? 0.8 : 1 }]}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <ProviderIcon p={x.id} size={30} />
-                {on && <Icon name="checkmark.circle.fill" size={18} color={c.accent} />}
-              </View>
-              <View>
-                <Text style={type.headline}>{x.name}</Text>
-                <Text style={type.caption} numberOfLines={1}>{x.version || 'installed'}</Text>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {!!roles?.length && (
-        <Group title="Role" footer={roleInfo ? roleInfo.description : 'Roles are Markdown files in ~/.luther/templates on your Mac.'}>
-          <MenuView
-            colorScheme={scheme}
-            actions={[{ id: '', title: 'None', state: role ? 'off' : 'on' }, ...roles.map((r) => ({ id: r.name, title: r.name, subtitle: r.description, state: (r.name === role ? 'on' : 'off') as 'on' | 'off' }))]}
-            onPressAction={({ nativeEvent }) => pickRole(nativeEvent.event)}
-          >
-            <GroupRow first icon="theatermasks" label={role || 'None'} sub={roleInfo ? 'Its instructions go before your first message' : undefined} right={<Icon name="chevron.up.chevron.down" size={13} color={c.faint} />} />
-          </MenuView>
-        </Group>
-      )}
-
-      <Group title="Model">
-        <GroupRow
-          first
-          icon="cpu"
-          label={modelName(models, model) || 'Default'}
-          sub={model ? models.find((m) => m.id === model)?.desc : models.length ? `${models.length} models` : 'Asking the agent for its models…'}
-          onPress={() => setPicking(true)}
-          right={<Icon name="chevron.up.chevron.down" size={13} color={c.faint} />}
-        />
-        <ModelPicker open={picking} models={models} selected={model} onPick={setModel} onClose={() => setPicking(false)} withDefault />
-      </Group>
-
-      <Group title="Permissions">
-        {MODES.map((m, i) => (
-          <GroupRow
-            key={m.id}
-            first={i === 0}
-            icon={m.icon}
-            iconColor={m.id === 'full' ? c.red : c.accent}
-            label={m.label}
-            sub={p === 'devin' && m.id === 'ask' ? 'Devin’s native Ask mode is read-only' : m.desc}
-            right={mode === m.id ? <Icon name="checkmark" size={15} color={c.accent} /> : <View style={{ width: 15 }} />}
-            onPress={() => setMode(m.id)}
+    <View style={{ flex: 1, backgroundColor: send ? color.bg : color.surface }}>
+      {send && <Stack.Screen options={{ title: 'New Task' }} />}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentInsetAdjustmentBehavior="automatic"
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        contentContainerStyle={{ padding: space.lg + space.xs, paddingTop: send ? space.lg : space.xl + space.xs, gap: space.lg + space.xs }}
+      >
+        {!send && <SheetHeader title="New Task" />}
+        {!!(error || projectsError) && <Note tone="danger">{error || projectsError}</Note>}
+        {providers && !installed.length && <Note tone="danger">No agent CLI is installed on this Mac (claude, codex, opencode, gemini, cursor, devin).</Note>}
+        <Field lines={4} value={text} onChangeText={setText} placeholder="What should the agent do?" autoFocus={send && !params.text} />
+        <View style={{ gap: space.sm }}>
+          <SectionHeader title="Agent" />
+          <AgentPicker
+            agents={installed.map((x) => x.id)}
+            value={p ? [p] : []}
+            onChange={([next]) => {
+              setProvider(next);
+              setModel('');
+            }}
           />
-        ))}
-      </Group>
-
-      <Group footer="Its own branch and checkout, so several agents in one project don't step on each other.">
-        <GroupRow first icon="arrow.triangle.branch" iconColor={c.blue} label="Separate worktree" right={<Switch value={worktree} onValueChange={setWorktree} />} />
-        {worktree ? (
-          <MenuView colorScheme={scheme} actions={(repos ?? []).filter((r) => !r.error).map((r) => ({ id: r.cwd, title: r.name, subtitle: r.branch, state: r.cwd === worktreeCwd ? 'on' : 'off' }))} onPressAction={({ nativeEvent }) => setRepo(nativeEvent.event)}>
-            <GroupRow icon="folder" label={loadingRepos ? 'Finding repositories…' : repos?.find((r) => r.cwd === worktreeCwd)?.name || 'Choose a repository'} sub={repoError || (!loadingRepos && !repos?.length ? 'No git checkouts found in this folder' : 'The thread will run in a worktree of this repository')} />
-          </MenuView>
-        ) : null}
-      </Group>
-
-      <Button
-        kind="accent"
-        icon="play.fill"
-        label={busy ? 'Starting…' : 'Start'}
-        busy={busy}
-        disabled={!p || (worktree && (loadingRepos || !worktreeCwd || !!repoError))}
-        onPress={() => {
-          setBusy(true);
-          const dir = worktree && !cwd.startsWith(worktreeCwd + '/') ? worktreeCwd : cwd;
-          openThread({ provider: p!, cwd: dir, mode, model: model || undefined, worktree: worktree || undefined, template: role || undefined }, true).finally(() => setBusy(false));
-        }}
-      />
-    </ScrollView>
+        </View>
+        <Group>
+          {send ? (
+            <MenuRow
+              first
+              icon="folder"
+              title={project?.name ?? (cwd ? cwd.split('/').pop()! : 'Choose a Project')}
+              value={cwd ? home(cwd) : undefined}
+              actions={(projects ?? []).map((x): MenuChoice => ({ id: x.cwd, title: x.name, subtitle: home(x.cwd), state: x.cwd === cwd ? 'on' : 'off' }))}
+              onPick={(next) => {
+                setCwd(next);
+                setRepo('');
+              }}
+            />
+          ) : (
+            <ListItem icon="folder" title={cwd.split('/').pop() || cwd} value={home(cwd)} />
+          )}
+          <ListItem
+            icon="cpu"
+            title={modelName(models, model) || 'Default Model'}
+            subtitle={model ? models.find((m) => m.id === model)?.desc : models.length ? `${models.length} models` : 'Asking the agent for its models…'}
+            trailing={<Icon name="chevron.up.chevron.down" size={13} color={color.faint} />}
+            onPress={() => setPicking(true)}
+          />
+        </Group>
+        <ModelPicker open={picking} models={models} selected={model} onPick={setModel} onClose={() => setPicking(false)} withDefault />
+        {!!roles?.length && (
+          <Group title="Role" footer={roleInfo ? roleInfo.description : 'Roles are Markdown files in ~/.luther/templates on your Mac.'}>
+            <MenuRow
+              first
+              icon="theatermasks"
+              title={role || 'None'}
+              subtitle={roleInfo ? 'Its instructions go before your first message' : undefined}
+              actions={[
+                { id: '', title: 'None', state: role ? 'off' : 'on' },
+                ...roles.map((r): MenuChoice => ({ id: r.name, title: r.name, subtitle: r.description, state: r.name === role ? 'on' : 'off' })),
+              ]}
+              onPick={pickRole}
+            />
+          </Group>
+        )}
+        <View style={{ gap: space.sm }}>
+          <SectionHeader title="Permissions" />
+          <ModePicker value={mode} onChange={setMode} provider={p ?? undefined} />
+        </View>
+        <Group footer="Its own branch and checkout, so several agents in one project don't step on each other.">
+          <ListItem icon="arrow.triangle.branch" title="Separate Worktree" trailing={<Toggle label="Separate Worktree" value={worktree} onValueChange={setWorktree} />} />
+          {worktree ? (
+            <MenuRow
+              icon="folder"
+              title={loadingRepos ? 'Finding repositories…' : repos?.find((r) => r.cwd === worktreeCwd)?.name || 'Choose a Repository'}
+              subtitle={repoError || (!loadingRepos && !repos?.length ? 'No git checkouts found in this folder' : 'The thread will run in a worktree of this repository')}
+              actions={(repos ?? []).filter((r) => !r.error).map((r): MenuChoice => ({ id: r.cwd, title: r.name, subtitle: r.branch, state: r.cwd === worktreeCwd ? 'on' : 'off' }))}
+              onPick={setRepo}
+            />
+          ) : null}
+        </Group>
+        {send && <Note>Tip: in Shortcuts, make one that opens luther://send?text=[Shortcut Input] and turn on “Show in Share Sheet”. Then share any text to Luther, or say its name to Siri.</Note>}
+      </ScrollView>
+      <SheetFooter>
+        {!!cwd && (
+          <IconButton
+            icon="calendar.badge.clock"
+            label="Schedule It Instead"
+            variant="tinted"
+            size={48}
+            onPress={() => router.replace({ pathname: '/schedule', params: { cwd, prompt: text, ...(p ? { provider: p } : {}) } })}
+          />
+        )}
+        <View style={{ flex: 1 }}>
+          <Button variant="primary" label={busy ? 'Starting…' : 'Start Thread'} busy={busy} disabled={!p || !cwd || (worktree && (loadingRepos || !worktreeCwd || !!repoError))} onPress={go} />
+        </View>
+      </SheetFooter>
+    </View>
   );
+}
+export default function NewThread() {
+  return <NewTask />;
+}
+export function SendTask() {
+  return <NewTask send />;
 }

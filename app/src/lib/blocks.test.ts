@@ -38,3 +38,16 @@ test('an artifact card stands on its own between steps', () => {
   ]);
   assert.deepEqual(b.map((x) => x.kind), ['work', 'msg', 'work']);
 });
+
+test('unchanged blocks keep their identity across rebuilds', () => {
+  const msgs = [m('u1', 'user'), m('t1', 'tool', 'Read'), m('a1', 'assistant')];
+  const first = toBlocks(msgs);
+  const streamed = { ...msgs[2], text: 'a1 more' };
+  const second = toBlocks([msgs[0], msgs[1], streamed], first);
+  assert.equal(second[0], first[0]);
+  assert.equal(second[1], first[1]);
+  assert.notEqual(second[2], first[2]);
+  const third = toBlocks([msgs[0], msgs[1], m('t2', 'tool', 'Bash'), streamed], second);
+  assert.equal(third[0], first[0]);
+  assert.notEqual(third[1], first[1]);
+});
