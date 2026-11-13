@@ -31,7 +31,9 @@ func Private(p string) bool {
 	if under(p, filepath.Join(home, ".luther", "worktrees")) && p != filepath.Join(home, ".luther", "worktrees") {
 		return false
 	}
-	for _, d := range []string{".luther", ".ssh", ".gnupg", ".aws", filepath.Join("Library", "Keychains")} {
+	for _, d := range []string{".luther", ".ssh", ".gnupg", ".aws", ".docker", ".kube", ".netrc", ".npmrc",
+		filepath.Join(".config", "gh"), filepath.Join(".codex", "auth.json"), filepath.Join(".claude", ".credentials.json"),
+		filepath.Join("Library", "Keychains"), filepath.Join("Library", "Cookies")} {
 		if under(p, filepath.Join(home, d)) {
 			return true
 		}

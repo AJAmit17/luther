@@ -80,7 +80,7 @@ Phone (iPhone or Android)
 - Git for repository operations; tmux for terminals.
 - One way in: Tailscale (Funnel, or Serve with Tailscale on the phone too), or `cloudflared` for a quick tunnel (no account), or an existing Cloudflare Tunnel.
 - GitHub CLI (`gh`) logged in on the agent machine for pull-request creation.
-- Go **1.26.10 or newer** when building from source, as specified in [`server/go.mod`](server/go.mod).
+- Go **1.26.11 or newer** when building from source, as specified in [`server/go.mod`](server/go.mod).
 
 The agent process runs with the server user's permissions. Use an account and workspace you trust.
 
@@ -111,7 +111,7 @@ An installer is also available:
 curl -fsSL https://raw.githubusercontent.com/AJAmit17/luther/main/install.sh | sh
 ```
 
-It downloads a matching release and verifies its checksum, or falls back to a source build when no release is available. It defaults to `~/.local/bin`; `LUTHER_BIN` changes the destination and `LUTHER_VERSION` selects a tag. Private-repository downloads require appropriate GitHub access; never share or commit the token.
+It downloads a matching release and verifies its checksum (and, with a signed-in GitHub CLI, its build provenance). If the download fails it stops; `LUTHER_FROM_SOURCE=1` builds from source instead. It defaults to `~/.local/bin`; `LUTHER_BIN` changes the destination and `LUTHER_VERSION` selects a tag. Private-repository downloads require appropriate GitHub access; never share or commit the token.
 
 Project licence/attribution files shipped with the download are retained under `${XDG_DATA_HOME:-$HOME/.local/share}/luther`.
 

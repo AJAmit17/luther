@@ -58,8 +58,15 @@ func TestFileOps(t *testing.T) {
 	if r := do(mux, "POST", "/files/upload?cwd="+q+"&path=src/a.txt", []byte("again")); r.Code != http.StatusConflict {
 		t.Fatalf("upload over a file without replace: %d", r.Code)
 	}
+	// A planted link where the old fixed temp name was must not be written through.
+	victim := filepath.Join(paths.Home, "victim")
+	os.WriteFile(victim, []byte("safe"), 0o600)
+	os.Symlink(victim, filepath.Join(proj, "src/a.txt.luther-tmp"))
 	if r := do(mux, "POST", "/files/upload?cwd="+q+"&path=src/a.txt&replace=1", []byte("again")); r.Code != 200 {
 		t.Fatalf("replace: %d", r.Code)
+	}
+	if b, _ := os.ReadFile(victim); string(b) != "safe" {
+		t.Fatalf("upload wrote through a planted link: %q", b)
 	}
 	if r := do(mux, "POST", "/files/rename", map[string]string{"cwd": proj, "from": "src/a.txt", "to": "src/lib/b.txt"}); r.Code != 200 {
 		t.Fatalf("rename: %d %s", r.Code, r.Body)

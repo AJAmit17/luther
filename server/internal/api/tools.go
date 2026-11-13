@@ -14,6 +14,7 @@ import (
 	"github.com/AJAmit17/luther/server/internal/auth"
 	"github.com/AJAmit17/luther/server/internal/httpx"
 	"github.com/AJAmit17/luther/server/internal/hub"
+	"github.com/AJAmit17/luther/server/internal/paths"
 	"github.com/AJAmit17/luther/server/internal/protocol"
 	"github.com/AJAmit17/luther/server/internal/templates"
 	"github.com/AJAmit17/luther/server/internal/text"
@@ -250,7 +251,13 @@ func startThread(parent *hub.Thread, agent, prompt, template, cwd, model, mode s
 	if !filepath.IsAbs(cwd) {
 		cwd = filepath.Join(pst.Cwd, cwd)
 	}
-	child, _, err := open(protocol.OpenReq{Provider: protocol.Provider(agent), Cwd: cwd, Model: model, Mode: mode, Worktree: worktree, Template: template})
+	// A child works inside its parent's folder: an agent can't reach your other projects or home.
+	rel, err := filepath.Rel(pst.Cwd, cwd)
+	if _, ok := paths.Within(pst.Cwd, rel); err != nil || rel == ".." || strings.HasPrefix(rel, "../") || !ok {
+		return "", fmt.Errorf("a thread you start works inside your folder (%s)", pst.Cwd)
+	}
+	// Started by a run nobody watches: the child is unattended too (deny rules, no waiting on approvals).
+	child, _, err := open(protocol.OpenReq{Provider: protocol.Provider(agent), Cwd: cwd, Model: model, Mode: mode, Worktree: worktree, Template: template, Unattended: parent.IsUnattended()})
 	if err != nil {
 		return "", err
 	}

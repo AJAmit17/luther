@@ -9,6 +9,7 @@
 #   LUTHER_VERSION  a tag, e.g. v0.2.0 (default: latest release)
 #   LUTHER_BIN      install folder (default: ~/.local/bin)
 #   GITHUB_TOKEN    for a private repository
+#   LUTHER_FROM_SOURCE=1  build from source instead of downloading a release
 #   LUTHER_REPO     git URL to build from (default: https://github.com/AJAmit17/luther.git)
 set -eu
 
@@ -65,6 +66,10 @@ from_release() {
   want=$(grep " $name\$" "$tmp/checksums.txt" | cut -d' ' -f1)
   if have sha256sum; then got=$(sha256sum "$tmp/$name" | cut -d' ' -f1); else got=$(shasum -a 256 "$tmp/$name" | cut -d' ' -f1); fi
   [ -n "$want" ] && [ "$want" = "$got" ] || die "checksum mismatch for $name"
+  # Built by this repository's release workflow (when a signed-in GitHub CLI can check).
+  if have gh && gh auth status >/dev/null 2>&1; then
+    gh attestation verify "$tmp/$name" --repo "$repo" >/dev/null 2>&1 || die "$name wasn't built by $repo's release workflow"
+  fi
   tar -xzf "$tmp/$name" -C "$tmp"
 }
 
@@ -79,7 +84,12 @@ from_source() {
   copy_notices "$tmp/src" "$tmp"
 }
 
-from_release || from_source
+# Never a silent fallback to unreleased code: building main is opt-in.
+if [ "${LUTHER_FROM_SOURCE:-}" = 1 ]; then
+  from_source
+else
+  from_release || die "couldn't download a luther release (rate-limited? set GITHUB_TOKEN). To build main from source instead: LUTHER_FROM_SOURCE=1"
+fi
 
 mkdir -p "$bin"
 install -m 0755 "$tmp/luther" "$bin/luther"

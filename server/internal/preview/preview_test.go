@@ -33,4 +33,13 @@ func TestLinkOnce(t *testing.T) {
 	if rec.Code != http.StatusGone {
 		t.Fatalf("second open: %d", rec.Code)
 	}
+	// A dev page can't register a Service Worker on Luther's origin.
+	req := httptest.NewRequest("GET", "/sw.js", nil)
+	req.AddCookie(c[0])
+	req.Header.Set("Service-Worker", "script")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("service worker script: %d", rec.Code)
+	}
 }

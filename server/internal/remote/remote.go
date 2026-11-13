@@ -254,6 +254,8 @@ func relay(w http.ResponseWriter, r *http.Request) {
 			pr.SetURL(target)
 			pr.Out.URL.Path, pr.Out.URL.RawPath = rest, ""
 			pr.Out.Host = target.Host
+			// Relayed traffic is never local on the remote (its admin routes stay closed).
+			pr.SetXForwarded()
 			// The phone's token for the remote passes; this Mac's own internal
 			// token (a sealed request re-dispatched here) must never leave it.
 			if strings.HasPrefix(pr.Out.Header.Get("Authorization"), "Bearer "+auth.InternalPrefix) {

@@ -167,7 +167,18 @@ func (a *Auth) pairCode(w http.ResponseWriter, r *http.Request) {
 // pair: {pub, box} → {box}. The phone seals {code, name, t} to this machine's
 // public key (from the QR) with its own key pub; the answer {deviceId, token} is
 // sealed back. A relay sees neither the code nor the token. Codes are single use.
+// pairing caps pairing attempts at once (a wrong code holds one for 500 ms).
+// ponytail: global, not per IP: behind a tunnel every request is 127.0.0.1.
+var pairing = make(chan struct{}, 4)
+
 func (a *Auth) pair(w http.ResponseWriter, r *http.Request) {
+	select {
+	case pairing <- struct{}{}:
+		defer func() { <-pairing }()
+	default:
+		http.Error(w, "too many pairing attempts, try again", http.StatusTooManyRequests)
+		return
+	}
 	var req struct{ Pub, Box string }
 	if !httpx.ReadJSON(w, r, &req) {
 		return
