@@ -5,7 +5,7 @@
 class Luther < Formula
   desc "Drive the coding agents on your Mac (Claude Code, Codex, more) from your phone"
   homepage "https://github.com/AJAmit17/luther"
-  url "https://github.com/AJAmit17/luther.git", tag: "v0.1.0", revision: "0000000000000000000000000000000000000000"
+  url "https://github.com/AJAmit17/luther.git", tag: "v0.1.0", revision: "8829bcd677fca4315013e8f886ce1a2b4c284c3d"
   license "Apache-2.0"
   head "https://github.com/AJAmit17/luther.git", branch: "main"
 
