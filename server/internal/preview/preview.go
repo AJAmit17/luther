@@ -95,6 +95,12 @@ func Routes(mux *http.ServeMux, wrap httpx.Wrap, self int) {
 			http.NotFound(w, r)
 			return
 		}
+		// Previews share an origin with artifacts and the API: a dev page must
+		// not install a Service Worker that would sit over /a/ and /p/ later.
+		if r.Header.Get("Service-Worker") != "" {
+			http.Error(w, "service workers are off in Luther previews", http.StatusForbidden)
+			return
+		}
 		proxy(port).ServeHTTP(w, r)
 	})
 }
@@ -151,6 +157,10 @@ func proxy(port int) http.Handler {
 			if len(keep) > 0 {
 				pr.Out.Header.Set("Cookie", strings.Join(keep, "; "))
 			}
+		},
+		ModifyResponse: func(res *http.Response) error {
+			res.Header.Del("Service-Worker-Allowed")
+			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			http.Error(w, fmt.Sprintf("Nothing answers on port %d. Is the dev server still running?", port), http.StatusBadGateway)

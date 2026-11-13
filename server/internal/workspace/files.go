@@ -168,12 +168,11 @@ func writeFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
-	tmp := p + ".luther-tmp"
-	if err := os.WriteFile(tmp, []byte(req.Text), mode); err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
-		return
+	tmp, err := writeTemp(p, strings.NewReader(req.Text), mode, -1)
+	if err == nil {
+		err = os.Rename(tmp, p)
 	}
-	if err := os.Rename(tmp, p); err != nil {
+	if err != nil {
 		os.Remove(tmp)
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return

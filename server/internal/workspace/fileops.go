@@ -122,17 +122,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
-	tmp := p + ".luther-tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
-		return
-	}
-	n, err := io.Copy(f, http.MaxBytesReader(w, r.Body, maxUpload))
-	f.Close()
-	if err == nil && n == 0 {
-		err = errors.New("the file is empty")
-	}
+	tmp, err := writeTemp(p, http.MaxBytesReader(w, r.Body, maxUpload), 0o644, 0)
 	if err == nil {
 		err = os.Rename(tmp, p)
 	}
@@ -165,6 +155,27 @@ func toTrash(p string) error {
 		return moveInto(filepath.Join(paths.Home, ".Trash"), p)
 	}
 	return moveInto(filepath.Join(paths.Home, ".local", "share", "Trash", "files"), p)
+}
+
+// writeTemp writes body to a new, randomly named file beside p (never an
+// existing file or a planted link) and returns its path, to rename over p.
+// It fails when fewer than min bytes came (min < 0: any size).
+func writeTemp(p string, body io.Reader, mode os.FileMode, min int64) (string, error) {
+	f, err := os.CreateTemp(filepath.Dir(p), ".luther-*")
+	if err != nil {
+		return "", err
+	}
+	n, err := io.Copy(f, body)
+	if err == nil && n <= min {
+		err = errors.New("the file is empty")
+	}
+	if err == nil {
+		err = f.Chmod(mode)
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	return f.Name(), err
 }
 
 func moveInto(dir, p string) error {

@@ -109,15 +109,16 @@ export default function ThreadScreen() {
     if (top) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
   }, [top?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // A message handed over by Shortcuts / the Share Sheet / a widget: sent once connected.
+  // A message handed over by a link (Shortcuts, the Share Sheet, a widget, or any
+  // web page): put in the composer for you to send, never sent by itself.
   const handed = useRef(false);
   useEffect(() => {
-    if (send && !handed.current && ev.status === 'open' && st) {
+    if (send && !handed.current) {
       handed.current = true;
-      ev.sendText(send); // mid-turn, the agent queues or steers it
+      setText(send);
       router.setParams({ send: undefined });
     }
-  }, [send, ev.status, st]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [send]);
 
   const voice = useVoice((said) => {
     if (ev.sendText(said, att.paths)) att.clear();

@@ -120,7 +120,14 @@ func (s *server) request(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown device", http.StatusUnauthorized)
 		return
 	}
-	reading <- struct{}{}
+	// A slot, then a deadline for the body: a slow sender can't hold every slot.
+	select {
+	case reading <- struct{}{}:
+	case <-time.After(10 * time.Second):
+		http.Error(w, "busy, try again", http.StatusServiceUnavailable)
+		return
+	}
+	http.NewResponseController(w).SetReadDeadline(time.Now().Add(2 * time.Minute))
 	box, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
 	<-reading
 	if err != nil {
