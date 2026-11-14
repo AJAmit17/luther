@@ -41,7 +41,7 @@ func command(serve func(*config.Config)) *cobra.Command {
 			}
 			return nil
 		},
-		Example:           "  luther start\n  luther pair\n  luther status\n  luther doctor",
+		Example:           "  luther setup\n  luther status\n  luther doctor",
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	}
 	root.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable terminal colors")
@@ -79,7 +79,7 @@ func command(serve func(*config.Config)) *cobra.Command {
 	root.RunE = run(true, func(c *CLI, _ []string) error {
 		c.view.brand()
 		c.Status(false)
-		fmt.Fprintln(c.out, "\n  Start       luther start\n  Pair phone  luther pair\n  Check setup luther doctor\n  Explore     luther --help")
+		fmt.Fprintln(c.out, "\n  First time  luther setup   (agents, server, route, pairing QR)\n  Pair phone  luther pair\n  Check setup luther doctor\n  Explore     luther --help")
 		return nil
 	})
 	add := func(use, short, group string, readOnly bool, fn func(*CLI, []string) error) *cobra.Command {
@@ -87,6 +87,7 @@ func command(serve func(*config.Config)) *cobra.Command {
 		root.AddCommand(cmd)
 		return cmd
 	}
+	add("setup", "Get going in one step: find agents, start, add a route, pair your phone", "connect", false, func(c *CLI, _ []string) error { return c.Setup() })
 	add("start", "Run in the background and prevent idle sleep", "server", false, func(c *CLI, _ []string) error { return c.Start() })
 	add("stop", "Stop the managed server and release wake protection", "server", true, func(c *CLI, _ []string) error { return c.Stop() })
 	statusJSON := false
