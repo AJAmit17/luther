@@ -1,7 +1,10 @@
 // Package protocol: the wire types between `luther serve` and the phone app.
 package protocol
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 // Wire protocol between `luther serve` and the phone app. These types are the
 // source of truth; app/src/lib/protocol.ts mirrors them (change both together).
@@ -63,14 +66,11 @@ import "time"
 
 type Provider string
 
+// Claude and Codex have their own clients; every other provider is an ACP
+// agent, named by package acp's list.
 const (
-	Claude   Provider = "claude"
-	Codex    Provider = "codex"
-	OpenCode Provider = "opencode" // the rest speak ACP (package acp)
-	Gemini   Provider = "gemini"
-	Cursor   Provider = "cursor"
-	Devin    Provider = "devin"
-	OMP      Provider = "omp" // Oh My Pi
+	Claude Provider = "claude"
+	Codex  Provider = "codex"
 )
 
 // Permission modes, normalized across providers.
@@ -447,23 +447,24 @@ func ValidMode(m string) bool {
 	return m == ModeAsk || m == ModeEdits || m == ModePlan || m == ModeFull
 }
 
+var names = struct {
+	sync.Mutex
+	m map[Provider]string
+}{m: map[Provider]string{Claude: "Claude", Codex: "Codex"}}
+
+// SetName: what an agent is called (package acp registers its agents).
+func SetName(p Provider, name string) {
+	names.Lock()
+	names.m[p] = name
+	names.Unlock()
+}
+
 // Name: how the app and notifications call an agent.
 func (p Provider) Name() string {
-	switch p {
-	case Claude:
-		return "Claude"
-	case Codex:
-		return "Codex"
-	case OpenCode:
-		return "OpenCode"
-	case Gemini:
-		return "Gemini"
-	case Cursor:
-		return "Cursor"
-	case Devin:
-		return "Devin"
-	case OMP:
-		return "Oh My Pi"
+	names.Lock()
+	defer names.Unlock()
+	if n := names.m[p]; n != "" {
+		return n
 	}
 	return string(p)
 }
