@@ -342,7 +342,7 @@ func (c *CLI) Doctor() {
 	ok := c.view.check
 	c.view.message("Luther doctor", "CHECK means attention may be needed; install only the agents you use.")
 	env.LoginPath()
-	for _, bin := range []string{"claude", "codex", "opencode", "gemini", "cursor-agent", "devin", "omp", "tmux", "git", "gh", "tailscale", "cloudflared"} {
+	for _, bin := range append(agents, "tmux", "git", "gh", "tailscale", "cloudflared") {
 		args := []string{"--version"}
 		if bin == "tmux" {
 			args = []string{"-V"}
@@ -377,8 +377,8 @@ func (c *CLI) Doctor() {
 		}
 	}
 	if len(c.cfg.Routes()) == 0 {
-		ok(false, "route", "none: run `luther funnel` or `luther tunnel --quick`")
+		ok(false, "route", "none: run `luther setup`")
 	}
 	n := len(c.cfg.ListDevices())
-	ok(n > 0, "devices", fmt.Sprintf("%d paired (`luther pair` adds one)", n))
+	ok(n > 0, "devices", fmt.Sprintf("%d paired (`luther setup` or `luther pair` adds one)", n))
 }

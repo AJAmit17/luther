@@ -117,6 +117,11 @@ export function headers(h: Host): Record<string, string> {
   return x;
 }
 
+const UNREACHABLE =
+  'On the Mac: `luther status` (is it running?), then `luther doctor` (do the routes answer?). ' +
+  'A quick tunnel gets a new address after a reboot: run `luther setup` and scan again. ' +
+  'A tailnet-only route needs Tailscale on this phone.';
+
 async function probe(url: string, h: Pick<Host, 'cfId' | 'cfSecret'>, ms = 2500): Promise<boolean> {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), ms);
@@ -141,7 +146,7 @@ export async function resolve(h: Host, force = false): Promise<string> {
     }
   }
   base.delete(h.id);
-  throw new Error(`${h.name} is unreachable on every route. Is Tailscale on, or the tunnel running?`);
+  throw new Error(`Can’t reach ${h.name}. ${UNREACHABLE}`);
 }
 
 export function routeInUse(h: Host | null) {
@@ -231,19 +236,26 @@ export async function pair(payload: string, deviceName: string) {
   const me = newKey();
   const key = sharedKey(me.priv, p.pub);
   const req = JSON.stringify({ pub: me.pub, box: toB64(box(key, 'pair', utf8(JSON.stringify({ code: p.code, name: deviceName, t: Date.now() })))) });
-  let last = 'unreachable';
   for (const u of p.routes) {
+    let res: Response;
     try {
-      const res = await fetch(u + '/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: req });
-      const body = await res.text();
-      if (!res.ok) throw new Error(body.trim() || `HTTP ${res.status}`);
-      const { deviceId, token } = JSON.parse(text(open(key, 'pair-res', fromB64(JSON.parse(body).box))));
-      const h: Host = { id: deviceId, name: p.name || 'Mac', routes: p.routes, token, pub: p.pub, secret: me.priv };
-      await upsertHost(h);
-      return h;
-    } catch (e: any) {
-      last = e.message;
+      res = await fetch(u + '/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: req });
+    } catch {
+      continue; // this route doesn't reach the Mac: try the next
     }
+    if (res.status >= 500) continue; // a tunnel with nothing behind it (Cloudflare's 502/530)
+    // The Mac answered: its reason (an expired code, another machine's code) is the one to show.
+    const body = await res.text();
+    if (!res.ok) throw new Error(body.trim() || `HTTP ${res.status}`);
+    let got: { deviceId: string; token: string };
+    try {
+      got = JSON.parse(text(open(key, 'pair-res', fromB64(JSON.parse(body).box))));
+    } catch {
+      throw new Error('The Mac sent a reply this phone could not read. Update Luther on both, then run `luther pair` again.');
+    }
+    const h: Host = { id: got.deviceId, name: p.name || 'Mac', routes: p.routes, token: got.token, pub: p.pub, secret: me.priv };
+    await upsertHost(h);
+    return h;
   }
-  throw new Error(`Pairing failed: ${last}`);
+  throw new Error(`Can’t reach your Mac. ${UNREACHABLE}`);
 }

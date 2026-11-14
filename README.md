@@ -124,16 +124,17 @@ brew install --HEAD luther
 
 The installer, release workflow, and formula are not a claim that a tagged release has already been tested or published.
 
-### 2. Start Luther and publish a route
+### 2. Set up and pair
+
+Build the [native iPhone app](#build-the-iphone-app) or the [local Android APK](app/README.md#build-the-android-apk), then on the Mac:
 
 ```sh
-luther doctor
-luther start
-luther funnel          # or: luther tunnel --quick
-luther status
+luther setup
 ```
 
-Pick one way for the phone to reach this Mac. Everything is end-to-end encrypted on all of them, and the phone needs nothing installed:
+It finds your agent CLIs, starts the server, gives the phone a route (one you already have that answers, else Tailscale Funnel, else a Cloudflare quick tunnel), checks the route answers, and prints the pairing QR. Scan it **inside Luther**.
+
+To choose the route yourself, run one of the commands below instead, then `luther pair`. Pick one way for the phone to reach this Mac. Everything is end-to-end encrypted on all of them, and the phone needs nothing installed:
 
 | Command | Needs on the Mac | Address |
 |---|---|---|
@@ -154,9 +155,7 @@ The example hostname is a placeholder. The command configures Luther's route and
 
 Once set up, `luther serve` keeps the tunnel running (and both Cloudflare tunnels outlive Luther's own restarts). If something else already runs `cloudflared` with `luther.yml`, such as the login service, Luther leaves that one alone. Use a hostname of its own: `route dns` adds a CNAME for it, which takes precedence over a wildcard record without changing it.
 
-### 3. Install the app and pair
-
-Build the [native iPhone app](#build-the-iphone-app) or the [local Android APK](app/README.md#build-the-android-apk), then:
+### 3. Pairing more phones
 
 ```sh
 luther pair
@@ -172,6 +171,7 @@ Pick a folder, select an installed agent, and send a task. A parent folder does 
 | --- | --- |
 | `luther version` | Print the build version. |
 | `luther` | Read-only overview and suggested commands. |
+| `luther setup` | First run: find agents, start the server, add a route, and print the pairing QR. |
 | `luther start` / `luther stop` | Start or stop the managed background server. |
 | `luther status` | Show state, routes, and paired-device information. |
 | `luther status --json` | Undecorated, credential-free status data. |

@@ -7,8 +7,8 @@ import { Button, Field, RelayMark, SectionHeader, Span, Surface, Text, alert, ra
 import { pair } from '@/lib/hosts';
 
 const STEPS: ReactNode[] = [
-  'Turn on Tailscale here if your Mac uses it',
-  <>Run <Span mono>luther pair</Span> on your Mac</>,
+  <>Install Luther on your Mac: <Span mono>getluther.pages.dev</Span></>,
+  <>Run <Span mono>luther setup</Span> there</>,
   'Scan the code it shows',
   'Name this phone and you’re in',
 ];
@@ -100,6 +100,10 @@ export default function Pair() {
         <Field value={name} onChangeText={setName} accessibilityLabel="This phone’s name" />
         <Text variant="footnote" style={{ paddingHorizontal: space.lg }}>How it shows on the Mac’s list of devices.</Text>
       </View>
+
+      <Text variant="footnote" color="dim" style={{ paddingHorizontal: space.lg }}>
+        Already set up? Run <Span mono>luther pair</Span> for a new code. If your Mac is on your tailnet only, turn on Tailscale on this phone first.
+      </Text>
 
       <View style={{ flex: 1 }} />
 
