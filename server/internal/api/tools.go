@@ -40,6 +40,32 @@ func toolRoutes(mux *http.ServeMux) {
 		}
 		httpx.WriteJSON(w, toolList())
 	})
+	// MCP over HTTP (one JSON-RPC request per POST, a JSON reply), for agents
+	// that don't start MCP servers as processes.
+	mux.HandleFunc("POST /mcp", func(w http.ResponseWriter, r *http.Request) {
+		tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if !tools.Issued(tok) || !auth.Direct(r) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		var req struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+			Params json.RawMessage `json:"params"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, artifacts.MaxSize+(1<<20))).Decode(&req); err != nil {
+			http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		if req.ID == nil { // a notification
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		httpx.WriteJSON(w, tools.Handle("http://"+r.Host, tok, req.ID, req.Method, req.Params))
+	})
+	mux.HandleFunc("GET /mcp", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "no event stream; POST requests", http.StatusMethodNotAllowed)
+	})
 	mux.HandleFunc("POST /agent-tools/{name}", toolAuth(func(w http.ResponseWriter, r *http.Request, t *hub.Thread) {
 		var args map[string]any
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, artifacts.MaxSize+(1<<20))).Decode(&args); err != nil {

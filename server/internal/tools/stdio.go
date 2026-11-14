@@ -59,6 +59,12 @@ func Serve(in io.Reader, out io.Writer) error {
 	}
 }
 
+// Handle answers one MCP request with the tools of the thread tok belongs to
+// (the server's own POST /mcp, for agents that take MCP over HTTP).
+func Handle(url, tok string, id json.RawMessage, method string, params json.RawMessage) map[string]any {
+	return (&relay{url: url, tok: tok, http: &http.Client{Timeout: 35 * time.Minute}}).handle(id, method, params)
+}
+
 type relay struct {
 	url, tok string
 	http     *http.Client

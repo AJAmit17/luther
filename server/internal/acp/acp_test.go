@@ -263,3 +263,32 @@ func TestOldModelField(t *testing.T) {
 		t.Fatal("no session/set_model")
 	}
 }
+
+// Compact: sent as /compact when the agent lists a compact command; refused otherwise.
+func TestCompactCommand(t *testing.T) {
+	paths.Home = t.TempDir()
+	agent, _ := Find(protocol.Provider("omp"))
+	toAgent, clientIn := io.Pipe()
+	defer toAgent.Close()
+	defer clientIn.Close()
+	s := &server{Conn: rpc.New("fake", clientIn, true), agent: agent, rts: map[string]*runtime{}}
+	got := make(chan string, 1)
+	go func() {
+		line, _ := bufio.NewReader(toAgent).ReadBytes('\n')
+		got <- string(line)
+	}()
+	_, rt := s.newThread("c1", paths.Home, protocol.ModeAsk)
+	if err := rt.Compact(); err == nil {
+		t.Fatal("compact without a compact command must be refused")
+	}
+	rt.onUpdate(json.RawMessage(`{"sessionId":"c1","update":{"sessionUpdate":"available_commands_update","availableCommands":[{"name":"compact"},{"name":"init"}]}}`))
+	go rt.Compact() // the fake peer never answers the prompt; the request is what matters
+	select {
+	case line := <-got:
+		if !strings.Contains(line, `"session/prompt"`) || !strings.Contains(line, `/compact`) {
+			t.Fatal(line)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no /compact prompt")
+	}
+}

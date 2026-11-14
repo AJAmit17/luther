@@ -136,6 +136,8 @@ type ToolServer struct {
 	Command string
 	Args    []string
 	Env     map[string]string
+	// URL and Token: the same tools over MCP's HTTP transport (POST URL, bearer Token).
+	URL, Token string
 }
 
 // Blocked: commands an unattended run never gets to run (Claude's deny rules).

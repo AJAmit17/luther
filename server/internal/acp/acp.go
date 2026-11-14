@@ -16,6 +16,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -35,7 +36,10 @@ import (
 
 type caps struct {
 	LoadSession bool `json:"loadSession"`
-	Prompt      struct {
+	MCP         struct {
+		HTTP bool `json:"http"`
+	} `json:"mcpCapabilities"`
+	Prompt struct {
 		Image bool `json:"image"`
 	} `json:"promptCapabilities"`
 	Session struct {
@@ -395,7 +399,7 @@ func Open(a Agent, r protocol.OpenReq) (*hub.Thread, error) {
 		return nil, err
 	}
 	mode := text.OrDefault(r.Mode, protocol.ModeAsk)
-	base := map[string]any{"cwd": r.Cwd, "mcpServers": mcpServers(r.Tools)}
+	base := map[string]any{"cwd": r.Cwd, "mcpServers": mcpServers(r.Tools, s.caps.MCP.HTTP)}
 	method := "session/new"
 	switch {
 	case r.Resume != "" && r.Fork:
@@ -451,10 +455,15 @@ func Open(a Agent, r protocol.OpenReq) (*hub.Thread, error) {
 	return t, nil
 }
 
-// mcpServers: Luther's tool server in ACP's form (stdio; env as a list).
-func mcpServers(ts *protocol.ToolServer) []any {
+// mcpServers: Luther's tool server in ACP's form: over HTTP when the agent
+// takes that (some only do), else a process it starts (stdio; env as a list).
+func mcpServers(ts *protocol.ToolServer, http bool) []any {
 	if ts == nil {
 		return []any{}
+	}
+	if http && ts.URL != "" {
+		return []any{map[string]any{"type": "http", "name": "luther", "url": ts.URL,
+			"headers": []map[string]string{{"name": "Authorization", "value": "Bearer " + ts.Token}}}}
 	}
 	env := []map[string]string{}
 	for k, v := range ts.Env {
@@ -849,6 +858,15 @@ func (c *runtime) run(prompt []map[string]any) {
 	if next != "" {
 		c.Send(next, nil)
 	}
+}
+
+// Compact: ACP has no compact call; an agent that lists a compact command
+// (available_commands_update) gets it as a message, like typing /compact.
+func (c *runtime) Compact() error {
+	if !slices.Contains(c.t.State().Commands, "compact") {
+		return fmt.Errorf("%s has no /compact command", c.s.agent.Name)
+	}
+	return c.Send("/compact", nil)
 }
 
 func (c *runtime) Interrupt() error {
