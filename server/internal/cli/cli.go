@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AJAmit17/luther/server/internal/acp"
 	"github.com/AJAmit17/luther/server/internal/config"
 	"github.com/AJAmit17/luther/server/internal/env"
 	"github.com/AJAmit17/luther/server/internal/paths"
@@ -342,7 +343,10 @@ func (c *CLI) Doctor() {
 	ok := c.view.check
 	c.view.message("Luther doctor", "CHECK means attention may be needed; install only the agents you use.")
 	env.LoginPath()
-	for _, bin := range append(agents, "tmux", "git", "gh", "tailscale", "cloudflared") {
+	if err := acp.LoadError(); err != nil {
+		ok(false, "agents.json", err.Error())
+	}
+	for _, bin := range append(agentBins(), "tmux", "git", "gh", "tailscale", "cloudflared") {
 		args := []string{"--version"}
 		if bin == "tmux" {
 			args = []string{"-V"}

@@ -1,11 +1,13 @@
 import { View } from 'react-native';
 import { Image } from 'expo-image';
 import { Chip, Icon, Segmented, Text, Tile, Press, Surface, space, useTheme, type IconName } from '@/design';
-import type { Mode, Provider } from '@/lib/protocol';
+import { api } from '@/lib/hosts';
+import type { Mode, Provider, ProviderInfo } from '@/lib/protocol';
 
 type Mark = { name: string; src: number; tint?: boolean };
 
-const AGENTS: Record<Provider, Mark> = {
+/** Logos for the agents we have one for; any other agent gets a generic mark. */
+const AGENTS: Record<string, Mark> = {
   claude: { name: 'Claude', src: require('../../assets/agents/claude.png') },
   codex: { name: 'Codex', src: require('../../assets/agents/codex.png'), tint: true },
   opencode: { name: 'OpenCode', src: require('../../assets/agents/opencode.png'), tint: true },
@@ -15,7 +17,16 @@ const AGENTS: Record<Provider, Mark> = {
   omp: { name: 'Oh My Pi', src: require('../../assets/agents/omp.png') },
 };
 
-export const agentName = (p: Provider) => AGENTS[p]?.name ?? p;
+/** Names as the Mac reports them (GET /providers), so agents added there show by name. */
+const names: Record<string, string> = {};
+
+export const loadProviders = () =>
+  api<ProviderInfo[]>('/providers').then((list) => {
+    for (const p of list) names[p.id] = p.name;
+    return list;
+  });
+
+export const agentName = (p: Provider) => AGENTS[p]?.name ?? names[p] ?? p.charAt(0).toUpperCase() + p.slice(1);
 
 export const MODES: { id: Mode; label: string; short: string; desc: string; icon: IconName }[] = [
   { id: 'ask', label: 'Ask First', short: 'Ask', desc: 'Approve edits and commands', icon: 'hand.raised' },

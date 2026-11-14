@@ -74,7 +74,7 @@ func toolAuth(h func(http.ResponseWriter, *http.Request, *hub.Thread)) http.Hand
 
 func agentIDs() []string {
 	ids := []string{string(protocol.Claude), string(protocol.Codex)}
-	for _, a := range acp.Agents {
+	for _, a := range acp.Agents() {
 		ids = append(ids, string(a.ID))
 	}
 	return ids

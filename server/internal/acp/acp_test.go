@@ -24,7 +24,7 @@ import (
 
 func TestDevinACP(t *testing.T) {
 	paths.Home = t.TempDir()
-	agent, ok := Find(protocol.Devin)
+	agent, ok := Find(protocol.Provider("devin"))
 	if !ok || agent.Bins[0] != "devin" || strings.Join(agent.Args, " ") != "acp" {
 		t.Fatal("Devin must use the released ACP entrypoint")
 	}
@@ -232,7 +232,7 @@ func TestKnobs(t *testing.T) {
 // is switched with session/set_model, and its current model shows.
 func TestOldModelField(t *testing.T) {
 	paths.Home = t.TempDir()
-	agent, _ := Find(protocol.Gemini)
+	agent, _ := Find(protocol.Provider("gemini"))
 	toAgent, clientIn := io.Pipe()
 	defer toAgent.Close()
 	defer clientIn.Close()
