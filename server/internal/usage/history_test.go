@@ -96,7 +96,7 @@ func TestHistoryRouteAndCorruptLedger(t *testing.T) {
 	}
 	os.MkdirAll(filepath.Dir(ledgerFile()), 0o700)
 	os.WriteFile(ledgerFile(), []byte("{broken"), 0o600)
-	if err := Record("id", protocol.Devin, "", time.Now(), protocol.Usage{}); err == nil {
+	if err := Record("id", protocol.Provider("devin"), "", time.Now(), protocol.Usage{}); err == nil {
 		t.Fatal("must not overwrite a corrupt store")
 	}
 	if report := History(7, time.Now()); !strings.Contains(strings.Join(report.Notes, " "), "could not be read") {
@@ -108,10 +108,10 @@ func TestReportedUsagePersistsWithoutDuplicates(t *testing.T) {
 	paths.Home = t.TempDir()
 	now := time.Now()
 	u := protocol.Usage{InputTokens: 12, OutputTokens: 7, CostUSD: 0.02}
-	if err := Record("devin/session/turn", protocol.Devin, "model", now, u); err != nil {
+	if err := Record("devin/session/turn", protocol.Provider("devin"), "model", now, u); err != nil {
 		t.Fatal(err)
 	}
-	if err := Record("devin/session/turn", protocol.Devin, "model", now, u); err != nil {
+	if err := Record("devin/session/turn", protocol.Provider("devin"), "model", now, u); err != nil {
 		t.Fatal(err)
 	}
 	report := History(7, now)

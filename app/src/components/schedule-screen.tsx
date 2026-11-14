@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { Chip, Field, Group, HeaderActions, Icon, ListItem, SectionHeader, Segmented, Text, TextInput, Toggle, alert, space, useTheme, MenuRow } from '@/design';
-import { AgentMark, MODES, agentName, modeOf } from '@/features/agents';
+import { AgentMark, MODES, agentName, modeOf, loadProviders } from '@/features/agents';
 import { ModelPicker, modelName, useModels } from '@/components/model-picker';
 import { api, post } from '@/lib/hosts';
 import { home, until } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
-import type { Job, Mode, Project, Provider, ProviderInfo } from '@/lib/protocol';
+import type { Job, Mode, Project, Provider } from '@/lib/protocol';
 import { DAYS, describe, fromCron, parseTime, toCron, type Preset } from '@/lib/cron';
 import { peek } from '@/lib/cache';
 
@@ -65,7 +65,7 @@ export default function ScheduleEditor() {
   const [day, setDay] = useState(start.day);
   const [custom, setCustom] = useState(existing?.cron ?? '0 9 * * 1-5');
   const [busy, setBusy] = useState(false);
-  const { data: providers } = useLoad(() => api<ProviderInfo[]>('/providers'), [], 'providers');
+  const { data: providers } = useLoad(loadProviders, [], 'providers');
   const { data: projects } = useLoad(() => api<Project[]>('/projects'), [], 'projects');
   const installed = (providers ?? []).filter((p) => p.installed);
   const agent = provider ?? installed[0]?.id ?? null;

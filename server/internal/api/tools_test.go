@@ -156,3 +156,52 @@ func snapshotMsgs(t *testing.T, th *hub.Thread) []protocol.Msg {
 	t.Helper()
 	return th.Messages()
 }
+
+// MCP over HTTP: the same tools and the same per-thread token, only from this Mac.
+func TestMCPOverHTTP(t *testing.T) {
+	paths.Home = t.TempDir()
+	proj := filepath.Join(paths.Home, "proj")
+	os.MkdirAll(proj, 0o755)
+	mux := http.NewServeMux()
+	toolRoutes(mux)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	_, _, tok := openFake(t, "mcp-1", proj, protocol.ModeAsk)
+
+	rpc := func(tok, body string, hdr ...string) (int, map[string]any) {
+		req, _ := http.NewRequest("POST", srv.URL+"/mcp", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+tok)
+		if len(hdr) == 2 {
+			req.Header.Set(hdr[0], hdr[1])
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		var out map[string]any
+		json.NewDecoder(res.Body).Decode(&out)
+		return res.StatusCode, out
+	}
+	if code, _ := rpc("wrong", `{"jsonrpc":"2.0","id":1,"method":"initialize"}`); code != http.StatusUnauthorized {
+		t.Fatalf("bad token: %d", code)
+	}
+	if code, _ := rpc(tok, `{"jsonrpc":"2.0","id":1,"method":"initialize"}`, "Cf-Ray", "x"); code != http.StatusUnauthorized {
+		t.Fatalf("through a tunnel: %d", code)
+	}
+	if code, out := rpc(tok, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`); code != 200 || !strings.Contains(jsonOf(out), `"luther"`) {
+		t.Fatalf("initialize: %d %v", code, out)
+	}
+	if code, _ := rpc(tok, `{"jsonrpc":"2.0","method":"notifications/initialized"}`); code != http.StatusAccepted {
+		t.Fatalf("notification: %d", code)
+	}
+	if _, out := rpc(tok, `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`); !strings.Contains(jsonOf(out), "show_artifact") {
+		t.Fatalf("tools/list: %v", out)
+	}
+	_, out := rpc(tok, `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"show_artifact","arguments":{"title":"Hi","html":"<p>hi</p>"}}}`)
+	if res, _ := out["result"].(map[string]any); res == nil || res["isError"] == true {
+		t.Fatalf("tools/call: %v", out)
+	}
+}
+
+func jsonOf(v any) string { b, _ := json.Marshal(v); return string(b) }

@@ -7,14 +7,24 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/AJAmit17/luther/server/internal/acp"
 	"github.com/AJAmit17/luther/server/internal/env"
 )
 
-// agents: the agent CLIs Luther can run.
-var agents = []string{"claude", "codex", "opencode", "gemini", "cursor-agent", "devin", "omp"}
+// agentBins: the agent CLIs Luther can run (Claude, Codex, every ACP agent, yours too).
+func agentBins() []string {
+	out := []string{"claude", "codex"}
+	for _, a := range acp.Agents() {
+		if !slices.Contains(out, a.Bins[0]) { // two entries can run one CLI
+			out = append(out, a.Bins[0])
+		}
+	}
+	return out
+}
 
 // Setup: from a fresh install to a pairing QR in one command. It finds your
 // agents, starts the server, makes sure the phone has a route (an existing one
@@ -25,7 +35,7 @@ func (c *CLI) Setup() error {
 	c.view.message("1. Agents", "")
 	env.LoginPath()
 	var found []string
-	for _, bin := range agents {
+	for _, bin := range agentBins() {
 		if _, err := exec.LookPath(bin); err == nil {
 			found = append(found, bin)
 		}

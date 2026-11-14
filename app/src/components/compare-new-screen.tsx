@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button, Field, Note, SectionHeader, Text, alert, space, useTheme, SheetFooter, SheetHeader } from '@/design';
-import { AgentPicker, ModePicker } from '@/features/agents';
-import { api, post } from '@/lib/hosts';
+import { AgentPicker, ModePicker, loadProviders } from '@/features/agents';
+import { post } from '@/lib/hosts';
 import { home } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
-import type { Compare, Mode, Provider, ProviderInfo } from '@/lib/protocol';
+import type { Compare, Mode, Provider } from '@/lib/protocol';
 
 const MAX = 5;
 
@@ -15,7 +15,7 @@ const MAX = 5;
 export default function NewCompare() {
   const { color } = useTheme();
   const { cwd } = useLocalSearchParams<{ cwd: string }>();
-  const { data: providers, error } = useLoad(() => api<ProviderInfo[]>('/providers'), [], 'providers');
+  const { data: providers, error } = useLoad(loadProviders, [], 'providers');
   const installed = (providers ?? []).filter((p) => p.installed);
   const [picked, setPicked] = useState<Provider[]>([]);
   const [prompt, setPrompt] = useState('');

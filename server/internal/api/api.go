@@ -266,7 +266,7 @@ func providerInfos() []protocol.ProviderInfo {
 		{ID: protocol.Claude, Name: "Claude Code", Installed: cok, Version: cv, Modes: modes},
 		{ID: protocol.Codex, Name: "Codex", Installed: xok, Version: xv, Modes: modes},
 	}
-	for _, a := range acp.Agents {
+	for _, a := range acp.Agents() {
 		v, ok := a.Version()
 		out = append(out, protocol.ProviderInfo{ID: a.ID, Name: a.Name, Installed: ok, Version: v, Modes: modes})
 	}

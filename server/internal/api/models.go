@@ -93,7 +93,7 @@ func warmModels() {
 	loadKept()
 	refresh(protocol.Claude, false)
 	refresh(protocol.Codex, false)
-	for _, a := range acp.Agents {
+	for _, a := range acp.Agents() {
 		if a.Bin() != "" {
 			refresh(a.ID, false)
 		}

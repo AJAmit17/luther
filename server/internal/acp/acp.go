@@ -1,5 +1,5 @@
-// Package acp: agents that speak the Agent Client Protocol (JSON-RPC over
-// stdio): OpenCode, Gemini CLI, Cursor. One shared process per agent hosts all
+// Package acp: every agent that speaks the Agent Client Protocol (JSON-RPC over
+// stdio), through one client; an agent is only data (agents.go). One shared process per agent hosts all
 // of its open threads; session/update notifications carry a sessionId and are
 // routed to that thread. Verified against OpenCode 1.18 (`opencode acp`):
 // initialize → agentCapabilities {loadSession, promptCapabilities.image,
@@ -16,6 +16,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -31,56 +32,14 @@ import (
 	"github.com/AJAmit17/luther/server/internal/usage"
 )
 
-// Agent: how to start one ACP agent. Bins are tried in order.
-type Agent struct {
-	ID   protocol.Provider
-	Name string
-	Bins []string
-	Args []string
-}
-
-var Agents = []Agent{
-	{protocol.OpenCode, "OpenCode", []string{"opencode"}, []string{"acp"}},
-	{protocol.Gemini, "Gemini CLI", []string{"gemini"}, []string{"--acp"}},
-	{protocol.Cursor, "Cursor", []string{"cursor-agent", "agent"}, []string{"acp"}},
-	{protocol.Devin, "Devin", []string{"devin"}, []string{"acp"}},
-	{protocol.OMP, "Oh My Pi", []string{"omp"}, []string{"acp"}},
-}
-
-func Find(p protocol.Provider) (Agent, bool) {
-	for _, a := range Agents {
-		if a.ID == p {
-			return a, true
-		}
-	}
-	return Agent{}, false
-}
-
-// Bin: the first of Bins on PATH, or "".
-func (a Agent) Bin() string {
-	for _, b := range a.Bins {
-		if p, err := exec.LookPath(b); err == nil {
-			return p
-		}
-	}
-	return ""
-}
-
-// Version: `<bin> --version`, and whether it ran.
-func (a Agent) Version() (string, bool) {
-	b := a.Bin()
-	if b == "" {
-		return "", false
-	}
-	out, err := exec.Command(b, "--version").Output()
-	return text.OneLine(string(out)), err == nil
-}
-
 // ---- the shared process ----
 
 type caps struct {
 	LoadSession bool `json:"loadSession"`
-	Prompt      struct {
+	MCP         struct {
+		HTTP bool `json:"http"`
+	} `json:"mcpCapabilities"`
+	Prompt struct {
 		Image bool `json:"image"`
 	} `json:"promptCapabilities"`
 	Session struct {
@@ -123,6 +82,12 @@ func srv(a Agent) (*server, error) {
 	}
 	cmd := exec.Command(bin, a.Args...)
 	cmd.Dir = paths.Home
+	if len(a.Env) > 0 {
+		cmd.Env = os.Environ()
+		for k, v := range a.Env {
+			cmd.Env = append(cmd.Env, k+"="+v)
+		}
+	}
 	cmd.Stderr = &env.LogTail{Prefix: string(a.ID) + ": "}
 	in, err := cmd.StdinPipe()
 	if err != nil {
@@ -189,7 +154,7 @@ func (s *server) dispatch(m rpc.Msg) {
 // them), cached for 30 s since listing starts the agent.
 func Sessions() []protocol.Session {
 	var out []protocol.Session
-	for _, a := range Agents {
+	for _, a := range Agents() {
 		if a.Bin() == "" {
 			continue
 		}
@@ -233,8 +198,8 @@ func (s *server) sessions() []protocol.Session {
 		for _, x := range r.Sessions {
 			when, _ := time.Parse(time.RFC3339Nano, x.UpdatedAt)
 			title := x.Title
-			if strings.HasPrefix(title, "New session - ") {
-				title = "" // OpenCode's placeholder
+			if strings.HasPrefix(title, "New session") {
+				title = "" // a placeholder, not a title
 			}
 			all = append(all, protocol.Session{Provider: s.agent.ID, ID: x.SessionID, Cwd: x.Cwd, Title: title, LastActive: when})
 		}
@@ -434,7 +399,7 @@ func Open(a Agent, r protocol.OpenReq) (*hub.Thread, error) {
 		return nil, err
 	}
 	mode := text.OrDefault(r.Mode, protocol.ModeAsk)
-	base := map[string]any{"cwd": r.Cwd, "mcpServers": mcpServers(r.Tools)}
+	base := map[string]any{"cwd": r.Cwd, "mcpServers": mcpServers(r.Tools, s.caps.MCP.HTTP)}
 	method := "session/new"
 	switch {
 	case r.Resume != "" && r.Fork:
@@ -490,10 +455,15 @@ func Open(a Agent, r protocol.OpenReq) (*hub.Thread, error) {
 	return t, nil
 }
 
-// mcpServers: Luther's tool server in ACP's form (stdio; env as a list).
-func mcpServers(ts *protocol.ToolServer) []any {
+// mcpServers: Luther's tool server in ACP's form: over HTTP when the agent
+// takes that (some only do), else a process it starts (stdio; env as a list).
+func mcpServers(ts *protocol.ToolServer, http bool) []any {
 	if ts == nil {
 		return []any{}
+	}
+	if http && ts.URL != "" {
+		return []any{map[string]any{"type": "http", "name": "luther", "url": ts.URL,
+			"headers": []map[string]string{{"name": "Authorization", "value": "Bearer " + ts.Token}}}}
 	}
 	env := []map[string]string{}
 	for k, v := range ts.Env {
@@ -890,6 +860,15 @@ func (c *runtime) run(prompt []map[string]any) {
 	}
 }
 
+// Compact: ACP has no compact call; an agent that lists a compact command
+// (available_commands_update) gets it as a message, like typing /compact.
+func (c *runtime) Compact() error {
+	if !slices.Contains(c.t.State().Commands, "compact") {
+		return fmt.Errorf("%s has no /compact command", c.s.agent.Name)
+	}
+	return c.Send("/compact", nil)
+}
+
 func (c *runtime) Interrupt() error {
 	c.mu.Lock()
 	busy := c.busy
@@ -931,11 +910,10 @@ func (c *runtime) applyMode(m string) error {
 		if o.Category != "mode" {
 			continue
 		}
-		want := def
-		if c.s.agent.ID == protocol.Devin {
-			want = map[string]string{protocol.ModeAsk: "ask", protocol.ModeEdits: "accept-edits", protocol.ModePlan: "plan", protocol.ModeFull: "bypass"}[m]
-		}
-		if m == protocol.ModePlan {
+		// The agent's own mode for m when its entry names one; else its default
+		// (Luther answers the permission requests by m).
+		want := text.OrDefault(c.s.agent.Modes[m], def)
+		if m == protocol.ModePlan && c.s.agent.Modes[m] == "" {
 			for _, x := range choices(o.Options) {
 				if strings.Contains(x.Value, "plan") {
 					want = x.Value

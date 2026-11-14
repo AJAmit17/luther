@@ -24,7 +24,7 @@ Luther connects your phone to the coding agents running on your own machine. Sta
 
 The Mac keeps the files and runs the agents. The phone is the controller. Reach the Mac through **Tailscale Funnel**, a **Cloudflare quick tunnel** (no account), your own **Cloudflare Tunnel** domain, or plain **Tailscale**; reach further machines through **SSH**.
 
-Agents: **Claude Code**, **Codex**, **Devin**, **OpenCode**, **Oh My Pi**, **Gemini CLI** and **Cursor**.
+Agents: **Claude Code**, **Codex**, and every agent that speaks ACP: **Devin**, **OpenCode**, **Oh My Pi**, **Gemini CLI**, **Cursor**, **GitHub Copilot**, **Kimi**, **Qwen Code**, **Droid**, **Grok** and **Amp** built in, and any other you add in one line of JSON.
 
 **Status:** pre-release. The server runs on macOS (primary) and Linux. The iPhone and Android apps are built from source and installed as native apps (signed Release build on iPhone, standalone APK on Android). There is no published App Store/TestFlight installation flow yet. Device/network end-to-end checks and release work are tracked in [the project plan](docs/PLAN.md).
 
@@ -212,9 +212,29 @@ This uses key-based SSH and forwards the remote server through this Mac. The rem
 | OpenCode | `opencode acp` | ACP capabilities determine models, modes, and session operations. |
 | Gemini CLI | `gemini --acp` | Requires a CLI version exposing the ACP interface. |
 | Cursor | `cursor-agent acp` or `agent acp` | Requires a compatible installed command. |
-| Oh My Pi | `omp acp` | Lists the models of every provider it is set up with (often hundreds; the app makes them searchable). |
+| Oh My Pi | `omp acp` | Lists the models of every provider it is set up with (often hundreds; the app makes them searchable). It never asks permission over ACP (its modes are default and plan), so Ask and Edits act like Full; Plan works. |
+| GitHub Copilot | `copilot --acp --stdio` | Uses `copilot login`. Asks before edits and commands (Allow once, Always allow, Deny). |
+| Kimi | `kimi acp` | |
+| Qwen Code | `qwen --acp` | |
+| Droid | `droid exec --output-format acp-daemon` | Auto-update is turned off while Luther runs it. |
+| Grok | `grok agent stdio` | |
+| Amp | `amp-acp` | The ACP adapter for Amp (`amp` must be installed and logged in). |
 
-ACP adapters share a protocol, not a guarantee of identical capabilities. Models and permissions depend on the agent. Model lists come from the agents themselves (Claude's `initialize`, Codex's `model/list`, ACP's `session/new`) and are cached in `~/.luther/models.json`. `luther doctor` shows which agents are installed. Devin handshake/session/model/mode behavior has been checked; fake-peer tests cover protocol flows. Live model turns and all providers' real permission paths are not universally verified. See the [end-to-end checklist](docs/PLAN.md#phase-10-end-to-end-tests).
+Every ACP agent goes through one client; an agent is only a command line. Commands come from the [ACP registry](https://github.com/agentclientprotocol/registry). To add another agent, or change how one starts, list it in `~/.luther/agents.json` (an entry with a built-in's id replaces it):
+
+```json
+[
+  { "id": "goose", "name": "goose", "command": ["goose"], "args": ["acp"] },
+  { "id": "gemini", "name": "Gemini (nightly)", "command": ["gemini-nightly"], "args": ["--acp"],
+    "env": { "SOME_VAR": "1" }, "modes": { "full": "yolo" } }
+]
+```
+
+Luther's agent tools (artifacts, starting and waiting on other threads) reach an agent as an MCP server: over HTTP when the agent says it takes that (Copilot only does), otherwise as a process it starts. **Compact** works for an agent that lists a `compact` command (Copilot and Oh My Pi do; Devin doesn't). Goals and commit messages work in any agent's thread, but the goal judge and the message writer run on Claude Code or Codex, so one of them must be installed.
+
+`modes` is optional: the agent's own mode to switch to for Luther's Ask, Edits, Plan or Full. Without it the agent stays in its default mode (Plan picks a mode with "plan" in its name), and Luther answers its permission requests by the Luther mode. `luther doctor` reports a bad file; the built-ins keep working.
+
+ACP adapters share a protocol, not a guarantee of identical capabilities. Models and permissions depend on the agent. Model lists come from the agents themselves (Claude's `initialize`, Codex's `model/list`, ACP's `session/new`) and are cached in `~/.luther/models.json`. `luther doctor` shows which agents are installed. Startup has been checked against installed OpenCode, Gemini CLI, Cursor, Devin, Oh My Pi and Copilot, and every feature through Luther's API against Devin, Oh My Pi and Copilot: turns, deny/allow, all modes, models, effort, fast, `/` commands, task list, photos, usage, turn diff/revert, interrupt, compact, goals, agent tools, close/list/resume/fork, plus templates, worktrees, compares, schedules, walkthroughs and agent-started threads; fake-peer tests cover protocol flows. Live model turns and all providers' real permission paths are not universally verified. See the [end-to-end checklist](docs/PLAN.md#phase-10-end-to-end-tests).
 
 ## Agent tools
 
