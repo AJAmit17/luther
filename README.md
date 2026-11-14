@@ -212,8 +212,8 @@ This uses key-based SSH and forwards the remote server through this Mac. The rem
 | OpenCode | `opencode acp` | ACP capabilities determine models, modes, and session operations. |
 | Gemini CLI | `gemini --acp` | Requires a CLI version exposing the ACP interface. |
 | Cursor | `cursor-agent acp` or `agent acp` | Requires a compatible installed command. |
-| Oh My Pi | `omp acp` | Lists the models of every provider it is set up with (often hundreds; the app makes them searchable). |
-| GitHub Copilot | `copilot --acp --stdio` | Uses `copilot login`. |
+| Oh My Pi | `omp acp` | Lists the models of every provider it is set up with (often hundreds; the app makes them searchable). It never asks permission over ACP (its modes are default and plan), so Ask and Edits act like Full; Plan works. |
+| GitHub Copilot | `copilot --acp --stdio` | Uses `copilot login`. Asks before edits and commands (Allow once, Always allow, Deny). |
 | Kimi | `kimi acp` | |
 | Qwen Code | `qwen --acp` | |
 | Droid | `droid exec --output-format acp-daemon` | Auto-update is turned off while Luther runs it. |
@@ -232,7 +232,7 @@ Every ACP agent goes through one client; an agent is only a command line. Comman
 
 `modes` is optional: the agent's own mode to switch to for Luther's Ask, Edits, Plan or Full. Without it the agent stays in its default mode (Plan picks a mode with "plan" in its name), and Luther answers its permission requests by the Luther mode. `luther doctor` reports a bad file; the built-ins keep working.
 
-ACP adapters share a protocol, not a guarantee of identical capabilities. Models and permissions depend on the agent. Model lists come from the agents themselves (Claude's `initialize`, Codex's `model/list`, ACP's `session/new`) and are cached in `~/.luther/models.json`. `luther doctor` shows which agents are installed. Startup (`initialize`) has been checked against installed OpenCode, Gemini CLI, Cursor, Devin, Oh My Pi and Copilot; Devin session/model/mode behavior too; fake-peer tests cover protocol flows. Live model turns and all providers' real permission paths are not universally verified. See the [end-to-end checklist](docs/PLAN.md#phase-10-end-to-end-tests).
+ACP adapters share a protocol, not a guarantee of identical capabilities. Models and permissions depend on the agent. Model lists come from the agents themselves (Claude's `initialize`, Codex's `model/list`, ACP's `session/new`) and are cached in `~/.luther/models.json`. `luther doctor` shows which agents are installed. Startup has been checked against installed OpenCode, Gemini CLI, Cursor, Devin, Oh My Pi and Copilot, and real turns through Luther's API (ask/deny/allow, plan, model switch, close, list, resume) against Devin, Oh My Pi and Copilot; fake-peer tests cover protocol flows. Live model turns and all providers' real permission paths are not universally verified. See the [end-to-end checklist](docs/PLAN.md#phase-10-end-to-end-tests).
 
 ## Agent tools
 

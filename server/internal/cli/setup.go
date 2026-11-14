@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,7 +19,9 @@ import (
 func agentBins() []string {
 	out := []string{"claude", "codex"}
 	for _, a := range acp.Agents() {
-		out = append(out, a.Bins[0])
+		if !slices.Contains(out, a.Bins[0]) { // two entries can run one CLI
+			out = append(out, a.Bins[0])
+		}
 	}
 	return out
 }
