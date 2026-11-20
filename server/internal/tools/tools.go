@@ -38,8 +38,9 @@ func ForThread(port int) (string, *protocol.ToolServer) {
 	if err != nil {
 		exe = "luther"
 	}
+	url := "http://127.0.0.1:" + strconv.Itoa(port)
 	return tok, &protocol.ToolServer{Command: exe, Args: []string{"mcp"},
-		Env: map[string]string{envURL: "http://127.0.0.1:" + strconv.Itoa(port), envToken: tok}}
+		Env: map[string]string{envURL: url, envToken: tok}, URL: url + "/mcp", Token: tok}
 }
 
 func Bind(tok, thread string) {

@@ -1,6 +1,7 @@
 // Mirror of server/protocol.go — the Go types are the source of truth. Change both together.
 
-export type Provider = 'claude' | 'codex' | 'opencode' | 'gemini' | 'cursor' | 'devin' | 'omp'; // all but the first two speak ACP
+/** 'claude', 'codex', or any ACP agent the Mac lists (built-in or from ~/.luther/agents.json). */
+export type Provider = string;
 export type Mode = 'ask' | 'edits' | 'plan' | 'full';
 
 /** A model as its agent lists it; `resolved` is the full ID an alias runs (Claude). */

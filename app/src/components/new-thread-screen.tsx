@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { Button, Field, Group, Icon, IconButton, ListItem, Note, SectionHeader, Toggle, space, useTheme, MenuRow, SheetFooter, SheetHeader, type MenuChoice } from '@/design';
-import { AgentPicker, ModePicker } from '@/features/agents';
+import { AgentPicker, ModePicker, loadProviders } from '@/features/agents';
 import { ModelPicker, modelName, useModels } from '@/components/model-picker';
 import { api } from '@/lib/hosts';
 import { home } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
-import type { Mode, Project, Provider, ProviderInfo, Repository, Template } from '@/lib/protocol';
+import type { Mode, Project, Provider, Repository, Template } from '@/lib/protocol';
 import { openThread } from '@/lib/threads';
 
 // New task from a project (/new) or "Send to Luther" (/send). A luther://send link only
@@ -17,7 +17,7 @@ function NewTask({ send }: { send?: boolean }) {
   const params = useLocalSearchParams<{ cwd?: string; text?: string; provider?: Provider }>();
   const [text, setText] = useState(params.text ?? '');
   const [chosen, setCwd] = useState('');
-  const { data: providers, error } = useLoad(() => api<ProviderInfo[]>('/providers'), [], 'providers');
+  const { data: providers, error } = useLoad(loadProviders, [], 'providers');
   const { data: projects, error: projectsError } = useLoad(() => (send ? api<Project[]>('/projects') : Promise.resolve<Project[]>([])), [send], 'projects');
   const installed = (providers ?? []).filter((p) => p.installed);
   const linked = send ? projects?.find((x) => x.cwd === params.cwd)?.cwd : params.cwd;
